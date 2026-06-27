@@ -245,8 +245,8 @@ enum Tier {
 enum PaymentProvider {
   upi_manual
   instamojo
-  phonepe
   razorpay
+  // phonepe — V2 only
 }
 
 enum OrderStatus {
@@ -271,27 +271,42 @@ enum DiscountType {
 }
 
 model Tenant {
-  id               String          @id @default(uuid()) @db.Uuid
-  ownerId          String          @db.Uuid @map("owner_id")
-  slug             String          @unique
-  name             String
-  tier             Tier            @default(trial)
-  trialEndsAt      DateTime?       @map("trial_ends_at") @db.Timestamptz
-  brandColor       String?         @map("brand_color")
-  logoUrl          String?         @map("logo_url")
-  whatsappNumber   String?         @map("whatsapp_number")
-  paymentProvider  PaymentProvider @default(upi_manual) @map("payment_provider")
-  paymentConfig    Json?           @map("payment_config")
-  storeType        String?         @map("store_type")
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  id                    String          @id @default(uuid()) @db.Uuid
+  ownerId               String          @db.Uuid @map("owner_id")
+  slug                  String          @unique
+  name                  String
+  tagline               String?
+  tier                  Tier            @default(trial)
+  trialEndsAt           DateTime?       @map("trial_ends_at") @db.Timestamptz
+  brandColor            String?         @map("brand_color")
+  logoUrl               String?         @map("logo_url")
+  whatsappNumber        String?         @map("whatsapp_number")
+  contactPhone          String?         @map("contact_phone")
+  contactEmail          String?         @map("contact_email")
+  showWhatsappButton    Boolean         @default(true) @map("show_whatsapp_button")
+  notifyEmailOnOrder    Boolean         @default(true) @map("notify_email_on_order")
+  paymentProvider       PaymentProvider @default(upi_manual) @map("payment_provider")
+  paymentConfig         Json?           @map("payment_config")
+  storeType             String?         @map("store_type")
+  freeDeliveryAbove     Decimal?        @db.Decimal(10, 2) @map("free_delivery_above")
+  shippingFee           Decimal         @default(0) @db.Decimal(10, 2) @map("shipping_fee")
+  deliveryEstimateText  String?         @map("delivery_estimate_text")
+  returnWindowDays      Int?            @map("return_window_days")
+  trustBadgeText        String?         @map("trust_badge_text")
+  sizeGuideUrl          String?         @map("size_guide_url")
+  deletedAt             DateTime?       @map("deleted_at") @db.Timestamptz
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz
 
-  products         Product[]
-  customers        Customer[]
-  orders           Order[]
-  orderItems       OrderItem[]
-  wishlists        Wishlist[]
-  discountCodes    DiscountCode[]
-  categories       ProductCategory[]
+  products              Product[]
+  customers             Customer[]
+  orders                Order[]
+  orderItems            OrderItem[]
+  wishlists             Wishlist[]
+  discountCodes         DiscountCode[]
+  categories            ProductCategory[]
+  about                 StoreAbout?
+  branches              StoreBranch[]
+  reviews               ProductReview[]
 
   @@map("tenants")
 }
@@ -315,6 +330,7 @@ model Product {
   category     ProductCategory? @relation(fields: [categoryId], references: [id])
   orderItems   OrderItem[]
   wishlists    Wishlist[]
+  reviews      ProductReview[]
 
   @@unique([tenantId, slug])
   @@map("products")
@@ -346,6 +362,7 @@ model Customer {
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   orders    Order[]
   wishlists Wishlist[]
+  reviews   ProductReview[]
 
   @@map("customers")
 }
@@ -417,6 +434,74 @@ model DiscountCode {
 
   @@unique([tenantId, code])
   @@map("discount_codes")
+}
+
+model StoreAbout {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @unique @db.Uuid @map("tenant_id")
+  storyTitle       String?  @map("story_title")
+  description      String?
+  ownerPhotoUrl    String?  @map("owner_photo_url")
+  instagramUrl     String?  @map("instagram_url")
+  facebookUrl      String?  @map("facebook_url")
+  youtubeUrl       String?  @map("youtube_url")
+  googleBusinessUrl String? @map("google_business_url")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("store_about")
+}
+
+model StoreBranch {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid @map("tenant_id")
+  name      String
+  address   String?
+  city      String?
+  phone     String?
+  mapsUrl   String?  @map("maps_url")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("store_branches")
+}
+
+model ProductReview {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @db.Uuid @map("tenant_id")
+  productId          String    @db.Uuid @map("product_id")
+  customerId         String    @db.Uuid @map("customer_id")
+  rating             Int
+  comment            String?
+  isVerifiedPurchase Boolean   @default(false) @map("is_verified_purchase")
+  isDeleted          Boolean   @default(false) @map("is_deleted")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  product            Product   @relation(fields: [productId], references: [id])
+  customer           Customer  @relation(fields: [customerId], references: [id])
+  reports            ReviewReport[]
+
+  @@unique([tenantId, productId, customerId])
+  @@map("product_reviews")
+}
+
+model ReviewReport {
+  id         String        @id @default(uuid()) @db.Uuid
+  tenantId   String        @db.Uuid @map("tenant_id")
+  reviewId   String        @db.Uuid @map("review_id")
+  reporterId String        @db.Uuid @map("reporter_id")
+  reason     String        // 'spam' | 'inappropriate' | 'fake' | 'other'
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  review     ProductReview @relation(fields: [reviewId], references: [id])
+
+  @@unique([tenantId, reviewId, reporterId])
+  @@map("review_reports")
 }
 ```
 
@@ -527,16 +612,36 @@ ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE discount_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_about ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE review_reports ENABLE ROW LEVEL SECURITY;
 
--- Tenant isolation policy (repeat for all tables that have tenant_id)
+-- Tenant isolation policy (all tables with tenant_id)
 CREATE POLICY "tenant_isolation" ON product_categories
   USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
 CREATE POLICY "tenant_isolation" ON products
   USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON customers
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON orders
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON order_items
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON wishlists
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON discount_codes
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON store_about
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON store_branches
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON product_reviews
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+CREATE POLICY "tenant_isolation" ON review_reports
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
 
--- Repeat for: customers, orders, order_items, wishlists, discount_codes
--- (tenants table uses a different policy — owners can only see their own tenant)
+-- tenants table — owner sees only their own store
 CREATE POLICY "owner_isolation" ON tenants
   USING (id = current_setting('app.tenant_id')::uuid);
 ```

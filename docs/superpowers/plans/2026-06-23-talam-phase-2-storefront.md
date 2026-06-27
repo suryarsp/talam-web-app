@@ -104,17 +104,40 @@ import { withTenant } from '@/lib/prisma'
 export type TenantStorefront = {
   id: string
   name: string
+  tagline: string | null
   brandColor: string | null
   logoUrl: string | null
   whatsappNumber: string | null
+  showWhatsappButton: boolean
   tier: string
+  freeDeliveryAbove: number | null
+  shippingFee: number
+  deliveryEstimateText: string | null
+  returnWindowDays: number | null
+  trustBadgeText: string | null
+  sizeGuideUrl: string | null
 }
 
 export async function getTenantStorefront(tenantId: string): Promise<TenantStorefront | null> {
   return withTenant(tenantId, (db) =>
     db.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, name: true, brandColor: true, logoUrl: true, whatsappNumber: true, tier: true },
+      select: {
+        id: true,
+        name: true,
+        tagline: true,
+        brandColor: true,
+        logoUrl: true,
+        whatsappNumber: true,
+        showWhatsappButton: true,
+        tier: true,
+        freeDeliveryAbove: true,
+        shippingFee: true,
+        deliveryEstimateText: true,
+        returnWindowDays: true,
+        trustBadgeText: true,
+        sizeGuideUrl: true,
+      },
     })
   )
 }
@@ -954,6 +977,267 @@ export default async function CategoryPage({ params }: Props) {
 ```bash
 git add app/store/shop/
 git commit -m "feat: add /shop/[categorySlug] ISR pages for SEO-indexable category URLs"
+```
+
+---
+
+---
+
+### Task 3.6: `/about` Storefront Page (ISR)
+
+**Files:**
+- Create: `app/store/about/page.tsx`
+
+**Interfaces:**
+- Consumes: `getTenantStorefront(tenantId)`, `withTenant` (store_about + store_branches)
+- Produces: ISR `/about` page — owner story, social links, trust stats, branch locations
+
+- [ ] **Step 1: Create about page**
+
+Create `app/store/about/page.tsx`:
+```typescript
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
+import { getTenantStorefront } from '@/lib/data/tenant'
+import { withTenant } from '@/lib/prisma'
+import { MapPin, Phone, Instagram, Facebook, Youtube } from 'lucide-react'
+
+export const revalidate = 3600 // 1 hour ISR, on-demand on admin save
+
+export default async function AboutPage() {
+  const headersList = await headers()
+  const tenantId = headersList.get('x-tenant-id')
+  if (!tenantId) notFound()
+
+  const [tenant, about, branches] = await Promise.all([
+    getTenantStorefront(tenantId),
+    withTenant(tenantId, (db) => db.storeAbout.findUnique({ where: { tenantId } })),
+    withTenant(tenantId, (db) =>
+      db.storeBranch.findMany({ where: { tenantId }, orderBy: { sortOrder: 'asc' } })
+    ),
+  ])
+
+  if (!tenant) notFound()
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+      {/* Owner story */}
+      {about && (
+        <section className="space-y-4">
+          <h1 className="text-2xl font-semibold">{about.storyTitle ?? `About ${tenant.name}`}</h1>
+          {about.ownerPhotoUrl && (
+            <div className="relative w-32 h-32 rounded-full overflow-hidden">
+              <Image src={about.ownerPhotoUrl} alt="Owner" fill className="object-cover" />
+            </div>
+          )}
+          {about.description && (
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{about.description}</p>
+          )}
+        </section>
+      )}
+
+      {/* Social links */}
+      {about && (about.instagramUrl || about.facebookUrl || about.youtubeUrl || about.googleBusinessUrl) && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Find us online</h2>
+          <div className="flex flex-wrap gap-3">
+            {about.instagramUrl && (
+              <Link href={about.instagramUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 hover:bg-muted transition-colors">
+                <Instagram className="h-4 w-4" /> Instagram
+              </Link>
+            )}
+            {about.facebookUrl && (
+              <Link href={about.facebookUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 hover:bg-muted transition-colors">
+                <Facebook className="h-4 w-4" /> Facebook
+              </Link>
+            )}
+            {about.youtubeUrl && (
+              <Link href={about.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 hover:bg-muted transition-colors">
+                <Youtube className="h-4 w-4" /> YouTube
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Branch locations */}
+      {branches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Visit us</h2>
+          <div className="space-y-3">
+            {branches.map((branch) => (
+              <div key={branch.id} className="border rounded-lg p-4 space-y-1">
+                <p className="font-medium text-sm">{branch.name}</p>
+                {branch.address && <p className="text-sm text-muted-foreground">{branch.address}{branch.city ? `, ${branch.city}` : ''}</p>}
+                <div className="flex items-center gap-4 mt-2">
+                  {branch.phone && (
+                    <Link href={`tel:${branch.phone}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                      <Phone className="h-3 w-3" />{branch.phone}
+                    </Link>
+                  )}
+                  {branch.mapsUrl && (
+                    <Link href={branch.mapsUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline">
+                      <MapPin className="h-3 w-3" />Get directions
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+  )
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add app/store/about/
+git commit -m "feat: add /about storefront page with owner story, social links, and branch locations"
+```
+
+---
+
+### Task 4.5: Product Reviews on Product Detail Page
+
+**Files:**
+- Create: `lib/data/reviews.ts`
+- Modify: `app/store/product/[slug]/page.tsx` (add reviews section below description)
+- Create: `components/store/review-form.tsx`
+- Create: `app/store/product/[slug]/actions.ts`
+
+**Interfaces:**
+- Produces: `getProductReviews(tenantId, productId)` → reviews with rating + verified badge
+- Produces: `submitReview(productId, rating, comment)` Server Action (requires auth + verified purchase check)
+- Produces: `reportReview(reviewId, reason)` Server Action
+
+- [ ] **Step 1: Create reviews data layer**
+
+Create `lib/data/reviews.ts`:
+```typescript
+import { withTenant } from '@/lib/prisma'
+
+export async function getProductReviews(tenantId: string, productId: string) {
+  return withTenant(tenantId, (db) =>
+    db.productReview.findMany({
+      where: { tenantId, productId, isDeleted: false },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        isVerifiedPurchase: true,
+        createdAt: true,
+        customer: { select: { name: true } },
+      },
+    })
+  )
+}
+
+export async function getAverageRating(tenantId: string, productId: string) {
+  return withTenant(tenantId, (db) =>
+    db.productReview.aggregate({
+      where: { tenantId, productId, isDeleted: false },
+      _avg: { rating: true },
+      _count: true,
+    })
+  )
+}
+```
+
+- [ ] **Step 2: Create submit + report actions**
+
+Create `app/store/product/[slug]/actions.ts`:
+```typescript
+'use server'
+
+import { requireAuth, requireTenant } from '@/lib/auth-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function submitReview(productId: string, rating: number, comment: string) {
+  const user = await requireAuth()
+  const { tenantId } = await requireTenant()
+
+  // Check verified purchase
+  const hasPurchased = await withTenant(tenantId, (db) =>
+    db.orderItem.findFirst({
+      where: { productId, tenantId, order: { customerId: user.id, paymentStatus: 'paid' } },
+    })
+  )
+
+  await withTenant(tenantId, (db) =>
+    db.productReview.upsert({
+      where: { tenantId_productId_customerId: { tenantId, productId, customerId: user.id } },
+      create: {
+        tenantId,
+        productId,
+        customerId: user.id,
+        rating,
+        comment: comment || null,
+        isVerifiedPurchase: !!hasPurchased,
+      },
+      update: { rating, comment: comment || null },
+    })
+  )
+
+  revalidatePath(`/product/${productId}`)
+}
+
+export async function reportReview(reviewId: string, reason: string) {
+  const user = await requireAuth()
+  const { tenantId } = await requireTenant()
+
+  await withTenant(tenantId, (db) =>
+    db.reviewReport.upsert({
+      where: { tenantId_reviewId_reporterId: { tenantId, reviewId, reporterId: user.id } },
+      create: { tenantId, reviewId, reporterId: user.id, reason },
+      update: { reason },
+    })
+  )
+}
+```
+
+- [ ] **Step 3: Add reviews section to product detail page**
+
+Modify `app/store/product/[slug]/page.tsx` — add after the description block and import the data functions:
+
+```typescript
+// Add imports
+import { getProductReviews, getAverageRating } from '@/lib/data/reviews'
+import { ReviewsSection } from '@/components/store/reviews-section'
+
+// In the page component, alongside getProductBySlug:
+const [product, reviews, ratingData] = await Promise.all([
+  getProductBySlug(tenantId, slug),
+  getProductReviews(tenantId, productId), // productId resolved after product fetch
+  getAverageRating(tenantId, productId),
+])
+
+// Add below description in JSX:
+<ReviewsSection
+  reviews={reviews}
+  avgRating={ratingData._avg.rating ?? 0}
+  count={ratingData._count}
+  productId={product.id}
+/>
+```
+
+Create `components/store/reviews-section.tsx` (client component: star display, review list with verified badge, submit-review form for authenticated users, report button per review).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add lib/data/reviews.ts app/store/product/ components/store/reviews-section.tsx
+git commit -m "feat: add product reviews with verified purchase badge, submit form, and report action"
 ```
 
 ---

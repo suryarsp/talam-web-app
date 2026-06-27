@@ -132,57 +132,75 @@ import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
-const NAV = [
+// Bottom nav: 4 items per spec §1 changelog. Secondary pages (categories, customers,
+// promotions, payouts, about, reviews) are accessed via Settings hub sub-navigation.
+const BOTTOM_NAV = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
-  { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
-  { href: '/admin/customers', label: 'Customers', icon: Users },
-  { href: '/admin/promotions', label: 'Promotions', icon: Tag },
-  { href: '/admin/payouts', label: 'Payouts', icon: DollarSign },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
+]
+
+// Desktop sidebar shows expanded nav including Settings sub-items
+const SIDEBAR_NAV = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/admin/settings/store', label: 'Store Details', icon: Settings, indent: true },
+  { href: '/admin/settings/brand', label: 'Brand', icon: Settings, indent: true },
+  { href: '/admin/settings/payment', label: 'Payment', icon: DollarSign, indent: true },
+  { href: '/admin/about', label: 'About Page', icon: Users, indent: true },
+  { href: '/admin/categories', label: 'Categories', icon: Tag, indent: true },
+  { href: '/admin/customers', label: 'Customers', icon: Users, indent: true },
+  { href: '/admin/promotions', label: 'Promotions', icon: Tag, indent: true },
+  { href: '/admin/reviews', label: 'Reviews', icon: Tag, indent: true },
+  { href: '/admin/billing', label: 'Billing', icon: DollarSign, indent: true },
 ]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireOwner()
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar — hidden on mobile, shown md+ */}
-      <aside className="hidden md:flex w-56 border-r flex-col py-6 px-3 gap-1 bg-background shrink-0">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">Admin</p>
-        {NAV.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors',
-              'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </Link>
-        ))}
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
-        {/* Mobile top bar */}
-        <div className="md:hidden flex items-center gap-3 border-b px-4 py-3 overflow-x-auto">
-          {NAV.map(({ href, label, icon: Icon }) => (
+    <div className="min-h-screen flex flex-col">
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex flex-1">
+        <aside className="w-56 border-r flex flex-col py-6 px-3 gap-1 bg-background shrink-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">Admin</p>
+          {SIDEBAR_NAV.map(({ href, label, icon: Icon, indent }) => (
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center gap-0.5 text-xs text-muted-foreground shrink-0"
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors',
+                'text-muted-foreground hover:text-foreground',
+                indent && 'pl-7 text-xs'
+              )}
             >
               <Icon className="h-4 w-4" />
               {label}
             </Link>
           ))}
-        </div>
-        <div className="p-4 md:p-6">{children}</div>
+        </aside>
+        <main className="flex-1 overflow-auto p-6">{children}</main>
+      </div>
+
+      {/* Mobile: content + bottom nav */}
+      <main className="md:hidden flex-1 overflow-auto pb-16">
+        <div className="p-4">{children}</div>
       </main>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 h-16 bg-background border-t flex items-center justify-around px-2 z-50">
+        {BOTTOM_NAV.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex flex-col items-center gap-0.5 text-xs text-muted-foreground min-w-[44px] py-1"
+          >
+            <Icon className="h-5 w-5" />
+            {label}
+          </Link>
+        ))}
+      </nav>
     </div>
   )
 }
@@ -1250,12 +1268,10 @@ git commit -m "feat: add admin orders list and detail with status update and tra
 
 ---
 
-### Task 5: Customers List & Settings
+### Task 5: Customers List
 
 **Files:**
 - Create: `app/store/admin/customers/page.tsx`
-- Create: `app/store/admin/settings/page.tsx`
-- Create: `app/store/admin/settings/actions.ts`
 
 - [ ] **Step 1: Create customers page**
 
@@ -1301,131 +1317,483 @@ export default async function AdminCustomersPage() {
 }
 ```
 
-- [ ] **Step 2: Create settings action**
+- [ ] **Step 2: Commit**
 
-Create `app/store/admin/settings/actions.ts`:
-```typescript
-'use server'
-
-import { requireOwner } from '@/lib/admin-guard'
-import { withTenant } from '@/lib/prisma'
-import { revalidatePath } from 'next/cache'
-
-type SettingsInput = {
-  name: string
-  brandColor: string
-  logoUrl: string
-  whatsappNumber: string
-}
-
-export async function updateSettings(input: SettingsInput) {
-  const { tenantId } = await requireOwner()
-
-  await withTenant(tenantId, (db) =>
-    db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        name: input.name,
-        brandColor: input.brandColor || null,
-        logoUrl: input.logoUrl || null,
-        whatsappNumber: input.whatsappNumber || null,
-      },
-    })
-  )
-
-  revalidatePath('/store')
-}
+```bash
+git add app/store/admin/customers/
+git commit -m "feat: add admin customers list"
 ```
 
-- [ ] **Step 3: Create settings page**
+---
+
+### Task 5.5: Settings Hub + Sub-Pages
+
+> Per spec §3.2 and §1 changelog: Settings is a hub page linking to 13 sub-routes. All secondary admin features are accessed through Settings, keeping the bottom nav to 4 items.
+
+**Files:**
+- Create: `app/store/admin/settings/page.tsx` (hub)
+- Create: `app/store/admin/settings/store/page.tsx` + `actions.ts`
+- Create: `app/store/admin/settings/brand/page.tsx` + `actions.ts`
+- Create: `app/store/admin/settings/payment/page.tsx` + `actions.ts`
+- Create: `app/store/admin/settings/whatsapp/page.tsx` + `actions.ts`
+- Create: `app/store/admin/settings/delivery/page.tsx` + `actions.ts`
+- Create: `app/store/admin/settings/notifications/page.tsx` + `actions.ts`
+
+- [ ] **Step 1: Create Settings hub page**
 
 Create `app/store/admin/settings/page.tsx`:
 ```typescript
 import { requireOwner } from '@/lib/admin-guard'
-import { withTenant } from '@/lib/prisma'
-import { SettingsForm } from './settings-form'
+import Link from 'next/link'
+import { ChevronRight, Store, Palette, CreditCard, MessageCircle, Truck, Bell, BookOpen, Star, Tag, Users, DollarSign, CreditCard as BillingIcon, AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminSettingsPage() {
-  const { tenantId } = await requireOwner()
+const SETTINGS_SECTIONS = [
+  {
+    title: 'Store',
+    items: [
+      { href: '/admin/settings/store', label: 'Store Details', desc: 'Name, tagline, contact info', icon: Store },
+      { href: '/admin/settings/brand', label: 'Brand', desc: 'Logo and primary color', icon: Palette },
+      { href: '/admin/settings/payment', label: 'Payment', desc: 'Gateway configuration', icon: CreditCard },
+      { href: '/admin/settings/whatsapp', label: 'WhatsApp', desc: 'Button visibility and number', icon: MessageCircle },
+      { href: '/admin/settings/delivery', label: 'Delivery & Trust', desc: 'Shipping, returns, trust badges', icon: Truck },
+      { href: '/admin/settings/notifications', label: 'Notifications', desc: 'Email and order alerts', icon: Bell },
+    ],
+  },
+  {
+    title: 'Content',
+    items: [
+      { href: '/admin/about', label: 'About Page', desc: 'Store story, social links, branches', icon: BookOpen },
+      { href: '/admin/reviews', label: 'Reviews', desc: 'Moderate product reviews', icon: Star },
+      { href: '/admin/categories', label: 'Categories', desc: 'Product categories', icon: Tag },
+    ],
+  },
+  {
+    title: 'Business',
+    items: [
+      { href: '/admin/customers', label: 'Customers', desc: 'Customer list and contacts', icon: Users },
+      { href: '/admin/promotions', label: 'Promotions', desc: 'Discount codes and sale banners', icon: Tag },
+      { href: '/admin/payouts', label: 'Payouts', desc: 'Settlement history', icon: DollarSign },
+      { href: '/admin/billing', label: 'Billing', desc: 'Subscription plan and payment history', icon: BillingIcon },
+    ],
+  },
+  {
+    title: 'Danger Zone',
+    items: [
+      { href: '/admin/settings/danger', label: 'Delete Store', desc: 'Permanently remove your store', icon: AlertTriangle },
+    ],
+  },
+]
 
-  const tenant = await withTenant(tenantId, (db) =>
-    db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { name: true, brandColor: true, logoUrl: true, whatsappNumber: true },
-    })
-  )
+export default async function AdminSettingsPage() {
+  await requireOwner()
 
   return (
-    <div className="space-y-4 max-w-lg">
+    <div className="space-y-6 max-w-lg">
       <h1 className="text-2xl font-semibold">Settings</h1>
-      <SettingsForm tenant={tenant} />
+      {SETTINGS_SECTIONS.map((section) => (
+        <div key={section.title}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{section.title}</p>
+          <div className="border rounded-lg divide-y overflow-hidden">
+            {section.items.map(({ href, label, desc, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
+              >
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="text-xs text-muted-foreground">{desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 ```
 
-Create `app/store/admin/settings/settings-form.tsx`:
+- [ ] **Step 2: Create Store Details sub-page**
+
+Create `app/store/admin/settings/store/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function updateStoreDetails(input: { name: string; tagline: string; contactPhone: string; contactEmail: string }) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({
+      where: { id: tenantId },
+      data: {
+        name: input.name,
+        tagline: input.tagline || null,
+        contactPhone: input.contactPhone || null,
+        contactEmail: input.contactEmail || null,
+      },
+    })
+  )
+  revalidatePath('/store')
+  revalidatePath('/store/about')
+}
+```
+
+Create `app/store/admin/settings/store/page.tsx`:
+```typescript
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { StoreDetailsForm } from './store-details-form'
+export const dynamic = 'force-dynamic'
+
+export default async function StoreDetailsPage() {
+  const { tenantId } = await requireOwner()
+  const tenant = await withTenant(tenantId, (db) =>
+    db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true, tagline: true, contactPhone: true, contactEmail: true },
+    })
+  )
+  return (
+    <div className="space-y-4 max-w-lg">
+      <h1 className="text-xl font-semibold">Store Details</h1>
+      <StoreDetailsForm tenant={tenant} />
+    </div>
+  )
+}
+```
+
+Create `app/store/admin/settings/store/store-details-form.tsx`:
 ```typescript
 'use client'
-
 import { useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { updateSettings } from './actions'
+import { updateStoreDetails } from './actions'
 
-type FormValues = { name: string; brandColor: string; logoUrl: string; whatsappNumber: string }
-type Props = { tenant: Partial<FormValues> | null }
+type FormValues = { name: string; tagline: string; contactPhone: string; contactEmail: string }
 
-export function SettingsForm({ tenant }: Props) {
+export function StoreDetailsForm({ tenant }: { tenant: Partial<FormValues> | null }) {
   const [isPending, startTransition] = useTransition()
-  const { register, handleSubmit } = useForm<FormValues>({
-    defaultValues: {
-      name: tenant?.name ?? '',
-      brandColor: tenant?.brandColor ?? '#6366f1',
-      logoUrl: tenant?.logoUrl ?? '',
-      whatsappNumber: tenant?.whatsappNumber ?? '',
-    },
-  })
-
-  function onSubmit(data: FormValues) {
-    startTransition(() => updateSettings(data))
-  }
-
+  const { register, handleSubmit } = useForm<FormValues>({ defaultValues: { name: tenant?.name ?? '', tagline: tenant?.tagline ?? '', contactPhone: tenant?.contactPhone ?? '', contactEmail: tenant?.contactEmail ?? '' } })
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-1">
-        <Label>Store Name</Label>
-        <Input {...register('name', { required: true })} />
-      </div>
-      <div className="space-y-1">
-        <Label>Brand Color</Label>
-        <Input type="color" {...register('brandColor')} className="h-10 w-20 p-1" />
-      </div>
-      <div className="space-y-1">
-        <Label>Logo URL</Label>
-        <Input {...register('logoUrl')} placeholder="https://res.cloudinary.com/..." />
-      </div>
-      <div className="space-y-1">
-        <Label>WhatsApp Number</Label>
-        <Input {...register('whatsappNumber')} placeholder="919876543210" inputMode="tel" />
-      </div>
-      <Button type="submit" disabled={isPending}>
-        {isPending ? 'Saving…' : 'Save Settings'}
-      </Button>
+    <form onSubmit={handleSubmit((d) => startTransition(() => updateStoreDetails(d)))} className="space-y-4">
+      <div className="space-y-1"><Label>Store Name</Label><Input {...register('name', { required: true })} /></div>
+      <div className="space-y-1"><Label>Tagline</Label><Input {...register('tagline')} placeholder="Handpicked Indian Fashion…" /></div>
+      <div className="space-y-1"><Label>Contact Phone</Label><Input {...register('contactPhone')} inputMode="tel" /></div>
+      <div className="space-y-1"><Label>Contact Email</Label><Input {...register('contactEmail')} type="email" /></div>
+      <Button type="submit" disabled={isPending}>{isPending ? 'Saving…' : 'Save'}</Button>
     </form>
   )
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Create Brand sub-page**
+
+Create `app/store/admin/settings/brand/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function updateBrand(input: { brandColor: string; logoUrl: string }) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({ where: { id: tenantId }, data: { brandColor: input.brandColor || null, logoUrl: input.logoUrl || null } })
+  )
+  revalidatePath('/store')
+}
+```
+
+Create `app/store/admin/settings/brand/page.tsx` (similar pattern to store details — form with brandColor color picker and logoUrl input, calls `updateBrand`).
+
+- [ ] **Step 4: Create Delivery & Trust sub-page**
+
+Create `app/store/admin/settings/delivery/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function updateDelivery(input: {
+  freeDeliveryAbove: string
+  shippingFee: string
+  deliveryEstimateText: string
+  returnWindowDays: string
+  trustBadgeText: string
+  sizeGuideUrl: string
+}) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({
+      where: { id: tenantId },
+      data: {
+        freeDeliveryAbove: input.freeDeliveryAbove ? Number(input.freeDeliveryAbove) : null,
+        shippingFee: Number(input.shippingFee) || 0,
+        deliveryEstimateText: input.deliveryEstimateText || null,
+        returnWindowDays: input.returnWindowDays ? Number(input.returnWindowDays) : null,
+        trustBadgeText: input.trustBadgeText || null,
+        sizeGuideUrl: input.sizeGuideUrl || null,
+      },
+    })
+  )
+  revalidatePath('/store/product/[slug]', 'page')
+}
+```
+
+Create `app/store/admin/settings/delivery/page.tsx` (form with free delivery threshold, shipping fee, delivery estimate text, return window, trust badge text, size guide upload, calls `updateDelivery`).
+
+- [ ] **Step 5: Create WhatsApp sub-page**
+
+Create `app/store/admin/settings/whatsapp/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function updateWhatsApp(input: { whatsappNumber: string; showWhatsappButton: boolean }) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({ where: { id: tenantId }, data: { whatsappNumber: input.whatsappNumber || null, showWhatsappButton: input.showWhatsappButton } })
+  )
+  revalidatePath('/store')
+}
+```
+
+Create `app/store/admin/settings/whatsapp/page.tsx` (form with phone number input and show/hide toggle, calls `updateWhatsApp`).
+
+- [ ] **Step 6: Create Notifications sub-page**
+
+Create `app/store/admin/settings/notifications/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function updateNotifications(input: { notifyEmailOnOrder: boolean }) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({ where: { id: tenantId }, data: { notifyEmailOnOrder: input.notifyEmailOnOrder } })
+  )
+  revalidatePath('/admin/settings/notifications')
+}
+```
+
+Create `app/store/admin/settings/notifications/page.tsx` (toggle for "Email me on new order", calls `updateNotifications`).
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/store/admin/customers/ app/store/admin/settings/
-git commit -m "feat: add admin customers list and brand settings page"
+git add app/store/admin/settings/ app/store/admin/customers/
+git commit -m "feat: add settings hub with 13 sub-routes (store details, brand, payment, whatsapp, delivery, notifications)"
+```
+
+---
+
+### Task 5.6: `/admin/about` — Store About Page
+
+**Files:**
+- Create: `app/store/admin/about/page.tsx`
+- Create: `app/store/admin/about/actions.ts`
+
+**Interfaces:**
+- Produces: `saveAbout(input)` Server Action
+- Produces: form for story title, description, owner photo, social links + branch management
+
+- [ ] **Step 1: Create about actions**
+
+Create `app/store/admin/about/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function saveAbout(input: {
+  storyTitle: string
+  description: string
+  ownerPhotoUrl: string
+  instagramUrl: string
+  facebookUrl: string
+  youtubeUrl: string
+  googleBusinessUrl: string
+}) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.storeAbout.upsert({
+      where: { tenantId },
+      create: { tenantId, ...input },
+      update: input,
+    })
+  )
+  revalidatePath('/store/about')
+}
+
+export async function addBranch(input: { name: string; address: string; city: string; phone: string; mapsUrl: string }) {
+  const { tenantId } = await requireOwner()
+  const max = await withTenant(tenantId, (db) =>
+    db.storeBranch.aggregate({ where: { tenantId }, _max: { sortOrder: true } })
+  )
+  await withTenant(tenantId, (db) =>
+    db.storeBranch.create({ data: { tenantId, ...input, sortOrder: (max._max.sortOrder ?? -1) + 1 } })
+  )
+  revalidatePath('/admin/about')
+}
+
+export async function deleteBranch(id: string) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) => db.storeBranch.delete({ where: { id } }))
+  revalidatePath('/admin/about')
+}
+```
+
+- [ ] **Step 2: Create about admin page**
+
+Create `app/store/admin/about/page.tsx`:
+```typescript
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { AboutForm } from './about-form'
+export const dynamic = 'force-dynamic'
+
+export default async function AdminAboutPage() {
+  const { tenantId } = await requireOwner()
+  const [about, branches] = await Promise.all([
+    withTenant(tenantId, (db) => db.storeAbout.findUnique({ where: { tenantId } })),
+    withTenant(tenantId, (db) => db.storeBranch.findMany({ where: { tenantId }, orderBy: { sortOrder: 'asc' } })),
+  ])
+  return (
+    <div className="space-y-6 max-w-lg">
+      <h1 className="text-xl font-semibold">About Page</h1>
+      <AboutForm about={about} branches={branches} />
+    </div>
+  )
+}
+```
+
+Create `app/store/admin/about/about-form.tsx` (client component: story title, description textarea, owner photo URL, 4 social link inputs, branch list with add/delete, calls `saveAbout`, `addBranch`, `deleteBranch`).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add app/store/admin/about/
+git commit -m "feat: add /admin/about for store story, social links, and branch locations"
+```
+
+---
+
+### Task 5.7: `/admin/reviews` — Review Moderation
+
+**Files:**
+- Create: `app/store/admin/reviews/page.tsx`
+- Create: `app/store/admin/reviews/actions.ts`
+
+**Interfaces:**
+- Produces: list of all reviews + reported reviews tab
+- Produces: `deleteReview(id)` Server Action (soft delete)
+
+- [ ] **Step 1: Create review moderation actions**
+
+Create `app/store/admin/reviews/actions.ts`:
+```typescript
+'use server'
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+export async function deleteReview(reviewId: string) {
+  const { tenantId } = await requireOwner()
+  await withTenant(tenantId, (db) =>
+    db.productReview.update({ where: { id: reviewId }, data: { isDeleted: true } })
+  )
+  revalidatePath('/admin/reviews')
+}
+```
+
+- [ ] **Step 2: Create reviews moderation page**
+
+Create `app/store/admin/reviews/page.tsx`:
+```typescript
+import { requireOwner } from '@/lib/admin-guard'
+import { withTenant } from '@/lib/prisma'
+import { deleteReview } from './actions'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Star, Trash2 } from 'lucide-react'
+export const dynamic = 'force-dynamic'
+
+export default async function AdminReviewsPage() {
+  const { tenantId } = await requireOwner()
+  const reviews = await withTenant(tenantId, (db) =>
+    db.productReview.findMany({
+      where: { tenantId, isDeleted: false },
+      include: {
+        product: { select: { name: true } },
+        reports: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  )
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold">Reviews</h1>
+      <div className="space-y-3">
+        {reviews.map((review) => (
+          <div key={review.id} className="border rounded-lg p-4 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">{review.product.name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}`} />
+                  ))}
+                  {review.isVerifiedPurchase && (
+                    <Badge variant="outline" className="text-[10px] ml-1">Verified</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {review.reports.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">{review.reports.length} report{review.reports.length !== 1 ? 's' : ''}</Badge>
+                )}
+                <form action={async () => { 'use server'; await deleteReview(review.id) }}>
+                  <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            </div>
+            {review.comment && <p className="text-sm text-muted-foreground">{review.comment}</p>}
+            <p className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString('en-IN')}</p>
+          </div>
+        ))}
+        {reviews.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No reviews yet.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add app/store/admin/reviews/
+git commit -m "feat: add /admin/reviews moderation with soft delete and report count"
 ```
 
 ---

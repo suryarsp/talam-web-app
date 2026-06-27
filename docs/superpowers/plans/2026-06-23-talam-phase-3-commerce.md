@@ -230,6 +230,14 @@ export function getPaymentProvider(tenant: TenantPaymentConfig): PaymentProvider
         apiKey: config.apiKey,
         authToken: config.authToken,
       })
+    case 'razorpay':
+      if (!config.keyId || !config.keySecret) {
+        throw new Error('Missing Razorpay config')
+      }
+      return new RazorpayProvider({
+        keyId: config.keyId,
+        keySecret: config.keySecret,
+      })
     default:
       throw new Error(`Unsupported payment provider: ${tenant.paymentProvider}`)
   }
@@ -244,11 +252,96 @@ npm test -- --run lib/payments/factory.test.ts
 
 Expected: PASS — 3 tests pass
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Create Razorpay provider**
+
+Create `lib/payments/razorpay.ts`:
+```typescript
+import type { PaymentProvider, CheckoutData, WebhookVerifyResult } from './types'
+import crypto from 'node:crypto'
+import Razorpay from 'razorpay'
+
+type Config = { keyId: string; keySecret: string }
+
+export class RazorpayProvider implements PaymentProvider {
+  name = 'razorpay' as const
+  private rz: Razorpay
+  private config: Config
+
+  constructor(config: Config) {
+    this.config = config
+    this.rz = new Razorpay({ key_id: config.keyId, key_secret: config.keySecret })
+  }
+
+  async createOrder(amount: number, orderId: string): Promise<{ checkoutData: CheckoutData }> {
+    const rzOrder = await this.rz.orders.create({
+      amount: Math.round(amount * 100), // paise
+      currency: 'INR',
+      receipt: orderId,
+    })
+    return {
+      checkoutData: {
+        razorpayOrderId: rzOrder.id,
+      },
+    }
+  }
+
+  async verifyWebhook(payload: unknown, headers: Headers): Promise<WebhookVerifyResult> {
+    const body = payload as string
+    const signature = headers.get('x-razorpay-signature') ?? ''
+    const expected = crypto
+      .createHmac('sha256', this.config.keySecret)
+      .update(body)
+      .digest('hex')
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      return { valid: false }
+    }
+    const event = JSON.parse(body)
+    const payment = event?.payload?.payment?.entity
+    return {
+      valid: true,
+      orderId: payment?.receipt,
+      paymentId: payment?.id,
+    }
+  }
+}
+```
+
+Add Razorpay SDK:
+```bash
+npm install razorpay
+npm install -D @types/razorpay
+```
+
+Also add test case to `factory.test.ts`:
+```typescript
+it('returns RazorpayProvider for razorpay', () => {
+  const provider = getPaymentProvider({
+    paymentProvider: 'razorpay',
+    paymentConfig: { keyId: 'rzp_test_key', keySecret: 'secret' },
+  })
+  expect(provider.name).toBe('razorpay')
+})
+
+it('throws if razorpay config is missing', () => {
+  expect(() =>
+    getPaymentProvider({ paymentProvider: 'razorpay', paymentConfig: null })
+  ).toThrow('Missing Razorpay config')
+})
+```
+
+- [ ] **Step 9: Run tests — verify all pass**
+
+```bash
+npm test -- --run lib/payments/factory.test.ts
+```
+
+Expected: PASS — 5 tests pass
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git add lib/payments/
-git commit -m "feat: add PaymentProvider abstraction with UPI Manual and Instamojo implementations"
+git commit -m "feat: add PaymentProvider abstraction with UPI Manual, Instamojo, and Razorpay implementations"
 ```
 
 ---
@@ -786,11 +879,79 @@ export default function CheckoutPage() {
 }
 ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Add pincode delivery estimate to checkout**
+
+Create `lib/delivery.ts`:
+```typescript
+// Returns delivery estimate text for display at checkout.
+// Uses tenant-configured deliveryEstimateText; pincode auto-fill uses
+// the India Post pincode API (public, no key required).
+export async function getPincodeDetails(pincode: string): Promise<{ city: string; state: string } | null> {
+  if (!/^\d{6}$/.test(pincode)) return null
+  try {
+    const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`)
+    const data = await res.json()
+    if (data?.[0]?.Status === 'Success' && data[0].PostOffice?.length) {
+      const po = data[0].PostOffice[0]
+      return { city: po.District, state: po.State }
+    }
+  } catch {
+    // silently ignore — pincode fill is best-effort
+  }
+  return null
+}
+```
+
+Modify `components/store/address-form.tsx` — add pincode auto-fill on blur:
+```typescript
+// In AddressForm component, add after pin input:
+async function handlePinBlur(pin: string) {
+  if (pin.length !== 6) return
+  const details = await fetch(`/api/pincode/${pin}`).then((r) => r.json()).catch(() => null)
+  if (details?.city) setValue('city', details.city)
+  if (details?.state) setValue('state', details.state)
+}
+```
+
+Create `app/api/pincode/[pin]/route.ts`:
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { getPincodeDetails } from '@/lib/delivery'
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ pin: string }> }) {
+  const { pin } = await params
+  const details = await getPincodeDetails(pin)
+  if (!details) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(details)
+}
+```
+
+Also display `deliveryEstimateText` and `freeDeliveryAbove` from tenant in the checkout order summary:
+```typescript
+// In checkout page, fetch tenant delivery info alongside cart:
+const tenant = await withTenant(tenantId, (db) =>
+  db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { deliveryEstimateText: true, freeDeliveryAbove: true, shippingFee: true, paymentProvider: true, paymentConfig: true, tier: true, trialEndsAt: true },
+  })
+)
+
+// Show in order summary:
+{tenant?.deliveryEstimateText && (
+  <p className="text-xs text-muted-foreground">Delivery: {tenant.deliveryEstimateText}</p>
+)}
+{tenant?.freeDeliveryAbove && cartTotal >= Number(tenant.freeDeliveryAbove) ? (
+  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Shipping</span><span className="text-green-600">Free</span></div>
+) : (
+  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Shipping</span><span>₹{Number(tenant?.shippingFee ?? 0).toLocaleString('en-IN')}</span></div>
+)}
+```
+
+- [ ] **Step 9: Commit**
 
 ```bash
-git add app/store/checkout/ components/store/address-form.tsx lib/data/orders.ts lib/data/orders.test.ts
-git commit -m "feat: add checkout page with address form, order creation, and payment provider dispatch"
+git add app/store/checkout/ components/store/address-form.tsx lib/delivery.ts app/api/pincode/
+git commit -m "feat: add pincode auto-fill and delivery estimate display at checkout"
 ```
 
 ---

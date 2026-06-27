@@ -739,6 +739,103 @@ git commit -m "feat: add @vercel/og social cards for WhatsApp sharing with tenan
 
 ---
 
+---
+
+### Task 5: `/join` Referral Landing Page
+
+**Files:**
+- Create: `app/(marketing)/join/page.tsx`
+
+**Interfaces:**
+- Consumes: `utm_campaign` query param (referrer store slug)
+- Produces: static-ish page at `mytalam.com/join` that shows referral attribution and CTA
+- On successful subscription, referrer's `trial_ends_at` extended by 30 days (via Razorpay webhook — already handled in Phase 6 Task 4)
+
+- [ ] **Step 1: Create join page**
+
+Create `app/(marketing)/join/page.tsx`:
+```typescript
+import { Suspense } from 'react'
+import { prisma } from '@/lib/prisma'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Join Talam — Start your free store',
+  description: 'Start selling online in 14 minutes. No GST or MSME registration required.',
+}
+
+async function ReferralBanner({ slug }: { slug: string }) {
+  if (!slug) return null
+  const referrer = await prisma.tenant.findUnique({
+    where: { slug },
+    select: { name: true },
+  })
+  if (!referrer) return null
+
+  return (
+    <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 text-sm text-center">
+      You found us via <span className="font-semibold">{referrer.name}</span>.{' '}
+      They get 1 free month when you subscribe. 🎉
+    </div>
+  )
+}
+
+type Props = { searchParams: Promise<{ utm_campaign?: string }> }
+
+export default async function JoinPage({ searchParams }: Props) {
+  const { utm_campaign: slug = '' } = await searchParams
+
+  return (
+    <main className="max-w-md mx-auto px-4 py-16 space-y-8">
+      <div className="text-center space-y-3">
+        <h1 className="text-3xl font-bold tracking-tight">Start selling online today</h1>
+        <p className="text-muted-foreground">
+          Your own store at <strong>yourname.mytalam.com</strong> — live in 14 minutes.
+          No GST registration. No credit card required.
+        </p>
+      </div>
+
+      <Suspense fallback={null}>
+        <ReferralBanner slug={slug} />
+      </Suspense>
+
+      <div className="space-y-3">
+        <Button className="w-full" size="lg" asChild>
+          <Link href="/admin/onboarding">Start free — 14-day trial</Link>
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          No credit card required. Cancel anytime.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 text-center">
+        {[
+          { stat: '14 min', label: 'to go live' },
+          { stat: '0%', label: 'platform fee' },
+          { stat: '₹499/mo', label: 'after trial' },
+        ].map(({ stat, label }) => (
+          <div key={label}>
+            <p className="text-2xl font-bold">{stat}</p>
+            <p className="text-xs text-muted-foreground mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+    </main>
+  )
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add app/\(marketing\)/join/
+git commit -m "feat: add /join referral landing page with UTM attribution and referrer name display"
+```
+
+---
+
 ## Phase 7 Verification
 
 ```bash

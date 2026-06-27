@@ -219,7 +219,9 @@ export default async function StoreLayout({
   if (!tenant) notFound()
 
   const showWhatsApp =
-    (tier === 'starter' || tier === 'pro') && !!tenant.whatsappNumber
+    (tier === 'starter' || tier === 'pro') &&
+    !!tenant.whatsappNumber &&
+    tenant.showWhatsappButton === true
 
   return (
     <div className="min-h-screen flex flex-col">

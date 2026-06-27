@@ -422,8 +422,9 @@ git commit -m "feat: add super admin dashboard, tenant list, and tier override"
 - Create: `app/store/admin/onboarding/actions.ts`
 
 **Interfaces:**
-- Produces: 3-step wizard: Store Name → Brand Color + Logo → Payment Setup
-- Triggers on first admin visit if tenant has no products and default settings
+- Produces: 5-step wizard: Store → Brand → Product → Payment → Go Live (per spec §1 changelog)
+- Step 1 captures `store_type` for PostHog segmentation
+- Triggers on first admin visit when tenant has no products
 
 - [ ] **Step 1: Create onboarding actions**
 
@@ -435,10 +436,10 @@ import { requireOwner } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 
-export async function saveOnboardingStep1(name: string) {
+export async function saveOnboardingStep1(name: string, storeType: string) {
   const { tenantId } = await requireOwner()
   await withTenant(tenantId, (db) =>
-    db.tenant.update({ where: { id: tenantId }, data: { name } })
+    db.tenant.update({ where: { id: tenantId }, data: { name, storeType: storeType || null } })
   )
 }
 
@@ -451,6 +452,9 @@ export async function saveOnboardingStep2(brandColor: string, logoUrl: string) {
     })
   )
 }
+
+// Step 3 (Product) is handled by the existing /admin/products/new flow
+// Step 4 (Payment) is handled by /admin/settings/payment — linked from wizard
 
 export async function completeOnboarding() {
   redirect('/admin/dashboard')
@@ -467,13 +471,31 @@ import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import { saveOnboardingStep1, saveOnboardingStep2, completeOnboarding } from './actions'
 
-type Step = 1 | 2 | 3
+type Step = 1 | 2 | 3 | 4 | 5
+
+const STORE_TYPES = [
+  { value: 'ethnic_wear', label: 'Ethnic wear / Fashion' },
+  { value: 'bakery', label: 'Bakery / Food' },
+  { value: 'salon', label: 'Salon / Beauty' },
+  { value: 'handicrafts', label: 'Handicrafts / Art' },
+  { value: 'other', label: 'Something else' },
+]
+
+const STEPS = [
+  { n: 1, label: 'Store' },
+  { n: 2, label: 'Brand' },
+  { n: 3, label: 'Product' },
+  { n: 4, label: 'Payment' },
+  { n: 5, label: 'Go Live' },
+]
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1)
   const [name, setName] = useState('')
+  const [storeType, setStoreType] = useState('')
   const [brandColor, setBrandColor] = useState('#6366f1')
   const [logoUrl, setLogoUrl] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -481,7 +503,7 @@ export default function OnboardingPage() {
   async function handleStep1() {
     if (!name.trim()) return
     startTransition(async () => {
-      await saveOnboardingStep1(name)
+      await saveOnboardingStep1(name, storeType)
       setStep(2)
     })
   }
@@ -493,50 +515,57 @@ export default function OnboardingPage() {
     })
   }
 
-  const steps = [
-    { n: 1, label: 'Store Name' },
-    { n: 2, label: 'Brand' },
-    { n: 3, label: 'Payment' },
-  ]
-
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         {/* Progress */}
-        <div className="flex items-center gap-2 justify-center">
-          {steps.map(({ n, label }) => (
-            <div key={n} className="flex items-center gap-2">
-              <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold ${step >= n ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                {n}
+        <div className="flex items-center justify-center gap-1">
+          {STEPS.map(({ n, label }) => (
+            <div key={n} className="flex items-center gap-1">
+              <div className="flex flex-col items-center gap-1">
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= n ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                  {n}
+                </div>
+                <span className={`text-[10px] ${step === n ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>{label}</span>
               </div>
-              <span className={`text-xs ${step === n ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
-              {n < 3 && <div className="w-6 h-px bg-border" />}
+              {n < 5 && <div className="w-8 h-px bg-border mb-4" />}
             </div>
           ))}
         </div>
 
+        {/* Step 1: Store name + type */}
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <h1 className="text-xl font-semibold">What's your store called?</h1>
+              <h1 className="text-xl font-semibold">Tell us about your store</h1>
               <p className="text-sm text-muted-foreground mt-1">This appears on your storefront and receipts.</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="store-name">Store Name</Label>
-              <Input
-                id="store-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. D'Mystique Boutique"
-                autoFocus
-              />
+              <Input id="store-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. D'Mystique Boutique" autoFocus />
             </div>
-            <Button className="w-full" onClick={handleStep1} disabled={isPending || !name.trim()}>
+            <div className="space-y-2">
+              <Label>What do you sell?</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {STORE_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setStoreType(t.value)}
+                    className={`text-left px-3 py-2.5 rounded-lg border text-sm transition-colors ${storeType === t.value ? 'border-primary bg-primary/5 font-medium' : 'border-border hover:border-primary/50'}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button className="w-full" onClick={handleStep1} disabled={isPending || !name.trim() || !storeType}>
               {isPending ? 'Saving…' : 'Continue →'}
             </Button>
           </div>
         )}
 
+        {/* Step 2: Brand */}
         {step === 2 && (
           <div className="space-y-4">
             <div>
@@ -546,12 +575,7 @@ export default function OnboardingPage() {
             <div className="space-y-1">
               <Label>Brand Color</Label>
               <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={brandColor}
-                  onChange={(e) => setBrandColor(e.target.value)}
-                  className="h-10 w-20 rounded-md border p-1 cursor-pointer"
-                />
+                <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="h-10 w-20 rounded-md border p-1 cursor-pointer" />
                 <span className="text-sm font-mono text-muted-foreground">{brandColor}</span>
               </div>
             </div>
@@ -565,15 +589,48 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* Step 3: Add first product */}
         {step === 3 && (
           <div className="space-y-4">
             <div>
+              <h1 className="text-xl font-semibold">Add your first product</h1>
+              <p className="text-sm text-muted-foreground mt-1">Customers can't buy what they can't see. Add at least one product to go live.</p>
+            </div>
+            <Button className="w-full" asChild>
+              <Link href="/admin/products/new">Add a Product →</Link>
+            </Button>
+            <button type="button" onClick={() => setStep(4)} className="w-full text-sm text-muted-foreground underline">
+              Skip for now
+            </button>
+          </div>
+        )}
+
+        {/* Step 4: Payment setup */}
+        {step === 4 && (
+          <div className="space-y-4">
+            <div>
               <h1 className="text-xl font-semibold">Set up payments</h1>
-              <p className="text-sm text-muted-foreground mt-1">Configure in Settings → Payment after onboarding. You can start with UPI Manual (no KYC needed).</p>
+              <p className="text-sm text-muted-foreground mt-1">UPI Manual requires no KYC — start collecting payments immediately.</p>
             </div>
             <div className="rounded-lg bg-muted p-4 text-sm space-y-2">
               <p className="font-medium">UPI Manual (recommended to start)</p>
-              <p className="text-muted-foreground">Customers see your UPI QR code. You confirm payment manually in Orders.</p>
+              <p className="text-muted-foreground">Customers see your UPI QR. You confirm payment manually in Orders.</p>
+            </div>
+            <Button className="w-full" asChild>
+              <Link href="/admin/settings/payment">Configure Payment →</Link>
+            </Button>
+            <button type="button" onClick={() => setStep(5)} className="w-full text-sm text-muted-foreground underline">
+              Skip for now
+            </button>
+          </div>
+        )}
+
+        {/* Step 5: Go Live */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-xl font-semibold">You're ready to go live! 🎉</h1>
+              <p className="text-sm text-muted-foreground mt-1">Your store is set up. Share the link and start selling.</p>
             </div>
             <form action={completeOnboarding}>
               <Button className="w-full" type="submit">Go to Dashboard →</Button>
@@ -590,7 +647,7 @@ export default function OnboardingPage() {
 
 ```bash
 git add app/store/admin/onboarding/
-git commit -m "feat: add 3-step onboarding wizard for new store owners"
+git commit -m "feat: add 5-step onboarding wizard (Store→Brand→Product→Payment→Go Live) with store_type capture"
 ```
 
 ---
