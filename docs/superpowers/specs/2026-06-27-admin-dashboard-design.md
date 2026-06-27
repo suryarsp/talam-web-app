@@ -22,7 +22,6 @@ The layout leads with metrics (numbers set context), then surfaces actions (now 
 
 ```
 Header (sticky, 60px)
-Trial Banner (conditional, sticky)
 Time Filter Row
 Stats Grid (2×2)
 ─── divider ───
@@ -44,7 +43,6 @@ Bottom Nav (fixed, 64px)
 
 ```
 Header (sticky, 72px)
-Trial Banner (conditional)
 Time Filter Row
 Stats Grid (4 columns)
 
@@ -73,16 +71,7 @@ Unchanged from Tier 1 baseline.
 
 ---
 
-### 2. Trial Banner (conditional)
-
-Shown only during trial period. Sticky below header.
-- Bg: `--brand-primary`
-- Text: "12 days left on your free trial" (13px bold, white)
-- Button: "Upgrade" (12px white, 20% opacity bg)
-
----
-
-### 3. Time Filter Row
+### 2. Time Filter Row
 
 Horizontal pill tabs — not sticky.
 
@@ -97,7 +86,7 @@ Horizontal pill tabs — not sticky.
 
 ---
 
-### 4. Stats Grid
+### 3. Stats Grid
 
 **Mobile:** 2×2 grid, gap 10px, padding 16px
 **Desktop:** 4-column row
@@ -121,7 +110,7 @@ Horizontal pill tabs — not sticky.
 
 ---
 
-### 5. Chart + Metric Toggle
+### 4. Chart + Metric Toggle
 
 **Metric toggle** (above chart, right-aligned row)
 - 3 pill tabs: `Revenue` · `Orders` · `Customers`
@@ -144,7 +133,7 @@ Horizontal pill tabs — not sticky.
 
 ---
 
-### 6. Action Required Strip (conditional)
+### 5. Action Required Strip (conditional)
 
 Hidden entirely when there are no alerts.
 
@@ -178,7 +167,7 @@ Each card: left border 3px + bg tint + flex row, full card tappable → navigate
 
 ---
 
-### 7. Quick Actions Row
+### 6. Quick Actions Row
 
 **Section header**
 - "QUICK ACTIONS" — 11px uppercase bold, `--muted`
@@ -203,7 +192,7 @@ Each card: left border 3px + bg tint + flex row, full card tappable → navigate
 
 ---
 
-### 8. Recent Orders
+### 7. Recent Orders
 
 **Section header** (flex space-between, padding 16px 16px 8px)
 - Left: "RECENT ORDERS" — 11px uppercase bold, `--muted`
@@ -234,7 +223,7 @@ Card anatomy:
 
 ---
 
-### 9. Top Products
+### 8. Top Products
 
 **Section header** (flex space-between, padding 16px 16px 8px)
 - Left: "TOP PRODUCTS" — 11px uppercase bold, `--muted`
