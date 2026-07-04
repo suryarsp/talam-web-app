@@ -218,13 +218,15 @@ git commit -m "feat: initialize Next.js 15 project with Tailwind, shadcn, Vitest
 - Produces: `prisma` singleton exported from `lib/prisma.ts`
 - Produces: `withTenant(tenantId, fn)` function that wraps queries with RLS context
 
-- [ ] **Step 1: Initialize Prisma**
+- [x] **Step 1: Initialize Prisma**
 
 ```bash
 npx prisma init --datasource-provider postgresql
 ```
 
-- [ ] **Step 2: Write the schema**
+- [x] **Step 2: Write the schema**
+
+> Actually shipped without inline `url`/`directUrl` on the `datasource` block — Prisma 7.8 (user-approved deviation) moved connection config to `prisma.config.ts` (`datasource.url = env('DATABASE_URL')`, loaded via `dotenv/config`). Everything else matches the plan verbatim.
 
 Replace `prisma/schema.prisma` contents:
 ```prisma
@@ -507,7 +509,7 @@ model ReviewReport {
 }
 ```
 
-- [ ] **Step 3: Run migration**
+- [x] **Step 3: Run migration**
 
 ```bash
 npx prisma migrate dev --name init
@@ -515,7 +517,7 @@ npx prisma migrate dev --name init
 
 Expected: `✓ Generated Prisma Client` and migration file created in `prisma/migrations/`
 
-- [ ] **Step 4: Write failing test for Prisma tenant wrapper**
+- [x] **Step 4: Write failing test for Prisma tenant wrapper**
 
 Create `lib/prisma.test.ts`:
 ```typescript
@@ -560,7 +562,7 @@ describe('withTenant', () => {
 })
 ```
 
-- [ ] **Step 5: Run test — verify it fails**
+- [x] **Step 5: Run test — verify it fails**
 
 ```bash
 npm test -- --run lib/prisma.test.ts
@@ -568,7 +570,7 @@ npm test -- --run lib/prisma.test.ts
 
 Expected: FAIL — `Cannot find module './prisma'`
 
-- [ ] **Step 6: Implement lib/prisma.ts**
+- [x] **Step 6: Implement lib/prisma.ts**
 
 Create `lib/prisma.ts`:
 ```typescript
@@ -593,7 +595,7 @@ export async function withTenant<T>(
 }
 ```
 
-- [ ] **Step 7: Run test — verify it passes**
+- [x] **Step 7: Run test — verify it passes**
 
 ```bash
 npm test -- --run lib/prisma.test.ts
@@ -601,7 +603,9 @@ npm test -- --run lib/prisma.test.ts
 
 Expected: PASS — 2 tests pass
 
-- [ ] **Step 8: Apply RLS policies in Supabase**
+> The plan's mock (`vi.fn(() => ({...}))`) isn't callable with `new` under Vitest 4 — fixed by using a `class MockPrismaClient` instead. Test-only change, no impact on `lib/prisma.ts`.
+
+- [x] **Step 8: Apply RLS policies in Supabase**
 
 In Supabase SQL Editor, run for each table:
 ```sql
@@ -648,12 +652,16 @@ CREATE POLICY "owner_isolation" ON tenants
   USING (id = current_setting('app.tenant_id')::uuid);
 ```
 
-- [ ] **Step 9: Commit**
+Applied via Supabase MCP `execute_sql` (not the SQL Editor UI) — `get_advisors` security scan returned zero lints afterward.
+
+- [x] **Step 9: Commit**
 
 ```bash
 git add prisma/ lib/prisma.ts lib/prisma.test.ts
 git commit -m "feat: add Prisma schema with all tables and RLS-aware withTenant wrapper"
 ```
+
+> Also committed `prisma.config.ts` — required for the Prisma 7 datasource-config change above. Commit `ced669a`.
 
 ---
 
