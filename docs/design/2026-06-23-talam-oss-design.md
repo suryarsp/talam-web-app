@@ -1,12 +1,18 @@
 # Talam — Open Source Design Spec
 
 **Date:** 2026-06-23
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-03
 **Status:** Open for Contribution
-**Version:** 1.2 (design tokens + component reality synced to live Paper file)
+**Version:** 1.3 (Auth flow added, Wishlist/Store About desktop parity fixed, delivery-timeline widget removed from Product Detail)
 **For:** UI/UX designers contributing to the Talam open source project
 
-> **Design source of truth:** Real design work now happens in a Paper Design file (`Talam Design`, 67 artboards across 5 pages). This document's brand/typography/spacing/radius tokens (§2) and the design tokens reference (§10) have been re-synced to that file's live token set as of 2026-06-30. Sections 4.1–4.14 (page-by-page layout specs) are the original written brief and have **not** been individually re-verified against each Paper artboard this pass — treat them as design intent, not a guaranteed pixel match. For current per-screen build status, see [`docs/2026-06-28-PAPER-DESIGN-INVENTORY.md`](../2026-06-28-PAPER-DESIGN-INVENTORY.md).
+> **Design source of truth:** Real design work now happens in a Paper Design file (`Talam Design`, ~72 artboards across 5 pages — Store Front page now has 25 after the 2026-07-03 additions). This document's brand/typography/spacing/radius tokens (§2) and the design tokens reference (§10) have been re-synced to that file's live token set as of 2026-06-30. Sections 4.1–4.14 (page-by-page layout specs) are the original written brief and have **not** been individually re-verified against each Paper artboard this pass — treat them as design intent, not a guaranteed pixel match. For current per-screen build status, see [`docs/2026-06-28-PAPER-DESIGN-INVENTORY.md`](../2026-06-28-PAPER-DESIGN-INVENTORY.md).
+
+**Changelog v1.3 (2026-07-03)**
+- **NEW:** Auth / Login flow designed and added to the Store Front page — clicking the profile icon in the header opens an `Account Menu` dropdown (Log In / Sign Up), which leads to a single unified `Auth` screen (mobile number field + "Continue" OTP CTA + "Continue with Google"), matching Myntra/Flipkart-style phone-first login. Built for both mobile and desktop (4 new artboards: `Account Menu — Mobile`, `Account Menu — Desktop`, `Auth — Mobile`, `Auth — Desktop`). This closes the `/auth` gap flagged in the 2026-07-03 design audit. See new §4.1b.
+- **REMOVED:** The pincode/delivery-estimate widget ("Check Delivery Date" input + "Get it by…" text) removed from Product Detail — Mobile. It was already absent on Desktop, so both breakpoints are now aligned. §4.3 updated.
+- **FIXED:** Wishlist — Desktop now matches Wishlist — Mobile: added the filter tab row (All Items / In Stock / Price ↑ / On Sale) and a "Share" button next to the sort control, both previously mobile-only. §4.6a updated.
+- **NEW:** Store About — Desktop artboard added (previously mobile-only) — founder profile + stats, Our Story, Follow Us, Visit Us branch cards, all in a two-column desktop layout consistent with the rest of the storefront's desktop pages. §4.1a updated.
 
 **Changelog v1.2 (2026-06-30)**
 - Colour, typography, spacing, and border-radius tokens (§2) replaced with the actual token set exported from the live Paper file (single unified `--color-*` namespace, not split admin/storefront blocks)
@@ -212,6 +218,8 @@ Components are built with vanilla HTML/CSS (no framework dependency). Use CSS Gr
 | **StoreAboutSection** | `/about` | ✓ | Owner photo, story text, trust stats, social links, branches list |
 | **ReportReviewModal** | Product detail | ✓ | Bottom sheet: reason radio buttons (Spam, Inappropriate, Fake, Other), details textarea, submit |
 | **ReviewActionMenu** | Admin reviews | ✓ | Dropdown: Hide, Delete, Mark verified, Pin, Contact (V2). Bulk actions checkbox |
+| **AccountMenu** | Storefront header | ✓ *(new 2026-07-03)* | Dropdown anchored under the header profile icon: "Log In" and "Sign Up" rows, icon + label each. Mobile and desktop variants |
+| **AuthForm** | `/auth` | ✓ *(new 2026-07-03)* | Unified login/signup: mobile-number field (+91 prefix), "Continue" CTA (store primary), divider, "Continue with Google" button, terms text. One screen serves both Log In and Sign Up — no separate OTP-entry step designed yet |
 
 ---
 
@@ -228,6 +236,7 @@ Components are built with vanilla HTML/CSS (no framework dependency). Use CSS Gr
    - Left: Store logo (serif heading, name with dot in store primary colour)
    - Center (desktop only): Nav links (Shop, About)
    - Right: Search icon, Wishlist icon, Cart icon (with badge count), Account icon
+     - Logged-out state: tapping the Account icon opens the `AccountMenu` dropdown (Log In / Sign Up) — see §4.1b
 3. **Hero section** — Full-width, min-height 56vw mobile (max 560px), 460px desktop
    - Background: Dark gradient (#5C1230 → #2d1b69) with warm overlay glow
    - Content: Hero eyebrow (uppercase, amber), headline (clamp 26–48px), description, CTA button
@@ -296,10 +305,39 @@ Home | Shop | Wishlist | Orders | Account (5 items, 64px height)
    - "Powered by Talam" badge + link
 
 **Desktop layout:**
-- Same sections, centered max-width 640px
+- *(Live in Paper as of 2026-07-03 — previously mobile-only.)* Two-column layout within a 1200px content width (consistent with the other desktop storefront pages, not a centered 640px column as originally drafted): a 360px profile column (owner photo, name, role, stats) alongside a flexible "Our Story" + "Follow Us" column
 - Owner photo 140×140px
-- Trust stats: horizontal 3-column grid
-- Branch cards: 2-column grid for 2+ branches
+- Trust stats: horizontal 3-column grid, inside the profile column
+- Branch cards: 2-column grid for 2+ branches, full-width below the identity row
+- Header, nav, and footer are cloned from the same components used on Home/Product Detail/Cart Desktop for consistency; "About" nav link shown active (store primary colour)
+
+---
+
+### 4.1b Storefront — Account Menu & Auth (`/auth`)
+
+**Purpose:** Let a visitor log in or create an account without leaving the current page context. Added 2026-07-03 to close a gap where no auth screens existed in the Paper file.
+
+**Trigger:** Tapping/clicking the profile icon in the storefront header (mobile bottom-nav "Account" tab or desktop header icon) while logged out.
+
+**Account Menu (dropdown/popover):**
+- Anchored under the profile icon, right-aligned
+- Card: white surface, 1px border, `--radius-lg`, subtle drop shadow
+- Two rows, divided by a 1px hairline:
+  - "Log In" — icon (arrow into door), 14px medium text
+  - "Sign Up" — icon (person with plus), 14px medium text
+- Profile icon shows an active/highlighted background (light store-primary tint) while the menu is open
+- Mobile and desktop use the same card, anchored to each header's own icon position
+
+**Auth screen (single screen for both Log In and Sign Up):**
+- Rationale: the product spec's OTP flow (mobile number → OTP → session) doesn't distinguish new vs. returning users until after the phone number is verified, so one screen covers both entry points — avoids building near-duplicate Log In / Sign Up screens
+- Mobile: status bar, back button, heading "Log in or Sign up" (Playfair Display, 28px) + one-line subtext
+- Desktop: same content in a centered card (420px wide) on a light background, logo mark at the top of the card instead of a back button
+- Mobile Number field: label, then a bordered input row with a country-code chip ("+91") on the left and the number field on the right
+- Primary CTA: "Continue" button, full-width, store primary background
+- Divider: "or"
+- Secondary CTA: "Continue with Google" — outlined button with the multicolour Google "G" mark and label text
+- Footer: muted terms text ("By continuing, you agree to Talam's Terms of Service and Privacy Policy")
+- **Not yet designed:** the OTP-entry step (4-digit code input) that follows "Continue" — only the phone-number capture screen exists today
 
 ---
 
@@ -362,11 +400,7 @@ Home | Shop | Wishlist | Orders | Account (5 items, 64px height)
      - Off badge (12px bold, sale red background, white text, rounded 4px)
    - Save note ("You save ₹X on this order", 12px green, bold)
    - Tax note ("Inclusive of all taxes · Free delivery", 12px muted)
-4. **Pincode check** — Padding 16px, border-bottom
-   - Label: "Enter pincode to check delivery"
-   - Input (flex: 1) + button ("Check")
-   - Result: "Get it by Wed, 2 Jul · Standard delivery"
-   - Trust icons (11px, muted): "↩ 30-day Returns · ✓ 100% Genuine · 🔒 Secure Pay"
+4. ~~**Pincode check**~~ — **Removed 2026-07-03.** The delivery-estimate widget ("Check Delivery Date" input + "Get it by Wed, 2 Jul…" result text) was cut from Product Detail — Mobile in the live Paper file; it was never built on Desktop, so the two breakpoints are now aligned. Do not design or build this section. Trust icons ("↩ 30-day Returns · ✓ 100% Genuine · 🔒 Secure Pay") remain, folded into the free-delivery/returns line under the price row.
 5. **Size selector** — Padding 20px, border-bottom
    - Header: "Size" + "Size Guide →" link (13px, store primary)
    - Pill buttons (min-width 52px, height 44px, flex wrap, gap 8px)
@@ -627,6 +661,7 @@ Home | Shop | Wishlist | Orders | Account (5 items, 64px height)
 - Same grid layout, 3-4 columns
 - Cards show "Add to Cart" button on hover
 - Hover menu (⋯) for additional actions
+- **As of 2026-07-03:** the filter tab row (All Items / In Stock / Price ↑ / On Sale) and a "Share" button are also present on Desktop, next to the sort control — previously these only existed on Mobile. Header layout: title + item count/total on the left, `[Share] [Sort ▾] [Add All to Cart]` cluster on the right, filter tabs on their own row below
 
 ---
 
