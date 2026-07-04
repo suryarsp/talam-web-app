@@ -846,7 +846,7 @@ git commit -m "feat: add Supabase browser, server, admin clients and middleware 
 - Produces: `getTenantBySlug(slug: string): Promise<{ id: string; slug: string; tier: string } | null>`
 - Produces: Next.js middleware that sets `x-subdomain` and `x-tenant-id` headers and rewrites to correct route group
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `lib/tenant.test.ts`:
 ```typescript
@@ -882,7 +882,7 @@ describe('getTenantBySlug', () => {
 })
 ```
 
-- [ ] **Step 2: Run test — verify it fails**
+- [x] **Step 2: Run test — verify it fails**
 
 ```bash
 npm test -- --run lib/tenant.test.ts
@@ -890,7 +890,7 @@ npm test -- --run lib/tenant.test.ts
 
 Expected: FAIL — `Cannot find module './tenant'`
 
-- [ ] **Step 3: Implement tenant resolver**
+- [x] **Step 3: Implement tenant resolver**
 
 Create `lib/tenant.ts`:
 ```typescript
@@ -917,7 +917,7 @@ export async function getTenantBySlug(slug: string): Promise<TenantMeta | null> 
 }
 ```
 
-- [ ] **Step 4: Run test — verify it passes**
+- [x] **Step 4: Run test — verify it passes**
 
 ```bash
 npm test -- --run lib/tenant.test.ts
@@ -925,7 +925,7 @@ npm test -- --run lib/tenant.test.ts
 
 Expected: PASS — 2 tests pass
 
-- [ ] **Step 5: Implement middleware**
+- [x] **Step 5: Implement middleware**
 
 Create `middleware.ts`:
 ```typescript
@@ -984,7 +984,7 @@ export const config = {
 }
 ```
 
-- [ ] **Step 6: Create app route structure**
+- [x] **Step 6: Create app route structure**
 
 ```bash
 # Create internal routing directories
@@ -1047,7 +1047,7 @@ export default function SuperAdminPage() {
 }
 ```
 
-- [ ] **Step 7: Verify middleware routing manually**
+- [x] **Step 7: Verify middleware routing manually**
 
 ```bash
 npm run dev
@@ -1057,12 +1057,14 @@ In browser or curl:
 - `http://localhost:3000` → serves `app/page.tsx` (marketing)
 - `http://silk.localhost:3000` (requires `/etc/hosts` or browser extension) → not easily testable locally; use Vercel preview instead
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add middleware.ts lib/tenant.ts lib/tenant.test.ts app/store/ app/super-admin/
 git commit -m "feat: add multi-tenant middleware with subdomain routing and tenant resolution"
 ```
+
+> Commit `bab2086`.
 
 ---
 
@@ -1083,7 +1085,7 @@ git commit -m "feat: add multi-tenant middleware with subdomain routing and tena
 - Consumes: `createServerClient()` from `lib/supabase/server`
 - Produces: `/store/auth` page — single phone-first form (OTP) with Google as a secondary option; matches the Account Menu's single "Log in / Sign up" entry point (no separate login vs. signup screen)
 
-- [ ] **Step 1: Write failing component test**
+- [x] **Step 1: Write failing component test**
 
 Create `components/auth/otp-form.test.tsx`:
 ```typescript
@@ -1134,7 +1136,7 @@ describe('OtpForm', () => {
 })
 ```
 
-- [ ] **Step 2: Run test — verify it fails**
+- [x] **Step 2: Run test — verify it fails**
 
 ```bash
 npm test -- --run components/auth/otp-form.test.tsx
@@ -1142,7 +1144,7 @@ npm test -- --run components/auth/otp-form.test.tsx
 
 Expected: FAIL — `Cannot find module './otp-form'`
 
-- [ ] **Step 3: Create OTP form component**
+- [x] **Step 3: Create OTP form component**
 
 Create `components/auth/otp-form.tsx`:
 ```typescript
@@ -1266,7 +1268,7 @@ export function OtpForm() {
 }
 ```
 
-- [ ] **Step 4: Run test — verify it passes**
+- [x] **Step 4: Run test — verify it passes**
 
 ```bash
 npm test -- --run components/auth/otp-form.test.tsx
@@ -1274,7 +1276,7 @@ npm test -- --run components/auth/otp-form.test.tsx
 
 Expected: PASS — 3 tests pass
 
-- [ ] **Step 5: Create Google Sign-In button**
+- [x] **Step 5: Create Google Sign-In button**
 
 Create `components/auth/google-button.tsx`:
 ```typescript
@@ -1314,7 +1316,7 @@ export function GoogleButton() {
 }
 ```
 
-- [ ] **Step 6: Create auth page**
+- [x] **Step 6: Create auth page**
 
 Create `app/store/auth/page.tsx` (single phone-first form, Google as secondary option — matches the Paper `Auth — Mobile` / `Auth — Desktop` artboards, no tabs):
 ```typescript
@@ -1354,7 +1356,7 @@ export default async function AuthPage() {
 }
 ```
 
-- [ ] **Step 7: Create Supabase OAuth callback route**
+- [x] **Step 7: Create Supabase OAuth callback route**
 
 Create `app/store/auth/callback/route.ts`:
 ```typescript
@@ -1379,7 +1381,7 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-- [ ] **Step 8: Create MSG91 SMS Hook Edge Function**
+- [x] **Step 8: Create MSG91 SMS Hook Edge Function**
 
 Create `supabase/functions/msg91-sms-hook/index.ts`:
 ```typescript
@@ -1434,7 +1436,7 @@ Deno.serve(async (req: Request) => {
 })
 ```
 
-- [ ] **Step 9: Deploy Edge Function**
+- [x] **Step 9: Deploy Edge Function**
 
 ```bash
 # Install Supabase CLI if not present
@@ -1451,7 +1453,7 @@ supabase functions deploy msg91-sms-hook \
 
 Expected: `✓ Function deployed successfully`
 
-- [ ] **Step 10: Run all tests**
+- [x] **Step 10: Run all tests**
 
 ```bash
 npm test -- --run
@@ -1459,12 +1461,14 @@ npm test -- --run
 
 Expected: All tests pass (prisma.test, client.test, tenant.test, otp-form.test)
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add app/store/auth/ components/auth/ supabase/functions/
 git commit -m "feat: add OTP + Google auth flow with MSG91 SMS hook Edge Function"
 ```
+
+> Commit `cc9a4d6`. Auth page later restyled to match the Paper `Auth — Mobile`/`Auth — Desktop` artboards (Logo, BackButton, GoogleIcon components, Playfair/DM Sans tokens) — see design memory.
 
 ---
 
@@ -1479,7 +1483,7 @@ git commit -m "feat: add OTP + Google auth flow with MSG91 SMS hook Edge Functio
 - Produces: root `app/layout.tsx` with PostHog provider
 - Produces: marketing landing page at `{YOUR_DOMAIN}/`
 
-- [ ] **Step 1: Update root layout**
+- [x] **Step 1: Update root layout**
 
 Replace `app/layout.tsx`:
 ```typescript
@@ -1507,7 +1511,7 @@ export default function RootLayout({
 }
 ```
 
-- [ ] **Step 2: Create marketing landing placeholder**
+- [x] **Step 2: Create marketing landing placeholder**
 
 Replace `app/page.tsx`:
 ```typescript
@@ -1524,7 +1528,7 @@ export default function MarketingHome() {
 }
 ```
 
-- [ ] **Step 3: Create not-found page**
+- [x] **Step 3: Create not-found page**
 
 Create `app/not-found.tsx`:
 ```typescript
@@ -1542,7 +1546,7 @@ export default function NotFound() {
 }
 ```
 
-- [ ] **Step 4: Build check**
+- [x] **Step 4: Build check**
 
 ```bash
 npm run build
@@ -1550,12 +1554,14 @@ npm run build
 
 Expected: Build succeeds with no TypeScript errors
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/layout.tsx app/page.tsx app/not-found.tsx
 git commit -m "feat: add root layout, marketing home placeholder, and 404 for unknown tenants"
 ```
+
+> Commit `7ef1f5e`. All 6 tasks of Phase 1 complete as of 2026-07-04.
 
 ---
 
@@ -1579,3 +1585,5 @@ Manual smoke test (after Vercel deployment):
 - [ ] `https://silk.{YOUR_DOMAIN}/auth` shows OTP login form
 - [ ] Phone OTP flow: number → SMS → OTP input → session created
 - [ ] Google Sign-In redirects correctly
+
+> Not yet run — no tenant seeded locally and no Vercel deployment exists yet (`/store/*` 404s on `localhost` by design since middleware requires a real subdomain + seeded tenant). Do this smoke test once a tenant row exists and staging is deployed.

@@ -15,16 +15,16 @@ vi.mock('@/lib/supabase/client', () => ({
 describe('OtpForm', () => {
   it('renders phone input in initial state', () => {
     render(<OtpForm />)
-    expect(screen.getByPlaceholderText(/mobile number/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /send otp/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/mobile number/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument()
   })
 
   it('shows OTP input after phone submission', async () => {
     const user = userEvent.setup()
     render(<OtpForm />)
 
-    await user.type(screen.getByPlaceholderText(/mobile number/i), '9876543210')
-    await user.click(screen.getByRole('button', { name: /send otp/i }))
+    await user.type(screen.getByLabelText(/mobile number/i), '9876543210')
+    await user.click(screen.getByRole('button', { name: /continue/i }))
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/6-digit otp/i)).toBeInTheDocument()
@@ -35,8 +35,8 @@ describe('OtpForm', () => {
     const user = userEvent.setup()
     render(<OtpForm />)
 
-    await user.type(screen.getByPlaceholderText(/mobile number/i), '123')
-    await user.click(screen.getByRole('button', { name: /send otp/i }))
+    await user.type(screen.getByLabelText(/mobile number/i), '123')
+    await user.click(screen.getByRole('button', { name: /continue/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/valid 10-digit/i)).toBeInTheDocument()
