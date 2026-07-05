@@ -6,7 +6,8 @@ vi.mock('@/lib/prisma', () => ({
       id: 'p1', name: 'Silk Saree', slug: 'silk-saree', price: '4500',
       images: ['url1'], categoryId: 'cat-1',
       category: { id: 'cat-1', name: 'Sarees', slug: 'sarees', sortOrder: 0 },
-      sizes: ['S', 'M', 'L'], isActive: true,
+      reviews: [{ rating: 4 }, { rating: 5 }],
+      sizes: ['S', 'M', 'L'], isActive: true, createdAt: new Date(),
     }
     const mockClient = {
       product: {
@@ -30,6 +31,7 @@ describe('getProducts', () => {
     const products = await getProducts('tenant-1')
     expect(products).toHaveLength(1)
     expect(products[0].name).toBe('Silk Saree')
+    expect(products[0]).toMatchObject({ reviewCount: 2, averageRating: 4.5, isNew: true })
   })
 })
 

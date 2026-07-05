@@ -221,6 +221,8 @@ Payment webhook received → verify signature → mark order PAID
 
 **Total infra cost before first tenant: ₹1,890/mo**
 
+**Dev vs. production DB:** The current Supabase project (`egxsukuswespiicezxoz`) is a **dev/QA instance only**. A separate Supabase project — with its own `DATABASE_URL` / `DATABASE_URL_SERVICE_ROLE` and Prisma migrations replayed fresh — must be provisioned for production once testing & QA are complete, ahead of the Week 9 go-live (see §11 Timeline). Do not point production traffic at the dev project ref.
+
 ---
 
 ## 5. Authentication

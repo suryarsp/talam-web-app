@@ -7,6 +7,42 @@ async function main() {
     throw new Error("No tenant with slug 'silk' found — seed a tenant first.")
   }
 
+  await prisma.tenant.update({
+    where: { id: tenant.id },
+    data: {
+      contactPhone: '+91 98765 43210',
+      contactEmail: 'hello@meenasilks.com',
+      whatsappNumber: '919876543210',
+    },
+  })
+
+  await prisma.storeAbout.upsert({
+    where: { tenantId: tenant.id },
+    create: {
+      tenantId: tenant.id,
+      storyTitle: 'Handcrafted in India,\nMade for You',
+      description:
+        'Meena Silks has been curating handpicked ethnic wear since 1995. Every piece is sourced directly from weavers across Tamil Nadu and beyond.',
+      instagramUrl: 'https://instagram.com/meenasilks',
+      facebookUrl: 'https://facebook.com/meenasilks',
+      youtubeUrl: 'https://youtube.com/@meenasilks',
+    },
+    update: {},
+  })
+
+  const branchData = {
+    name: 'Main Store',
+    address: 'Anna Nagar',
+    city: 'Chennai — 600040',
+    hours: 'Mon – Sat: 10 AM – 7 PM\nSunday: Closed',
+  }
+  const existingBranch = await prisma.storeBranch.findFirst({ where: { tenantId: tenant.id } })
+  if (existingBranch) {
+    await prisma.storeBranch.update({ where: { id: existingBranch.id }, data: branchData })
+  } else {
+    await prisma.storeBranch.create({ data: { ...branchData, tenantId: tenant.id } })
+  }
+
   const categories = await Promise.all(
     [
       { name: 'Sarees', slug: 'sarees', sortOrder: 0 },

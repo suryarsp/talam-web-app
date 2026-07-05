@@ -8,6 +8,8 @@ export type TenantStorefront = {
   logoUrl: string | null
   whatsappNumber: string | null
   showWhatsappButton: boolean
+  contactPhone: string | null
+  contactEmail: string | null
   tier: string
   freeDeliveryAbove: number | null
   shippingFee: number
@@ -15,6 +17,14 @@ export type TenantStorefront = {
   returnWindowDays: number | null
   trustBadgeText: string | null
   sizeGuideUrl: string | null
+  about: {
+    storyTitle: string | null
+    description: string | null
+    instagramUrl: string | null
+    facebookUrl: string | null
+    youtubeUrl: string | null
+  } | null
+  branch: { address: string | null; city: string | null; hours: string | null } | null
 }
 
 export async function getTenantStorefront(tenantId: string): Promise<TenantStorefront | null> {
@@ -29,6 +39,8 @@ export async function getTenantStorefront(tenantId: string): Promise<TenantStore
         logoUrl: true,
         whatsappNumber: true,
         showWhatsappButton: true,
+        contactPhone: true,
+        contactEmail: true,
         tier: true,
         freeDeliveryAbove: true,
         shippingFee: true,
@@ -36,16 +48,33 @@ export async function getTenantStorefront(tenantId: string): Promise<TenantStore
         returnWindowDays: true,
         trustBadgeText: true,
         sizeGuideUrl: true,
+        about: {
+          select: {
+            storyTitle: true,
+            description: true,
+            instagramUrl: true,
+            facebookUrl: true,
+            youtubeUrl: true,
+          },
+        },
+        branches: {
+          orderBy: { sortOrder: 'asc' },
+          take: 1,
+          select: { address: true, city: true, hours: true },
+        },
       },
     })
   )
 
   if (!tenant) return null
 
+  const { branches, ...rest } = tenant
+
   // Prisma returns Decimal for these two — narrow to number to match the TenantStorefront contract.
   return {
-    ...tenant,
-    freeDeliveryAbove: tenant.freeDeliveryAbove ? Number(tenant.freeDeliveryAbove) : null,
-    shippingFee: Number(tenant.shippingFee),
+    ...rest,
+    branch: branches[0] ?? null,
+    freeDeliveryAbove: rest.freeDeliveryAbove ? Number(rest.freeDeliveryAbove) : null,
+    shippingFee: Number(rest.shippingFee),
   }
 }

@@ -231,6 +231,7 @@ model StoreBranch {
   address   String?
   city      String?
   phone     String?
+  hours     String?
   mapsUrl   String?  @map("maps_url")
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz

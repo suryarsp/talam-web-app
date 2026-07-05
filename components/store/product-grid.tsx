@@ -1,7 +1,12 @@
 import type { Product, ProductCategory } from '@prisma/client'
 import { ProductCard } from './product-card'
 
-type ProductWithCategory = Product & { category?: Pick<ProductCategory, 'name'> | null }
+type ProductWithCategory = Product & {
+  category?: Pick<ProductCategory, 'name'> | null
+  reviewCount: number
+  averageRating: number | null
+  isNew: boolean
+}
 
 type Props = {
   products: ProductWithCategory[]
