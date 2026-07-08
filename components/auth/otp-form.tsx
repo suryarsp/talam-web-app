@@ -73,7 +73,7 @@ export function OtpForm() {
           maxLength={6}
           inputMode="numeric"
           autoComplete="one-time-code"
-          className="h-auto rounded-md border-[1.5px] border-border px-3 py-[11px] font-body text-md"
+          className="h-auto rounded-md border-[1.5px] border-border px-3 py-[11px] font-body text-md transition-colors focus-visible:border-store-primary focus-visible:ring-0 focus-visible:outline-none"
         />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button
@@ -102,9 +102,9 @@ export function OtpForm() {
       <Label htmlFor="phone" className="font-body font-medium text-fg text-[13px]">
         Mobile Number
       </Label>
-      <div className="flex items-center rounded-md overflow-clip border-[1.5px] border-border">
+      <div className="flex items-center rounded-md overflow-clip border-[1.5px] border-border transition-colors focus-within:border-store-primary">
         <span className="flex items-center py-[11px] px-3 border-r-[1.5px] border-r-border font-body text-fg text-md shrink-0">
-          IN +91
+          +91
         </span>
         <Input
           id="phone"
@@ -114,7 +114,7 @@ export function OtpForm() {
           inputMode="tel"
           autoComplete="tel-national"
           maxLength={10}
-          className="h-auto grow border-0 rounded-none px-3 py-[11px] font-body text-md focus-visible:ring-0"
+          className="h-auto grow border-0 rounded-none px-3 py-[11px] font-body text-md focus-visible:ring-0 focus-visible:outline-none"
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
