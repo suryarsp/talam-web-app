@@ -16,39 +16,35 @@ export async function proxy(request: NextRequest) {
   // Refresh Supabase session on every request
   const sessionResponse = await updateSession(request)
 
-  // Main marketing domain → no rewrite, serve root route group
-  // (skip for plain "localhost": .env.local sets ROOT_DOMAIN=localhost for dev,
-  // but bare localhost:3000 should show the default tenant store, not the marketing page)
-  if (host !== 'localhost' && (host === ROOT_DOMAIN || host === `www.${ROOT_DOMAIN}`)) {
-    return sessionResponse
-  }
-
   // Super admin subdomain → rewrite to /super-admin/*
   if (host === `admin.${ROOT_DOMAIN}`) {
     const url = new URL(`/super-admin${pathname === '/' ? '' : pathname}`, request.url)
     return NextResponse.rewrite(url, { headers: sessionResponse.headers })
   }
 
-  // Tenant subdomain → resolve tenant and rewrite to /store/*
-  // Plain localhost:3000 (no subdomain) resolves to the default dev tenant instead.
-  const subdomain = host === 'localhost' ? DEFAULT_TENANT_SLUG : host.replace(`.${ROOT_DOMAIN}`, '')
-  if (subdomain && subdomain !== host) {
-    const tenant = await getTenantBySlug(subdomain)
+  // ponytail: marketing homepage temporarily disabled while the storefront is
+  // being finished. Any host without a resolvable tenant subdomain (root
+  // domain, the bare Vercel project URL, "www", localhost) falls back to the
+  // default tenant store instead of the marketing page. To bring the
+  // marketing page back, reinstate a passthrough here for ROOT_DOMAIN/www
+  // that `return`s sessionResponse before the tenant resolution below.
+  const parsedSubdomain = host.replace(`.${ROOT_DOMAIN}`, '')
+  const isRootHost = parsedSubdomain === host || parsedSubdomain === 'www' || host === 'localhost'
+  const subdomain = isRootHost ? DEFAULT_TENANT_SLUG : parsedSubdomain
 
-    if (!tenant) {
-      // Unknown tenant → 404
-      return NextResponse.rewrite(new URL('/not-found', request.url))
-    }
+  const tenant = await getTenantBySlug(subdomain)
 
-    const url = new URL(`/store${pathname === '/' ? '' : pathname}`, request.url)
-    const response = NextResponse.rewrite(url, { headers: sessionResponse.headers })
-    response.headers.set('x-subdomain', subdomain)
-    response.headers.set('x-tenant-id', tenant.id)
-    response.headers.set('x-tenant-tier', tenant.tier)
-    return response
+  if (!tenant) {
+    // Unknown tenant → 404
+    return NextResponse.rewrite(new URL('/not-found', request.url))
   }
 
-  return sessionResponse
+  const url = new URL(`/store${pathname === '/' ? '' : pathname}`, request.url)
+  const response = NextResponse.rewrite(url, { headers: sessionResponse.headers })
+  response.headers.set('x-subdomain', subdomain)
+  response.headers.set('x-tenant-id', tenant.id)
+  response.headers.set('x-tenant-tier', tenant.tier)
+  return response
 }
 
 export const config = {
