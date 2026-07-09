@@ -2,9 +2,13 @@
 
 **Date:** 2026-06-23  
 **Last updated:** 2026-07-09  
-**Status:** Approved — v1.5  
+**Status:** Approved — v1.6  
 **Author:** Surya Prakash  
-**Version:** 1.5 (Storefront home merged into /shop, retiring the separate hero-driven home design; header nav wired to product filters)
+**Version:** 1.6 (Storefront-first delivery on localhost `/` routes; tenant domain/proxy work deferred until domain purchase)
+
+**Changelog v1.6 (2026-07-09)**
+- **Implementation order changed to storefront-first:** complete the tenant-facing storefront on localhost root routes first — `/`, `/category/[categorySlug]`, `/product/[slug]`, `/about`, `/cart`, `/checkout`, `/wishlist`, `/account`, `/auth` — using the seeded dev-tenant fallback already noted below. Do not block storefront delivery on wildcard subdomain routing, custom-domain purchase, or proxy setup.
+- **Tenant domain + proxy work explicitly deferred:** production-style tenant host resolution, wildcard DNS, middleware hardening, preview aliases, and proxy/cutover tasks move to the post-purchase launch phase. They remain required for production, but they are no longer a prerequisite for storefront implementation or verification.
 
 **Changelog v1.5 (2026-07-09)**
 - **`/shop` is now the tenant default/home route — literally, not via redirect:** The hero-driven storefront home (`HeroBanner`, `CategoryPills`, `FestivalEdit`, `OurStory` components) was retired; that Paper design no longer exists. `/shop`'s content (hero carousel, flash sale bar, occasion/new-arrivals sections, filter sidebar + product grid) now lives at `app/store/page.tsx` (the `/` route) instead of a separate `/shop` path — there is no `/shop` route left in the app, and nothing redirects to one. Category SEO pages move to `/category/[categorySlug]` (not `/shop/[categorySlug]`) — namespaced to avoid a category slug colliding with a static top-level route like `/about` or `/cart`.
@@ -289,7 +293,7 @@ product_categories
   id uuid PK
   tenant_id uuid FK → tenants
   name text                      -- "Cakes", "Kurtis", "Haircuts" — owner-defined
-  slug text                      -- URL-safe, e.g. "cakes" → /shop/cakes
+  slug text                      -- URL-safe, e.g. "cakes" → /category/cakes
   sort_order int                 -- controls display order in filter UI and home category strips
   created_at timestamptz
   ── UNIQUE(tenant_id, slug)
@@ -561,7 +565,7 @@ Women-owned ethnic wear, handicrafts, or homemade food businesses in Tier 1–2 
 | **Viral loop** | "Powered by Talam" badge → `/join?utm_campaign={slug}` → signup → referrer gets 1 free month |
 | **WhatsApp preview** | `@vercel/og` generates 1200×630 card when store link shared — brand color + product image |
 | **Paid (Month 2)** | Instagram Reels ads, ₹5–10K/mo, Tamil Nadu women business owners 25–45 |
-| **SEO** | Per-tenant category pages (`silk.mytalam.com/shop/sarees`) — indexable, shareable URLs |
+| **SEO** | Per-tenant category pages (`silk.mytalam.com/category/sarees`) — indexable, shareable URLs |
 | **Pricing page** | `mytalam.com/pricing` — public plan comparison with "Start free" CTA, no credit card required |
 
 ### Referral Attribution
@@ -597,7 +601,7 @@ Triggered by Vercel Cron — checks tenant state daily:
 | Week | Focus |
 |---|---|
 | 1 | Project init, Supabase setup, Prisma schema (incl. `product_categories`, `store_about`, `store_branches`, `product_reviews`, `review_reports`), auth flow (OTP + Google) |
-| 2 | Storefront — home, shop, `/shop/[categorySlug]`, product detail pages + reviews section |
+| 2 | Storefront — home, category pages, product detail pages + reviews section |
 | 3 | Cart, checkout (with pincode auto-fill + delivery estimate), payment gateway integration (UPI Manual + Instamojo + Razorpay) |
 | 4 | Orders, account, wishlist, `/about` storefront page with trust stats + branches |
 | 5 | Tenant admin — dashboard (notifications, trends), products CRUD, orders management, customers tab, categories CRUD |

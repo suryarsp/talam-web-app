@@ -4,7 +4,7 @@
 >
 > **Track order:** This is a **Data-track** plan. Do not start it until every phase's UI-track plan (Phases 1–8) is complete — see `README.md`. This file specifically depends on `2026-07-06-talam-phase-2-storefront-ui.md` having been executed first.
 
-**Goal:** Wire every mock-wired storefront page/component from the Phase 2 UI-track (shop page, product detail page, reviews, `/about`, category SEO pages) to real Prisma-backed data, following TDD where a new data-layer function is introduced (failing test → implementation → passing test), then swapping each page's mock import for the real call and verifying no regressions.
+**Goal:** Wire every mock-wired storefront page/component from the Phase 2 UI-track (home at `/`, product detail page, reviews, `/about`, category SEO pages) to real Prisma-backed data, following TDD where a new data-layer function is introduced (failing test → implementation → passing test), then swapping each page's mock import for the real call and verifying no regressions on localhost root routes before any tenant-domain or proxy work.
 
 **Tech Stack:** Next.js 16 App Router, ISR (`revalidate`), Prisma 7 + `withTenant` (`lib/prisma.ts`), Vitest for data-layer TDD, Claude Preview MCP for the verification step.
 
@@ -14,6 +14,7 @@
 - Every mock fixture referenced below (`shop-mock-data.ts`, `product-detail-mock.ts`, `reviews-mock-data.ts`, `about-mock-data.ts`, all under `components/store/__mocks__/`) was left in place by the UI-track deliberately — this plan's job is to delete the import, not the component that consumes it.
 - TDD required wherever a new `lib/data/*.ts` function is introduced: failing test → implementation → passing test, before any page is wired to it.
 - Verification step for every data-wiring task: `npm run build` (no TS errors), `preview_start` + `preview_resize` (390px, then 1440px) + `preview_screenshot`, `preview_console_logs({ level: "error" })` must be empty, `preview_network({ filter: "failed" })` must be empty.
+- Use the existing dev-tenant fallback to verify these pages on localhost root routes first. Do not block this plan on purchased-domain setup, wildcard subdomain middleware hardening, or preview-host proxy work.
 - Restart (not reload) the dev server after any Prisma/data-layer change, per this project's Preview Tool Glitches convention.
 
 ---
@@ -40,7 +41,7 @@ npm run build
 ```
 Expected: no TypeScript errors.
 
-Start the dev server via `preview_start`, navigate to `/shop` on the seeded `silk` tenant (per the Local Dev Routing Gotcha memory — use tenant subdomain routing, not bare localhost), then:
+Start the dev server via `preview_start`, navigate to `/` on localhost using the seeded `silk` dev tenant fallback, then:
 1. `preview_resize` to `{ width: 1440, height: 900 }`, `preview_screenshot` — confirm the header row, sidebar, and grid render with real seeded products/categories (counts and copy will differ from the mock fixture — that's expected).
 2. `preview_resize` to `{ width: 390, height: 900 }`, `preview_screenshot` — confirm the mobile "Filter & Sort" pill and sheet still work against real category data.
 3. `preview_console_logs({ level: "error" })` — expect empty array.
@@ -58,8 +59,8 @@ rm components/store/__mocks__/shop-mock-data.ts 2>/dev/null || true
 - [ ] **Step 3: Commit**
 
 ```bash
-git add app/store/shop/page.tsx
-git commit -m "feat: wire shop page to real getProducts/getCategories data"
+git add app/store/page.tsx
+git commit -m "feat: wire storefront home page to real getProducts/getCategories data"
 ```
 
 ---
@@ -234,7 +235,7 @@ npm run build
 ```
 Expected: no TypeScript errors.
 
-`preview_start`, navigate to `/about` on the seeded `silk` tenant. `preview_resize` to 1440px and 390px, `preview_screenshot` each, confirm layout matches Paper structurally (real seeded copy will differ from "Meena Patel"/"Meena Silks" demo text — expected per the Paper Demo Content Mismatch memory; verify layout/spacing/typography and that real branch data renders, not mock branches). `preview_console_logs({ level: "error" })` and `preview_network({ filter: "failed" })` must both be empty. Delete the scratch mock file:
+`preview_start`, navigate to `/about` on localhost using the seeded `silk` dev tenant fallback. `preview_resize` to 1440px and 390px, `preview_screenshot` each, confirm layout matches Paper structurally (real seeded copy will differ from "Meena Patel"/"Meena Silks" demo text — expected per the Paper Demo Content Mismatch memory; verify layout/spacing/typography and that real branch data renders, not mock branches). `preview_console_logs({ level: "error" })` and `preview_network({ filter: "failed" })` must both be empty. Delete the scratch mock file:
 
 ```bash
 rm components/store/__mocks__/about-mock-data.ts 2>/dev/null || true
@@ -263,7 +264,7 @@ This task's data-wiring is close to trivial: the UI-track's mock-wired page alre
 
 - [ ] **Step 1: Wire real category + product data into the category slug page**
 
-Replace the mock imports in `app/store/shop/[categorySlug]/page.tsx` with `headers()` → `x-tenant-id` → `notFound()` guard, `getCategories(tenantId)` to resolve the category by `categorySlug` (→ `notFound()` if no match), and `getProducts(tenantId, { categoryId: category.id })`. Add `generateMetadata` using `category.name` as the page title (already present in the UI-track's route shape, just needs real data). Add `export const revalidate = 1800` (30 min ISR, matching the shop page's schedule since this is the same data at a different URL).
+Replace the mock imports in `app/store/category/[categorySlug]/page.tsx` with `headers()` → `x-tenant-id` → `notFound()` guard, `getCategories(tenantId)` to resolve the category by `categorySlug` (→ `notFound()` if no match), and `getProducts(tenantId, { categoryId: category.id })`. Add `generateMetadata` using `category.name` as the page title (already present in the UI-track's route shape, just needs real data). Add `export const revalidate = 1800` (30 min ISR, matching the storefront home schedule since this is the same data at a different URL).
 
 - [ ] **Step 2: Build check**
 
@@ -274,13 +275,13 @@ Expected: no TypeScript errors.
 
 - [ ] **Step 3: Verify against a live category and check for console/network errors**
 
-`preview_start`, navigate to `/shop/<a-seeded-category-slug>` (e.g. `/shop/sarees` if the `silk` tenant seed has a "Sarees" category). `preview_screenshot` at 1440px and 390px — confirm it renders the same product-card styling as the real `/shop` page (Task 1), now with real seeded products filtered to just that category. `preview_console_logs({ level: "error" })` and `preview_network({ filter: "failed" })` must both be empty.
+`preview_start`, navigate to `/category/<a-seeded-category-slug>` (e.g. `/category/sarees` if the `silk` tenant seed has a "Sarees" category). `preview_screenshot` at 1440px and 390px — confirm it renders the same product-card styling as the real `/` storefront page (Task 1), now with real seeded products filtered to just that category. `preview_console_logs({ level: "error" })` and `preview_network({ filter: "failed" })` must both be empty.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add app/store/shop/
-git commit -m "feat: wire /shop/[categorySlug] SEO pages to real getCategories/getProducts data"
+git add app/store/category/
+git commit -m "feat: wire /category/[categorySlug] SEO pages to real getCategories/getProducts data"
 ```
 
 ---
@@ -297,14 +298,14 @@ npm run build
 ```
 Expected: no errors.
 
-Manual smoke test on the seeded `silk` tenant (localhost, per the Local Dev Routing Gotcha memory — use the tenant subdomain routing, not bare localhost):
-- [ ] `/shop` at both breakpoints: filters actually narrow the real product list, sort actually reorders it
+Manual smoke test on localhost using the seeded `silk` dev tenant fallback:
+- [ ] `/` at both breakpoints: filters actually narrow the real product list, sort actually reorders it
 - [ ] `/product/<slug>` at both breakpoints: real rating summary line (zero-state until reviews exist), real trust banner driven by `tenant.freeDeliveryAbove`/`returnWindowDays`, reviews section shows real (empty) state, submitting a review persists it
 - [ ] `/about` at both breakpoints: real tenant name/story/social links, real branch cards (not "Meena Silks"/"Main Store" mock data)
-- [ ] `/shop/<category-slug>` at both breakpoints: same styling as `/shop`, real product count, crawlable metadata title
+- [ ] `/category/<category-slug>` at both breakpoints: same styling as `/`, real product count, crawlable metadata title
 - [ ] Zero console errors and zero failed network requests on all routes at both breakpoints
 - [ ] All `components/store/__mocks__/*.ts` scratch files have been deleted
-- [ ] `git log --oneline -6` shows 5 new commits: shop data wiring, product detail data wiring, reviews data + actions, about page data wiring, category SEO data wiring
+- [ ] `git log --oneline -6` shows 5 new commits: storefront home data wiring, product detail data wiring, reviews data + actions, about page data wiring, category SEO data wiring
 
 ## Self-Review
 

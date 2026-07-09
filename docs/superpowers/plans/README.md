@@ -1,38 +1,64 @@
 # Talam Implementation Plans
 
-Restructured 2026-07-06 into a **two-track, design-first sequence**:
+Revised 2026-07-09 into a **storefront-first execution sequence**:
 
-1. **UI track (do this entirely first, across all 8 phases):** every screen in the app is built against the *live* Paper file (not the written design doc, which drifts) with typed mock data, screenshot-verified pixel-for-pixel at 390px/1440px, and committed on its own. Backend-only phases/tasks (rate limiting, payment abstraction, platform billing, etc.) have no UI file content — they're listed as one-line pointers so task numbering stays aligned with their Data-track sibling.
-2. **Data track (only after every UI track above is done):** the same components/pages get wired to real Prisma queries and Server Actions via TDD (failing test → implementation → passing test), swapping each mock fixture for a real data source, verified again, and committed separately.
+1. **Storefront routes first, on local root routes:** finish the tenant-facing storefront experience at `http://localhost:3000/` and its related routes (`/category/[categorySlug]`, `/product/[slug]`, `/about`, `/cart`, `/checkout`, `/wishlist`, `/account`, `/auth`) using the seeded dev-tenant fallback. Treat these routes as the primary delivery surface until the storefront is complete and stable.
+2. **Admin/platform and supporting backend work second:** continue with the remaining UI/data plans after the storefront routes are loading cleanly and the customer journey works end-to-end on localhost.
+3. **Tenant domain, middleware, and proxy work last:** wildcard-domain routing, tenant host resolution, preview aliasing, and production proxy/cutover stay deferred until the real domain is purchased and we're ready to validate production-style tenancy.
 
-Where no live Paper artboard exists for a task (verified, not assumed — several phases confirmed this by walking the design file), the plan says so explicitly and downgrades the verify step instead of fabricating a citation.
+Paper remains the visual source of truth, and real data wiring still follows the UI build where the per-phase plans call for it. The change here is execution order: we are no longer treating tenant-domain infrastructure as a prerequisite for finishing storefront behavior.
 
-## UI track — build every screen first, in this order
+## Immediate route priority
+
+Work this route set to completion before returning to domain or proxy tasks:
+
+- `/` — storefront home/product listing
+- `/category/[categorySlug]` — category landing pages
+- `/product/[slug]` — product detail
+- `/about` — store story and branches
+- `/cart`
+- `/checkout`
+- `/wishlist`
+- `/account`
+- `/auth`
+
+Use the existing dev-tenant fallback on localhost while building and verifying these pages. Do not block this route set on subdomain middleware, wildcard DNS, or purchased-domain setup.
+
+## UI/data plan order — build in this order
 
 | # | Plan | Covers | Key notes |
 |---|------|--------|-----------|
-| 1 | [phase-1-foundation-ui.md](2026-07-06-talam-phase-1-foundation-ui.md) | Marketing home rebuild | Only new UI surface from Phase 1 — everything else was backend and already shipped. |
-| 2 | [phase-2-storefront-ui.md](2026-07-06-talam-phase-2-storefront-ui.md) | Shop page, product detail, reviews UI, `/about`, category pages | The original complaint (shop filter UI diverges from Paper) lives here — start here. |
-| 3 | [phase-3-commerce-ui.md](2026-07-06-talam-phase-3-commerce-ui.md) | Cart page, checkout flow UI | Payment abstraction/orders-data/webhooks are backend-only — pointers only. |
-| 4 | [phase-4-customer-ui.md](2026-07-06-talam-phase-4-customer-ui.md) | Orders list/detail, account, wishlist UI | Auth-gated pages render with a mocked logged-in state, no real guard yet. |
+| 1 | [phase-2-storefront-ui.md](2026-07-06-talam-phase-2-storefront-ui.md) | `/`, category pages, product detail, reviews UI, `/about` | Start here. This is now the primary storefront-first plan. |
+| 2 | [phase-3-commerce-ui.md](2026-07-06-talam-phase-3-commerce-ui.md) | `/cart`, `/checkout` UI | Continue the shopper flow before admin or platform work. |
+| 3 | [phase-4-customer-ui.md](2026-07-06-talam-phase-4-customer-ui.md) | `/orders`, `/account`, `/wishlist` UI | Finish customer-facing routes while still on localhost storefront flow. |
+| 4 | [phase-1-foundation-ui.md](2026-07-06-talam-phase-1-foundation-ui.md) | Marketing home rebuild | Lower priority than storefront unless marketing changes are needed to unblock launch work. |
 | 5 | [phase-5-tenant-admin-ui.md](2026-07-06-talam-phase-5-tenant-admin-ui.md) | `/admin` dashboard, products, orders, settings UI | Live Paper has only 4 admin sections (no "Customers" page). Mocked owner state, no real guard yet. |
 | 6 | [phase-6-platform-ui.md](2026-07-06-talam-phase-6-platform-ui.md) | `/super-admin` tenant list/detail, platform stats UI | **No Paper artboard exists for platform admin at all** — verify step downgraded accordingly. |
 | 7 | [phase-7-growth-ui.md](2026-07-06-talam-phase-7-growth-ui.md) | `/join` landing page UI | Only UI-bearing task in Phase 7; no Paper artboard exists for it either (verified). |
 | 8 | [phase-8-launch-ui.md](2026-07-06-talam-phase-8-launch-ui.md) | Header/footer Paper re-verification | Last UI-track plan. Confirms header/footer already match Paper; the WhatsApp FAB bug fix itself is a Data-track item (touches a schema field). |
 
-## Data track — only after all 8 UI plans above are complete
+## Data track — wire the same storefront-first order
 
 | # | Plan | Covers | Key notes |
 |---|------|--------|-----------|
-| 1 | [phase-1-foundation-data.md](2026-07-06-talam-phase-1-foundation-data.md) | Marketing home highlights (conditional) | No-op unless the UI track's Paper pull found real dynamic content. |
-| 2 | [phase-2-storefront-data.md](2026-07-06-talam-phase-2-storefront-data.md) | Shop/product/reviews/about/category data wiring | Reviews task carries the full TDD data-layer build. |
-| 3 | [phase-3-commerce-data.md](2026-07-06-talam-phase-3-commerce-data.md) | Payment abstraction, orders data layer, webhooks, cart/checkout wiring | Flags `/orders/[id]` as a Phase 4 dependency; `DiscountCode` has no `Order` relation yet. |
-| 4 | [phase-4-customer-data.md](2026-07-06-talam-phase-4-customer-data.md) | Auth guard, orders/account/wishlist data wiring | Satisfies Phase 3's `/orders/[id]` dependency. |
+| 1 | [phase-2-storefront-data.md](2026-07-06-talam-phase-2-storefront-data.md) | `/`, category/product/about/reviews data wiring | First real-data pass for the storefront routes. |
+| 2 | [phase-3-commerce-data.md](2026-07-06-talam-phase-3-commerce-data.md) | Cart/checkout wiring, payment abstraction, orders data layer, webhooks | Continues the storefront customer journey. |
+| 3 | [phase-4-customer-data.md](2026-07-06-talam-phase-4-customer-data.md) | Auth guard, orders/account/wishlist data wiring | Finishes customer-owned surfaces after the shopper flow. |
+| 4 | [phase-1-foundation-data.md](2026-07-06-talam-phase-1-foundation-data.md) | Marketing home highlights (conditional) | Still optional and not a storefront blocker. |
 | 5 | [phase-5-tenant-admin-data.md](2026-07-06-talam-phase-5-tenant-admin-data.md) | Owner guard, dashboard/product/order/settings data + Server Actions | No Cloudinary upload pipeline yet — manual URL stopgap. |
 | 6 | [phase-6-platform-data.md](2026-07-06-talam-phase-6-platform-data.md) | Super-admin guard, platform stats/tenant data, tier override | No tenant-approval workflow or real billing schema; MRR is an estimate. |
 | 7 | [phase-7-growth-data.md](2026-07-06-talam-phase-7-growth-data.md) | Rate limiting, PostHog, Resend, OG images, `/join` data wiring | Order-event wiring explicitly gated on Phases 3/4 being implemented first. OTP stays SMS-only via MSG91. |
-| 8 | [phase-8-launch-data.md](2026-07-06-talam-phase-8-launch-data.md) | WhatsApp FAB fix, SEO, performance, launch checklist | One real bug found: footer FAB ignores `Tenant.showWhatsappButton`. |
+| 8 | [phase-8-launch-data.md](2026-07-06-talam-phase-8-launch-data.md) | WhatsApp FAB fix, SEO, performance, launch checklist, post-purchase domain/proxy cutover | Includes the delayed tenancy-infrastructure finish once a real domain exists. |
 
 ## Execution order
 
-Work straight down the UI track table (1 → 8), then straight down the Data track table (1 → 8). Within the UI track, Phase 2 is the natural starting point since it's the original shop-page complaint and nothing else blocks on it.
+Work straight down the UI/data tables above, not the old phase-number order. The immediate path is:
+
+1. `phase-2-storefront-ui`
+2. `phase-3-commerce-ui`
+3. `phase-4-customer-ui`
+4. `phase-2-storefront-data`
+5. `phase-3-commerce-data`
+6. `phase-4-customer-data`
+
+Only after the storefront route set is stable on localhost should we move on to admin/platform work, and only after the domain is purchased should we pick up wildcard-domain, middleware-hardening, preview alias, and production proxy/cutover tasks.

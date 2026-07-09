@@ -14,8 +14,10 @@
 ## Local dev model (read this first)
 
 - [ ] Understand: root app runs at `http://localhost:3000`. No domain needed for local dev.
+- [ ] Understand: the current implementation plan treats localhost root routes as the primary storefront delivery surface. Build and verify `/`, `/category/[categorySlug]`, `/product/[slug]`, `/about`, `/cart`, `/checkout`, `/wishlist`, `/account`, and `/auth` here first.
 - [ ] Understand: per-tenant subdomains (`silk.mytalam.com` in prod) are **not reliably testable on localhost** — `*.localhost` subdomain routing depends on OS/browser support and is flaky.
-- [ ] Plan to use a **Vercel preview deployment** to test subdomain routing instead of fighting `/etc/hosts` (per [phase-1-foundation plan](superpowers/plans/2026-06-23-talam-phase-1-foundation.md) — Vercel gives every deployment a `*.vercel.app` URL, and you can add a preview-only wildcard alias). Details in §J.
+- [ ] Defer subdomain-routing, proxy, and wildcard-domain validation until the storefront routes above are complete and a real domain purchase is in motion.
+- [ ] Plan to use a **Vercel preview deployment** later to test subdomain routing instead of fighting `/etc/hosts` (per [phase-1-foundation plan](superpowers/plans/2026-06-23-talam-phase-1-foundation.md) — Vercel gives every deployment a `*.vercel.app` URL, and you can add a preview-only wildcard alias). Details in §J.
 - [ ] Note: every third-party service below has a **sandbox/test mode** that works without `mytalam.com` existing — use it. Each section calls out the dev-mode shortcut.
 
 ---
@@ -289,9 +291,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 
 ---
 
-## §J. Vercel — Preview Deploys (no domain needed)
+## §J. Vercel — Preview Deploys (optional before domain purchase)
 
-> Subdomain routing (§ middleware) is hard to test on localhost — use a Vercel preview deployment instead, per the phase-1 plan.
+> This section is intentionally lower priority than finishing the localhost storefront route set. Use it only when you specifically need preview-host validation after the storefront works at `/`, or once domain/proxy work is active.
 
 **Configure**
 - [ ] Go to [vercel.com](https://vercel.com) and create/sign in to an account
@@ -336,7 +338,7 @@ Run once §A–§J are wired up.
 
 ## §K. Production Domain Cutover (deferred — do this last, right before launch)
 
-> Nothing in §A–§J depends on this section. Come back here once the app is feature-complete and you're ready to go live on `mytalam.com`.
+> Nothing in §A–§J depends on this section. Come back here once the storefront is feature-complete on localhost and you're ready to go live on `mytalam.com`.
 
 ### §K1. Domain Registration
 **Configure**
