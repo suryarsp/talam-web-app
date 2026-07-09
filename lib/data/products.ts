@@ -61,10 +61,38 @@ export async function getProducts(tenantId: string, filters?: ProductFilters) {
 }
 
 export async function getProductBySlug(tenantId: string, slug: string) {
-  return withTenant(tenantId, (db) =>
+  const product = await withTenant(tenantId, (db) =>
     db.product.findFirst({
       where: { tenantId, slug, isActive: true },
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        reviews: { where: { isDeleted: false }, select: { rating: true } },
+      },
+    })
+  )
+  if (!product) return null
+
+  const { reviews, ...rest } = product
+  return {
+    ...rest,
+    reviewCount: reviews.length,
+    averageRating: reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null,
+  }
+}
+
+export async function getProductReviews(tenantId: string, productId: string) {
+  return withTenant(tenantId, (db) =>
+    db.productReview.findMany({
+      where: { tenantId, productId, isDeleted: false },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        isVerifiedPurchase: true,
+        createdAt: true,
+        customer: { select: { name: true } },
+      },
     })
   )
 }

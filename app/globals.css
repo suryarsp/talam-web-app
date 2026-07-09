@@ -31,6 +31,8 @@
   --color-amber: #f59e0b;
   --color-danger: #ef4444;
   --color-success: #10b981;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbedd4;
   --color-brand-primary: #4f3ff0;
 
   --text-2xs: 11px;

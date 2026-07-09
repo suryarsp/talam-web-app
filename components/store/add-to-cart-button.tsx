@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import type { Product } from '@prisma/client'
 import { SizePicker } from './size-picker'
 import { Button } from '@/components/ui/button'
 import { useCartStore } from '@/lib/store/cart'
 
 type Props = {
-  product: Product
+  product: { id: string; tenantId: string; name: string; price: number | string; sizes: string[]; images: string[] }
   stockBySize: Record<string, number>
 }
 
@@ -49,12 +48,22 @@ export function AddToCartButton({ product, stockBySize }: Props) {
         />
       )}
       {error && <p className="font-body text-sm text-danger">{error}</p>}
-      <Button
-        className="h-12 w-full rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
-        onClick={handleAddToCart}
-      >
-        {added ? 'Added to Cart ✓' : 'Add to Cart'}
-      </Button>
+      <div className="flex gap-3">
+        <Button
+          className="h-12 flex-1 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
+          onClick={handleAddToCart}
+        >
+          {added ? 'Added to Cart ✓' : 'Add to Cart'}
+        </Button>
+        {/* ponytail: decorative only — wishlist needs a signed-in customer session, wire up once storefront auth + wishlist backend exist */}
+        <button
+          type="button"
+          aria-label="Add to wishlist"
+          className="flex h-12 items-center gap-1.5 rounded-lg border border-store-primary px-4 font-body text-md font-semibold text-store-primary"
+        >
+          ♡ Wishlist
+        </button>
+      </div>
     </div>
   )
 }

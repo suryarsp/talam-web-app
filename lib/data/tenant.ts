@@ -27,6 +27,16 @@ export type TenantStorefront = {
   branch: { address: string | null; city: string | null; hours: string | null } | null
 }
 
+export async function getBranches(tenantId: string) {
+  return withTenant(tenantId, (db) =>
+    db.storeBranch.findMany({
+      where: { tenantId },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, name: true, address: true, city: true, phone: true, mapsUrl: true },
+    })
+  )
+}
+
 export async function getTenantStorefront(tenantId: string): Promise<TenantStorefront | null> {
   const tenant = await withTenant(tenantId, (db) =>
     db.tenant.findUnique({

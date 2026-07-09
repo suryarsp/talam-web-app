@@ -3,8 +3,10 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { getProductBySlug } from '@/lib/data/products'
+import { getProductBySlug, getProductReviews } from '@/lib/data/products'
+import { getTenantStorefront } from '@/lib/data/tenant'
 import { AddToCartButton } from '@/components/store/add-to-cart-button'
+import { ReviewsSection } from '@/components/store/reviews-section'
 
 export const revalidate = false // on-demand only, once admin edit revalidation exists
 
@@ -40,11 +42,27 @@ export default async function ProductPage({ params }: Props) {
   const product = await getProductBySlug(tenantId, slug)
   if (!product) notFound()
 
+  const [tenant, reviews] = await Promise.all([
+    getTenantStorefront(tenantId),
+    getProductReviews(tenantId, product.id),
+  ])
+
   const stockBySize = (product.stockBySize ?? {}) as Record<string, number>
   const hasDiscount = product.comparePrice && Number(product.comparePrice) > Number(product.price)
   const discountPct = hasDiscount
     ? Math.round((1 - Number(product.price) / Number(product.comparePrice)) * 100)
     : null
+  const savedAmount = hasDiscount ? Number(product.comparePrice) - Number(product.price) : null
+
+  const freeDeliveryText =
+    tenant?.freeDeliveryAbove && Number(product.price) >= tenant.freeDeliveryAbove
+      ? 'Free delivery on this order'
+      : tenant?.deliveryEstimateText
+
+  async function submitReviewStub(_rating: number, _comment: string) {
+    'use server'
+    // ponytail: real submission needs a signed-in customer session; wire up once storefront auth exists
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-12 sm:py-10">
@@ -98,6 +116,13 @@ export default async function ProductPage({ params }: Props) {
             <h1 className="font-heading text-2xl leading-tight font-bold text-fg sm:text-[32px]">{product.name}</h1>
           </div>
 
+          {product.reviewCount > 0 && (
+            <p className="font-body text-sm text-success">
+              {'★'.repeat(Math.round(product.averageRating ?? 0))} {product.reviewCount} reviews ·{' '}
+              {product.averageRating?.toFixed(1)} rating
+            </p>
+          )}
+
           <div className="flex items-baseline gap-3">
             <span className="font-body text-2xl font-bold text-fg">
               ₹{Number(product.price).toLocaleString('en-IN')}
@@ -107,12 +132,42 @@ export default async function ProductPage({ params }: Props) {
                 <span className="font-body text-base text-muted-warm line-through">
                   ₹{Number(product.comparePrice).toLocaleString('en-IN')}
                 </span>
-                <span className="font-body text-sm font-semibold text-success">{discountPct}% off</span>
+                <span className="rounded-full bg-danger px-2.5 py-1 font-body text-xs font-bold text-surface">
+                  Save ₹{savedAmount!.toLocaleString('en-IN')}
+                </span>
               </>
             )}
           </div>
 
-          <AddToCartButton product={product} stockBySize={stockBySize} />
+          {freeDeliveryText && (
+            <div className="rounded-lg border border-success-border bg-success-bg px-4 py-3">
+              <p className="font-body text-sm font-medium text-success">
+                ✓ {freeDeliveryText}
+                {tenant?.returnWindowDays ? ` · ${tenant.returnWindowDays}-day returns guaranteed` : ''}
+              </p>
+            </div>
+          )}
+
+          {product.sizes.length > 0 && tenant?.sizeGuideUrl && (
+            <div className="flex items-center justify-between">
+              <p className="font-body text-sm font-semibold text-fg uppercase">Choose Your Size</p>
+              <Link href={tenant.sizeGuideUrl} className="font-body text-sm text-store-primary">
+                View Size Guide →
+              </Link>
+            </div>
+          )}
+
+          <AddToCartButton
+            product={{
+              id: product.id,
+              tenantId: product.tenantId,
+              name: product.name,
+              price: Number(product.price),
+              sizes: product.sizes,
+              images: product.images,
+            }}
+            stockBySize={stockBySize}
+          />
 
           {product.description && (
             <div className="space-y-1 border-t border-border pt-5">
@@ -124,6 +179,13 @@ export default async function ProductPage({ params }: Props) {
           )}
         </div>
       </div>
+
+      <ReviewsSection
+        reviews={reviews}
+        averageRating={product.averageRating}
+        count={product.reviewCount}
+        onSubmitReview={submitReviewStub}
+      />
     </main>
   )
 }
