@@ -1,55 +1,76 @@
-import { ImagePlus } from 'lucide-react'
+import { Field, FieldHint, FileDropzone, StepTitle, TextInput } from './onboarding-fields'
 
-import { SIZES } from './onboarding-data'
-import { Field, SelectField, StepTitle, TextInput } from './onboarding-fields'
-
-export function ProductStep() {
+export function ProductStep({
+  productName,
+  setProductName,
+  productPrice,
+  setProductPrice,
+  productStock,
+  setProductStock,
+  productPhoto,
+  setProductPhoto,
+  errors,
+}: {
+  readonly productName: string
+  readonly setProductName: (value: string) => void
+  readonly productPrice: string
+  readonly setProductPrice: (value: string) => void
+  readonly productStock: string
+  readonly setProductStock: (value: string) => void
+  readonly productPhoto: File | null
+  readonly setProductPhoto: (file: File | null) => void
+  readonly errors: Record<string, string>
+}) {
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
       <StepTitle
         step={3}
         title="Add your first product"
-        description="Create one product now so your store has something real to show."
+        description="Upload a product photo, set the price, and stock quantity."
       />
-      <div className="space-y-5">
-        <Field label="Product name">
-          <TextInput defaultValue="Handwoven silk kurta" />
+      <div className="flex flex-col gap-6">
+        <Field label="Product name" error={errors.productName}>
+          <FieldHint>E.g., &quot;Cotton Saree&quot; or &quot;Blue Kurta&quot;</FieldHint>
+          <TextInput
+            value={productName}
+            onChange={(event) => setProductName(event.target.value)}
+            invalid={Boolean(errors.productName)}
+          />
         </Field>
-        <Field label="Price">
-          <TextInput defaultValue="1850" inputMode="numeric" />
-        </Field>
-        <Field label="Category">
-          <SelectField>
-            <option>Kurtis</option>
-            <option>Sarees</option>
-            <option>Crafts</option>
-          </SelectField>
-        </Field>
-        <div className="flex min-h-[132px] flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed border-border bg-surface px-4 py-6 text-center">
-          <ImagePlus className="size-8 text-muted-warm" strokeWidth={1.8} />
-          <p className="mt-3 text-md font-bold text-fg">Upload product image</p>
-          <p className="mt-1 text-xs text-muted-warm">Customers buy what they can inspect</p>
+        <div>
+          <span className="font-body text-sm font-medium leading-[18px] text-[#374151]">Product photo</span>
+          <FileDropzone
+            hint="High-quality photo (min 500×500px)"
+            fileName={productPhoto?.name ?? null}
+            onFileChange={setProductPhoto}
+          />
         </div>
-        <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-[0.04em] text-fg">Sizes</p>
-          <div className="flex flex-wrap gap-2">
-            {SIZES.map((size, index) => (
-              <label
-                key={size}
-                className={[
-                  'rounded-lg border-[1.5px] px-[14px] py-2 text-sm font-bold',
-                  index < 4 ? 'border-brand-primary bg-brand-primary/5 text-brand-primary' : 'border-border text-muted-warm',
-                ].join(' ')}
-              >
-                <input className="sr-only" type="checkbox" defaultChecked={index < 4} />
-                {size}
-              </label>
-            ))}
+        <Field label="Price" error={errors.productPrice}>
+          <FieldHint>Selling price in INR</FieldHint>
+          <div
+            className={[
+              'flex h-14 items-center gap-1 rounded-xl border bg-surface px-5',
+              errors.productPrice ? 'border-danger' : 'border-[#E5E7EB]',
+            ].join(' ')}
+          >
+            <span className="font-body text-base text-[#9CA3AF]">₹</span>
+            <input
+              value={productPrice}
+              onChange={(event) => setProductPrice(event.target.value)}
+              inputMode="numeric"
+              className="h-full w-full bg-transparent font-body text-base text-[#1F2937] outline-none"
+            />
           </div>
-        </div>
-        <button type="button" className="min-h-11 text-sm font-medium text-muted-warm">
-          I&apos;ll add categories later
-        </button>
+        </Field>
+        <Field label="Stock quantity" error={errors.productStock}>
+          <FieldHint>How many units do you have?</FieldHint>
+          <TextInput
+            value={productStock}
+            onChange={(event) => setProductStock(event.target.value)}
+            inputMode="numeric"
+            invalid={Boolean(errors.productStock)}
+          />
+        </Field>
       </div>
     </div>
   )

@@ -28,31 +28,29 @@ export const STEPS = [
 
 export const STORE_TYPES = ['Ethnic wear', 'Bakery', 'Handicrafts', 'Salon', 'Other'] as const
 
-export const BRAND_COLORS = ['#E8577E', '#4F3FF0', '#10B981', '#F59E0B', '#EF4444', '#1A1A1A'] as const
-
-export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const
+export const BRAND_COLORS = ['#4F3FF0', '#EC4899', '#06B6D4', '#8B5CF6'] as const
 
 export const PAYMENTS = [
   {
     id: 'upi',
-    name: 'UPI Manual',
-    description: 'Collect payments to your UPI ID and confirm orders yourself.',
+    name: 'UPI',
+    description: 'Google Pay, PhonePe, BHIM, Paytm',
     markClassName: 'bg-bg-dark text-amber',
     mark: 'UPI',
   },
   {
-    id: 'instamojo',
-    name: 'Instamojo',
-    description: 'Best for individual sellers with PAN and savings account.',
-    markClassName: 'bg-[#004282] text-surface',
-    mark: 'IM',
-  },
-  {
     id: 'razorpay',
     name: 'Razorpay',
-    description: 'Use your existing Razorpay account for cards and UPI.',
+    description: 'Credit/Debit Card, UPI, Wallets',
     markClassName: 'bg-[#072654] text-surface',
     mark: 'RZP',
+  },
+  {
+    id: 'instamojo',
+    name: 'Instamojo',
+    description: 'Credit/Debit Card, UPI, EMI',
+    markClassName: 'bg-[#004282] text-surface',
+    mark: 'IM',
   },
 ] as const
 

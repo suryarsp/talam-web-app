@@ -13,7 +13,7 @@ export function PaymentStep({
       <StepTitle
         step={4}
         title="Connect payments"
-        description="Pick how customers pay you. You can change this anytime from settings."
+        description="Choose how you want to receive payments from customers."
       />
       <div className="space-y-[10px]">
         {PAYMENTS.map((payment) => {
@@ -23,7 +23,7 @@ export function PaymentStep({
             <label
               key={payment.id}
               className={[
-                'block rounded-xl border-[1.5px] bg-surface p-4 transition-colors',
+                'block cursor-pointer rounded-xl border-[1.5px] bg-surface p-4 transition-colors',
                 selected ? 'border-brand-primary bg-brand-primary/5' : 'border-border',
               ].join(' ')}
             >
@@ -43,14 +43,15 @@ export function PaymentStep({
                   <span className="mt-1 block text-xs leading-snug text-muted-warm">{payment.description}</span>
                 </span>
               </span>
-              {selected ? (
-                <span className="mt-4 block rounded-lg border border-border bg-surface p-3 text-xs leading-relaxed text-muted-warm">
-                  Setup fields will connect in the data pass. This UI keeps the payment choice visible and editable.
-                </span>
-              ) : null}
             </label>
           )
         })}
+      </div>
+      <div className="mt-5 rounded-lg border border-border bg-bg p-4">
+        <p className="text-sm font-bold text-fg">💡 Pro tip</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-warm">
+          You can add multiple payment methods after setup. Start with one and expand later.
+        </p>
       </div>
     </div>
   )

@@ -3,10 +3,14 @@
 **Date:** 2026-06-23
 **Last updated:** 2026-07-11
 **Status:** Open for Contribution
-**Version:** 1.8 (Settings restructured from a single accordion page into a hub + four subpages with breadcrumbs)
+**Version:** 1.9 (Onboarding Wizard re-verified against live Paper artboards)
 **For:** UI/UX designers contributing to the Talam open source project
 
-> **Design source of truth:** Real design work now happens in a Paper Design file (`Talam Design`, 6 pages: Store Front, Marketing, Checkout Flow, Design Library, Admin Dashboard, Onboarding). The Admin Dashboard page alone has grown to 22 artboards (Dashboard, Products, Orders + order details/action menu, Settings + 7 Store Settings sub-pages, Product Editor, filter/modal overlays) — far more than §4.8–4.12 below describe; the Checkout Flow page has 7 (3 steps × mobile/desktop + a mobile-only Order Confirmed screen). This document's brand/typography/spacing/radius tokens (§2) and the design tokens reference (§10) have been re-synced to that file's live token set as of 2026-06-30. §4.5 and §4.8 have been re-verified against their live artboards (2026-07-04, see changelog notes); §4.1–4.4, §4.6–4.7, and §4.9–4.14 are still the original written brief and have **not** been individually re-verified against each Paper artboard — treat them as design intent, not a guaranteed pixel match. For current per-screen build status, see [`docs/2026-06-28-PAPER-DESIGN-INVENTORY.md`](../2026-06-28-PAPER-DESIGN-INVENTORY.md) (**note: this file does not currently exist in the repo** — recreate it before relying on it).
+> **Design source of truth:** Real design work now happens in a Paper Design file (`Talam Design`, 6 pages: Store Front, Marketing, Checkout Flow, Design Library, Admin Dashboard, Onboarding). The Admin Dashboard page alone has grown to 22 artboards (Dashboard, Products, Orders + order details/action menu, Settings + 7 Store Settings sub-pages, Product Editor, filter/modal overlays) — far more than §4.8–4.12 below describe; the Checkout Flow page has 7 (3 steps × mobile/desktop + a mobile-only Order Confirmed screen). This document's brand/typography/spacing/radius tokens (§2) and the design tokens reference (§10) have been re-synced to that file's live token set as of 2026-06-30. §4.5, §4.7, and §4.8 have been re-verified against their live artboards (see changelog notes); §4.1–4.4, §4.6, and §4.9–4.14 are still the original written brief and have **not** been individually re-verified against each Paper artboard — treat them as design intent, not a guaranteed pixel match. For current per-screen build status, see [`docs/2026-06-28-PAPER-DESIGN-INVENTORY.md`](../2026-06-28-PAPER-DESIGN-INVENTORY.md) (**note: this file does not currently exist in the repo** — recreate it before relying on it).
+
+**Changelog v1.9 (2026-07-11)**
+- **REWROTE:** §4.7 Onboarding Wizard re-verified against the live `Onboarding / Mobile — Step 1..5` Paper artboards. Corrections: Step 3 (product) collects **Product photo, Price (₹ prefix), and Stock quantity** — not a Category dropdown or Size checkboxes, which don't exist on that artboard. Step 4 payment methods are ordered **UPI, Razorpay, Instamojo** (not UPI/Instamojo/Razorpay) with a "💡 Pro tip" callout instead of an inline setup-fields note. Step 5 is a **completion checklist** (4 done-items: store/brand/product/payment) plus a "💡 Next steps" callout and a **"Go Live →"** primary CTA — not a WhatsApp-share/copy-link screen. Steps 1–3 footer includes a **Skip** button between Back and Next (step 4 has none, matching the live artboards).
+- Implementation updated to match: [`app/admin/onboarding/product-step.tsx`](../../app/admin/onboarding/product-step.tsx), [`payment-step.tsx`](../../app/admin/onboarding/payment-step.tsx), [`go-live-step.tsx`](../../app/admin/onboarding/go-live-step.tsx), [`page.tsx`](../../app/admin/onboarding/page.tsx).
 
 **Changelog v1.8 (2026-07-11)**
 - **REWROTE:** §4.1c Settings restructured from a single-page accordion (Addresses/Payment Methods/Notifications/Account all inline) into a nav-list **hub** at `/account` plus four subpages with `Settings › <Section>` breadcrumbs: `/account/addresses`, `/account/payment-method`, `/account/notifications`, `/account/actions`. The Account subpage route is `/account/actions` (not `/account/account`) to avoid a duplicated path segment — its breadcrumb still reads "Settings › Account".
@@ -787,6 +791,8 @@ Live in Paper as `Edit Profile — Mobile` and `Edit Profile — Desktop` (both 
 
 ### 4.7 Tenant Admin — Onboarding Wizard
 
+> **Re-verified against live Paper artboards 2026-07-11** (`Onboarding / Mobile — Step 1..5`, `Onboarding / Desktop — Step 1..3`). See v1.9 changelog for corrections (Step 3 fields, Step 4 payment order/copy, Step 5 rebuilt as a completion checklist).
+
 **Triggered:** First login after signup. Can be skipped and resumed.
 
 **Header** — Sticky, 56px height
@@ -828,14 +834,9 @@ Live in Paper as `Edit Profile — Mobile` and `Edit Profile — Desktop` (both 
 
 **Step 3: Add your first product**
 - Product name field
-- Price field
-- Category dropdown
-- Image upload (drag-drop area)
-- Size checkboxes (flex wrap, gap 8px)
-  - Button UI: padding 8px 14px, border 1.5px
-  - Checked: border + bg brand (6% opacity), text brand
-  - Radio input (accent = brand)
-- Skip option: "I'll add categories later"
+- Product photo upload (drag-drop area, min 500×500px hint)
+- Price field (₹ prefix, numeric)
+- Stock quantity field (numeric)
 
 **Step 4: Connect payments**
 - Heading + subheading
@@ -845,23 +846,22 @@ Live in Paper as `Edit Profile — Mobile` and `Edit Profile — Desktop` (both 
   - Header: radio (20px, accent brand) + icon (40×28px) + name (15px bold) + desc (12px muted)
   - Icons:
     - UPI: dark bg (#1A1040), amber text
-    - Instamojo: dark blue bg (#004282), white text
     - Razorpay: dark blue bg (#072654), white text
-  - Body (hidden, shown if selected): payment-specific fields
+    - Instamojo: dark blue bg (#004282), white text
+  - Order: UPI, Razorpay, Instamojo
+- "💡 Pro tip" callout (bg light, border 1px, padding 16px): "You can add multiple payment methods after setup. Start with one and expand later."
 
 **Step 5: Go live**
-- Confetti area (relative, height 80px, overflow hidden)
-- Store link box (bg light, border 1.5px, border-radius 8px, padding 12px 14px)
-  - URL: 14px bold, brand color, monospace
-  - Copy button (border 1px, 12px, hover: brand border + text)
-- WhatsApp share button (#25D366, 15px bold, flex center, gap 8px with icon)
-- "View your store" button (outlined, border 1.5px, 15px bold)
+- Completion checklist (4 items, each a done-row with a filled success-colour check icon): Store & website created, Brand & branding applied, First product added, Payment gateway connected
+- "💡 Next steps" callout (bg light, border 1px, padding 16px): "Share your store link with customers, add more products, and watch the orders come in!"
+- Store URL shown as muted monospace text
+- Primary CTA reads "Go Live →" (not "Finish")
 
 **Footer navigation** — Sticky, bottom 0, padding 16px, flex gap 10px
 - Back button (14px, border 1.5px, padding 14px 20px)
-- Next button (flex 1, brand bg, white text, 15px bold, letter-spaced 0.02em)
+- Skip button (14px muted, font-weight 500) — present on steps 1–4, absent on step 5
+- Next button (flex 1, brand bg, white text, 15px bold, letter-spaced 0.02em) — reads "Go Live →" on step 5
   - Active: opacity 0.85
-- Skip button (14px muted, font-weight 500)
 
 ---
 
