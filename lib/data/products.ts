@@ -8,6 +8,7 @@ export type ProductFilters = {
   minPrice?: number
   maxPrice?: number
   sort?: ProductSort
+  tagId?: string
 }
 
 export type CategoryMeta = { id: string; name: string; slug: string }
@@ -36,6 +37,9 @@ export async function getProducts(tenantId: string, filters?: ProductFilters) {
                 ...(filters.maxPrice ? { lte: filters.maxPrice } : {}),
               },
             }
+          : {}),
+        ...(filters?.tagId
+          ? { tagAssignments: { some: { tagId: filters.tagId } } }
           : {}),
       },
       orderBy,

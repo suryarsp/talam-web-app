@@ -3,10 +3,60 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { mockGetOrders, type MockOrder, type MockOrderStatus } from '@/lib/mock-data'
 import { ArrowLeft, Search, ChevronRight, X } from 'lucide-react'
 
-const allOrders = mockGetOrders()
+// ponytail: inline mock until real order history API exists
+type MockOrderStatus = 'Out for Delivery' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Return Pickup'
+
+type MockOrder = {
+  id: string
+  orderId: string
+  date: Date
+  status: MockOrderStatus
+  items: { product: { name: string; slug: string; images: string[] }; size: string; quantity: number; price: number }[]
+  total: number
+  trackingId?: string
+  carrier?: string
+  expectedDate?: string
+  refundAmount?: number
+  returnWindow?: string
+}
+
+const allOrders: MockOrder[] = [
+  {
+    id: 'order-001', orderId: 'ORD-2649', date: new Date('2026-06-28'),
+    status: 'Out for Delivery',
+    items: [
+      { product: { name: 'Kanjivaram Silk Saree', slug: 'kanjivaram-silk-saree', images: ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600'] }, size: 'M', quantity: 1, price: 2499 },
+      { product: { name: 'Zari Border Dupatta', slug: 'zari-border-dupatta', images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600'] }, size: 'Free Size', quantity: 1, price: 699 },
+    ],
+    total: 2998, expectedDate: 'Arrives today by 7 PM',
+  },
+  {
+    id: 'order-002', orderId: 'ORD-2641', date: new Date('2026-06-24'),
+    status: 'Shipped',
+    items: [{ product: { name: 'Pochampally Ikat Saree', slug: 'pochampally-ikat-saree', images: ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600'] }, size: 'L', quantity: 1, price: 1899 }],
+    total: 1899, trackingId: '9876543210', carrier: 'DTDC', expectedDate: 'Expected 2 Jul',
+  },
+  {
+    id: 'order-003', orderId: 'ORD-2618', date: new Date('2026-06-10'),
+    status: 'Delivered',
+    items: [{ product: { name: 'Zari Border Dupatta', slug: 'zari-border-dupatta', images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600'] }, size: 'Free Size', quantity: 1, price: 699 }],
+    total: 699, expectedDate: 'Delivered on 13 Jun 2026',
+  },
+  {
+    id: 'order-004', orderId: 'ORD-2605', date: new Date('2026-06-02'),
+    status: 'Cancelled',
+    items: [{ product: { name: 'Block Print Kurti Set', slug: 'block-print-kurti-set', images: ['https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=600'] }, size: 'M', quantity: 1, price: 1299 }],
+    total: 1299, refundAmount: 1299,
+  },
+  {
+    id: 'order-005', orderId: 'ORD-2590', date: new Date('2026-05-18'),
+    status: 'Return Pickup',
+    items: [{ product: { name: 'Anarkali Suit Set', slug: 'anarkali-suit-set', images: ['https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=600'] }, size: 'L', quantity: 1, price: 2099 }],
+    total: 2099, returnWindow: 'Pickup scheduled: 30 Jun · 10 AM – 2 PM',
+  },
+]
 
 type Tab = 'All' | 'Active' | 'Delivered' | 'Cancelled' | 'Returns'
 

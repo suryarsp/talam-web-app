@@ -7,7 +7,7 @@ import { OrderDetailsModal } from '@/components/admin/order-details-modal'
 
 type OrderStatus = 'Pending' | 'Confirmed' | 'Shipped' | 'Delivered'
 
-type MockOrder = {
+export type MockOrder = {
   code: string
   time: string
   customer: string

@@ -96,7 +96,7 @@ export async function getTenantStorefront(tenantId: string): Promise<TenantStore
 // makes this dead in production (NODE_ENV check) and unnecessary in dev.
 export async function getDevTenantId(): Promise<string | null> {
   if (process.env.NODE_ENV !== 'development') return null
-  const slug = process.env.TALAM_DEV_TENANT_SLUG ?? 'silk'
+  const slug = process.env.TALAM_DEV_TENANT_SLUG ?? 'dmystique'
   const tenant = await prisma.tenant.findUnique({ where: { slug }, select: { id: true } })
   return tenant?.id ?? null
 }

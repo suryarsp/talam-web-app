@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 import { getTenantBySlug } from '@/lib/tenant'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'talam4shop.com'
-const LOCALHOST_NAMES = ['localhost', '127.0.0.1'] as const
+const LOCALHOST_NAMES: string[] = ['localhost', '127.0.0.1']
 
 type TenantSurface = 'admin' | 'checkout' | 'storefront'
 

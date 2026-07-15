@@ -3,16 +3,36 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { mockGetWishlistItems } from '@/lib/mock-data'
 import { useCartStore } from '@/lib/store/cart'
 import { showCartToast } from '@/components/store/cart-toast'
 import { ArrowLeft, Heart, ShoppingCart, Share2, Check } from 'lucide-react'
 
-const initialItems = mockGetWishlistItems()
+// ponytail: inline mock until real wishlist API exists
+type WishlistItem = {
+  id: string
+  tenantId: string
+  name: string
+  slug: string
+  price: number
+  comparePrice: number | null
+  sizes: string[]
+  images: string[]
+  isNew: boolean
+  averageRating: number | null
+  reviewCount: number
+  totalStock: number
+  category: { name: string } | null
+}
+
+const initialItems: WishlistItem[] = [
+  { id: 'prod-001', tenantId: 'dev-tenant', name: 'Kanjivaram Silk Saree', slug: 'kanjivaram-silk-saree', price: 2499, comparePrice: 3299, sizes: ['XS', 'S', 'M', 'L', 'XL'], images: ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600'], isNew: false, averageRating: 4.8, reviewCount: 4, totalStock: 20, category: { name: 'Sarees' } },
+  { id: 'prod-003', tenantId: 'dev-tenant', name: 'Zari Border Dupatta', slug: 'zari-border-dupatta', price: 699, comparePrice: 999, sizes: ['Free Size'], images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600'], isNew: false, averageRating: 5, reviewCount: 2, totalStock: 20, category: { name: 'Dupattas' } },
+  { id: 'prod-009', tenantId: 'dev-tenant', name: 'Embroidered Kurti', slug: 'embroidered-kurti', price: 999, comparePrice: null, sizes: ['S', 'M', 'L', 'XL', 'XXL'], images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=600'], isNew: true, averageRating: 4.5, reviewCount: 2, totalStock: 39, category: { name: 'Kurtis' } },
+]
 
 type FilterTab = 'All Items' | 'In Stock' | 'Price ↑' | 'On Sale'
 
-function WishlistCard({ item, onRemove }: { item: ReturnType<typeof mockGetWishlistItems>[number]; onRemove: () => void }) {
+function WishlistCard({ item, onRemove }: { item: WishlistItem; onRemove: () => void }) {
   const addItem = useCartStore(s => s.addItem)
   const outOfStock = item.totalStock === 0
   const discount = item.comparePrice && item.comparePrice > item.price

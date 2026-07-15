@@ -77,6 +77,9 @@ model Tenant {
   about                 StoreAbout?
   branches              StoreBranch[]
   reviews               ProductReview[]
+  banners       StoreBanner[]
+  promotions    StorePromotion[]
+  tags          ProductTag[]
 
   @@map("tenants")
 }
@@ -101,6 +104,8 @@ model Product {
   orderItems   OrderItem[]
   wishlists    Wishlist[]
   reviews      ProductReview[]
+  banners        StoreBanner[]
+  tagAssignments ProductTagAssignment[]
 
   @@unique([tenantId, slug])
   @@map("products")
@@ -273,4 +278,65 @@ model ReviewReport {
 
   @@unique([tenantId, reviewId, reporterId])
   @@map("review_reports")
+}
+
+model StoreBanner {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid @map("tenant_id")
+  productId String?  @db.Uuid @map("product_id")
+  headline  String?
+  subtitle  String?
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@map("store_banners")
+}
+
+model StorePromotion {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid @map("tenant_id")
+  offerText String    @map("offer_text")
+  subtitle  String?
+  linkUrl   String?   @map("link_url")
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz
+  isActive  Boolean   @default(true) @map("is_active")
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@map("store_promotions")
+}
+
+model ProductTag {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid @map("tenant_id")
+  name      String
+  slug      String
+  emoji     String?
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  products  ProductTagAssignment[]
+
+  @@unique([tenantId, slug])
+  @@map("product_tags")
+}
+
+model ProductTagAssignment {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @db.Uuid @map("tenant_id")
+  productId String     @db.Uuid @map("product_id")
+  tagId     String     @db.Uuid @map("tag_id")
+
+  product   Product    @relation(fields: [productId], references: [id])
+  tag       ProductTag @relation(fields: [tagId], references: [id])
+
+  @@unique([tenantId, productId, tagId])
+  @@map("product_tag_assignments")
 }

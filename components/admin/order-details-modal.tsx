@@ -3,19 +3,9 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 
-type Order = {
-  code: string
-  time: string
-  customer: string
-  email: string
-  mobile: string
-  items: string
-  price: string
-  priceNum: number
-  status: string
-  address: string
-  [key: string]: unknown
-}
+import type { MockOrder } from '@/app/admin/orders/page'
+
+type Order = MockOrder
 
 type Props = {
   order: Order

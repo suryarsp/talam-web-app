@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock, MessageCircle, ShieldCheck } from 'lucide-react'
-import { mockGetTenantStorefront } from '@/lib/mock-data'
 import { CheckoutHeader } from '@/components/checkout/checkout-header'
 import { StepIndicator } from '@/components/checkout/step-indicator'
 import { OrderSummaryCard } from '@/components/checkout/order-summary-card'
 import type { CartItem } from '@/lib/store/cart'
 
-const tenant = mockGetTenantStorefront()
+// ponytail: inline tenant config until SSR wrapper is added
+const tenant = { name: 'Talam Store' }
 
 type Order = {
   orderId: string

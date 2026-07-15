@@ -4,10 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useCartStore, type CartItem } from '@/lib/store/cart'
-import { mockGetTenantStorefront } from '@/lib/mock-data'
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Heart, Lock, RotateCcw, Truck, Tag, Star, Check, X } from 'lucide-react'
 
-const tenant = mockGetTenantStorefront()
+// ponytail: inline tenant config until SSR wrapper is added
+const tenant = { name: 'Talam Store', freeDeliveryAbove: 999, shippingFee: 99 }
 
 function DiscountBadge({ price, comparePrice }: { price: number; comparePrice?: number | null }) {
   if (!comparePrice || comparePrice <= price) return null

@@ -4,13 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown } from 'lucide-react'
 import { useCartStore } from '@/lib/store/cart'
-import { mockGetTenantStorefront } from '@/lib/mock-data'
 import { CheckoutHeader } from '@/components/checkout/checkout-header'
 import { StepIndicator } from '@/components/checkout/step-indicator'
 import { OrderSummaryCard, TrustBar } from '@/components/checkout/order-summary-card'
 import { GoogleIcon } from '@/components/icons/google-icon'
 
-const tenant = mockGetTenantStorefront()
+// ponytail: inline tenant config until SSR wrapper is added
+const tenant = { name: 'Talam Store', freeDeliveryAbove: 999, shippingFee: 99 }
 
 type Address = {
   name: string

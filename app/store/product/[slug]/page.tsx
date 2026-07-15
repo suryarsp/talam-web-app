@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { mockGetProductBySlug, mockGetProductReviews, mockGetTenantStorefront } from '@/lib/mock-data'
+import { getDevTenantId, getTenantStorefront } from '@/lib/data/tenant'
+import { getProductBySlug, getProductReviews } from '@/lib/data/products'
 import { AddToCartButton } from '@/components/store/add-to-cart-button'
 import { ReviewsSection } from '@/components/store/reviews-section'
 import { ProductImageCarousel } from '@/components/store/product-image-carousel'
@@ -12,7 +13,8 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const product = mockGetProductBySlug(slug)
+  const tenantId = await getDevTenantId()
+  const product = tenantId ? await getProductBySlug(tenantId, slug) : null
   if (!product) return {}
 
   return {
@@ -27,18 +29,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params
-  const product = mockGetProductBySlug(slug)
-  if (!product) notFound()
+  const tenantId = await getDevTenantId()
+  const product = tenantId ? await getProductBySlug(tenantId, slug) : null
+  if (!product || !tenantId) notFound()
 
-  const tenant = mockGetTenantStorefront()
-  const reviews = mockGetProductReviews(product.id)
+  const tenant = await getTenantStorefront(tenantId)
+  if (!tenant) notFound()
+  const reviews = await getProductReviews(tenantId, product.id)
 
-  const stockBySize = product.stockBySize
-  const hasDiscount = product.comparePrice && product.comparePrice > product.price
-  const savedAmount = hasDiscount ? product.comparePrice! - product.price : null
+  const price = Number(product.price)
+  const comparePrice = product.comparePrice !== null ? Number(product.comparePrice) : null
+  const stockBySize = product.stockBySize as Record<string, number>
+  const hasDiscount = comparePrice && comparePrice > price
+  const savedAmount = hasDiscount ? comparePrice! - price : null
 
   const freeDeliveryText =
-    tenant.freeDeliveryAbove && product.price >= tenant.freeDeliveryAbove
+    tenant.freeDeliveryAbove && price >= tenant.freeDeliveryAbove
       ? 'Free delivery on this order'
       : tenant.deliveryEstimateText
 
@@ -74,12 +80,12 @@ export default async function ProductPage({ params }: Props) {
 
           <div className="flex items-baseline gap-3">
             <span className="font-body text-2xl font-bold text-fg">
-              ₹{product.price.toLocaleString('en-IN')}
+              ₹{price.toLocaleString('en-IN')}
             </span>
             {hasDiscount && (
               <>
                 <span className="font-body text-base text-muted-warm line-through">
-                  ₹{product.comparePrice!.toLocaleString('en-IN')}
+                  ₹{comparePrice!.toLocaleString('en-IN')}
                 </span>
                 <span className="rounded-full bg-danger px-2.5 py-1 font-body text-xs font-bold text-surface">
                   Save ₹{savedAmount!.toLocaleString('en-IN')}
@@ -114,8 +120,8 @@ export default async function ProductPage({ params }: Props) {
               tenantId: tenant.id,
               name: product.name,
               slug: product.slug,
-              price: product.price,
-              comparePrice: product.comparePrice,
+              price,
+              comparePrice,
               sizes: product.sizes,
               images: product.images,
               description: product.description,

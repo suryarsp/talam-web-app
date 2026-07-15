@@ -2,18 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { Check, ArrowDown, Package, X as XIcon, Plus } from 'lucide-react'
-
-type Order = {
-  code: string
-  customer: string
-  status: string
-  [key: string]: unknown
-}
+import type { MockOrder } from '@/app/admin/orders/page'
 
 type Props = {
-  order: Order
+  order: MockOrder
   onClose: () => void
-  onViewDetails: (order: Order) => void
+  onViewDetails: (order: MockOrder) => void
 }
 
 const ACTIONS = [
