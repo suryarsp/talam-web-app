@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireOwnerSession } from '@/lib/admin-guard'
 import { prisma } from '@/lib/prisma'
+import { getStoreUrl } from '@/lib/tenant-url'
 import { OnboardingWizard } from './onboarding-wizard'
 
 export const dynamic = 'force-dynamic'
@@ -21,8 +22,7 @@ export default async function OnboardingPage() {
   if (tenant?.isOnboarded) {
     const host = (await headers()).get('host')
     const isLocalDev = host?.includes('localhost') ?? false
-    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'talam4shop.com'
-    redirect(isLocalDev ? `/dev/store/${tenant.slug}` : `https://${tenant.slug}.${rootDomain}`)
+    redirect(getStoreUrl(tenant.slug, isLocalDev))
   }
 
   return (
