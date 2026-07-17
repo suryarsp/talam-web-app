@@ -1,4 +1,5 @@
 import { withTenant } from '@/lib/prisma'
+import type { User } from '@supabase/supabase-js'
 
 export type AccountSummary = {
   name: string | null
@@ -33,4 +34,23 @@ export async function getCustomerAccountSummary(tenantId: string, customerId: st
       activeOrderCount,
     }
   })
+}
+
+export type SidebarUser = { name: string; phone: string; email: string; initial: string; avatarUrl?: string | null }
+
+/** Shared shape for the settings-sidebar identity card — every /account/* page must pass this to SettingsShell. */
+export async function getSidebarUser(tenantId: string, authUser: User): Promise<SidebarUser> {
+  const summary = await getCustomerAccountSummary(tenantId, authUser.id)
+  const avatarUrl = (authUser.user_metadata?.avatar_url as string | undefined) ?? null
+  const name = summary.name ?? (authUser.user_metadata?.full_name as string | undefined) ?? authUser.email ?? 'Customer'
+  const phone = summary.phone ?? authUser.phone ?? '—'
+  const email = summary.email ?? authUser.email ?? '—'
+
+  return {
+    name,
+    phone,
+    email,
+    initial: name.charAt(0).toUpperCase() || '?',
+    avatarUrl,
+  }
 }

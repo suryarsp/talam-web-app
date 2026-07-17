@@ -1,9 +1,11 @@
-'use client'
-
 import { Bell } from 'lucide-react'
 import { SettingsBreadcrumb } from '@/components/store/settings-breadcrumb'
 import { SettingsShell } from '@/components/store/settings-shell'
 import { NotificationsContent } from '@/components/store/settings-sections'
+import { requireAuth, requireTenant } from '@/lib/auth-guard'
+import { getSidebarUser } from '@/lib/data/customer-account'
+
+export const dynamic = 'force-dynamic'
 
 function Content() {
   return (
@@ -20,13 +22,17 @@ function Content() {
   )
 }
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const authUser = await requireAuth('/account/notifications')
+  const { tenantId } = await requireTenant()
+  const sidebarUser = await getSidebarUser(tenantId, authUser)
+
   return (
     <>
       <div className="lg:hidden min-h-screen bg-bg px-0 pb-6">
         <Content />
       </div>
-      <SettingsShell>
+      <SettingsShell user={sidebarUser}>
         <Content />
       </SettingsShell>
     </>

@@ -3,15 +3,6 @@
 import { useState } from 'react'
 import { Plus, CreditCard, Pencil, Trash, Info } from 'lucide-react'
 
-// ponytail: hardcoded mock user/data until auth + real APIs are wired
-export const user = {
-  name: 'Priya Rajan',
-  phone: '+91 98765 43210',
-  email: 'priya.rajan@gmail.com',
-  initial: 'P',
-  stats: { orders: 8, wishlist: 12, totalSpent: '₹14.2K' },
-}
-
 const mockAddresses = [
   { id: '1', label: 'Home', name: 'Priya Rajan', line1: '42, Bharathi Nagar, 2nd Cross Street', line2: 'Madurai, Tamil Nadu 625001', phone: '+91 98765 43210', isDefault: true },
   { id: '2', label: 'Office', name: 'Priya Rajan', line1: '3rd Floor, Tech Park, Anna Salai', line2: 'Chennai, Tamil Nadu 600002', phone: '+91 98765 43210', isDefault: false },

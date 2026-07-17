@@ -1,11 +1,12 @@
-'use client'
-
 import { LogOut, Trash2, AlertTriangle } from 'lucide-react'
 import { SettingsBreadcrumb } from '@/components/store/settings-breadcrumb'
 import { SettingsShell } from '@/components/store/settings-shell'
-import { user } from '@/components/store/settings-sections'
+import { requireAuth, requireTenant } from '@/lib/auth-guard'
+import { getSidebarUser, type SidebarUser } from '@/lib/data/customer-account'
 
-function Content() {
+export const dynamic = 'force-dynamic'
+
+function Content({ user }: { user: SidebarUser }) {
   return (
     <>
       <SettingsBreadcrumb current="Account" />
@@ -48,14 +49,18 @@ function Content() {
   )
 }
 
-export default function ActionsPage() {
+export default async function ActionsPage() {
+  const authUser = await requireAuth('/account/actions')
+  const { tenantId } = await requireTenant()
+  const sidebarUser = await getSidebarUser(tenantId, authUser)
+
   return (
     <>
       <div className="lg:hidden min-h-screen bg-bg px-0 pb-6">
-        <Content />
+        <Content user={sidebarUser} />
       </div>
-      <SettingsShell>
-        <Content />
+      <SettingsShell user={sidebarUser}>
+        <Content user={sidebarUser} />
       </SettingsShell>
     </>
   )

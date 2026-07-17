@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import { user } from '@/components/store/settings-sections'
 import { StoreLink, useStoreBase } from '@/components/store/store-context'
 
 const sidebarItems = [
@@ -15,11 +14,10 @@ const sidebarItems = [
 
 type SidebarUser = { name: string; phone: string; initial: string; avatarUrl?: string | null }
 
-export function SettingsShell({ children, user: userOverride }: { children: React.ReactNode; user?: SidebarUser }) {
+export function SettingsShell({ children, user: sidebarUser }: { children: React.ReactNode; user: SidebarUser }) {
   const pathname = usePathname()
   const storeBase = useStoreBase()
   const rel = storeBase ? pathname.replace(storeBase, '') || '/' : pathname
-  const sidebarUser: SidebarUser = userOverride ?? user
 
   return (
     <div className="hidden lg:block min-h-screen bg-bg py-10 px-12">

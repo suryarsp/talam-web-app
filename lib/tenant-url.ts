@@ -5,5 +5,5 @@ export function getStoreUrl(slug: string, isLocalDev: boolean): string {
 }
 
 export function getAdminUrl(slug: string, isLocalDev: boolean): string {
-  return isLocalDev ? `/dev/store/${slug}/admin` : `https://${slug}.${ROOT_DOMAIN}/admin`
+  return isLocalDev ? `/dev/store/${slug}/admin/dashboard` : `https://${slug}.${ROOT_DOMAIN}/admin/dashboard`
 }

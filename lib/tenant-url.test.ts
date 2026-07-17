@@ -13,10 +13,10 @@ describe('getStoreUrl', () => {
 
 describe('getAdminUrl', () => {
   it('returns the dev proxy admin path in local dev', () => {
-    expect(getAdminUrl('priya-boutique', true)).toBe('/dev/store/priya-boutique/admin')
+    expect(getAdminUrl('priya-boutique', true)).toBe('/dev/store/priya-boutique/admin/dashboard')
   })
 
   it('returns the subdomain admin URL in prod', () => {
-    expect(getAdminUrl('priya-boutique', false)).toBe('https://priya-boutique.talam4shop.com/admin')
+    expect(getAdminUrl('priya-boutique', false)).toBe('https://priya-boutique.talam4shop.com/admin/dashboard')
   })
 })
