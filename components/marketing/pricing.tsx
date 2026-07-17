@@ -6,6 +6,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOwnerCta } from './use-owner-cta'
 
 const PLANS = [
   {
@@ -24,6 +25,7 @@ const PLANS = [
 
 export function Pricing() {
   const scope = useRef<HTMLElement>(null)
+  const cta = useOwnerCta()
 
   useEffect(() => {
     if (!scope.current) return
@@ -65,7 +67,7 @@ export function Pricing() {
             Simple pricing. No surprises.
           </h2>
           <p className="mt-4 inline-block px-5 py-2 rounded-full bg-success-bg border border-success-border text-sm font-medium text-fg font-body">
-            Start free for 14 days — no credit card, no GST needed
+            {cta?.subtext ?? 'Start free for 14 days — no credit card, no GST needed'}
           </p>
         </div>
 
@@ -100,7 +102,7 @@ export function Pricing() {
                 ))}
               </ul>
               <Link
-                href="/auth"
+                href={cta?.href ?? '/auth'}
                 className={cn(
                   'mt-8 block text-center px-6 py-3.5 rounded-full text-sm font-semibold font-body transition-opacity hover:opacity-90',
                   plan.popular
@@ -108,7 +110,7 @@ export function Pricing() {
                     : 'border border-fg/20 text-fg hover:bg-bg'
                 )}
               >
-                Start free trial
+                {cta?.label ?? 'Start free trial'}
               </Link>
             </div>
           ))}
