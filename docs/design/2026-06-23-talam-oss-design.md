@@ -1,12 +1,17 @@
 # Talam — Open Source Design Spec
 
 **Date:** 2026-06-23
-**Last updated:** 2026-07-11
+**Last updated:** 2026-07-17
 **Status:** Open for Contribution
-**Version:** 1.9 (Onboarding Wizard re-verified against live Paper artboards)
+**Version:** 1.10 (Onboarding grew to 7 steps + persistence; new /welcome hub — not yet Paper-verified)
 **For:** UI/UX designers contributing to the Talam open source project
 
 > **Design source of truth:** Real design work now happens in a Paper Design file (`Talam Design`, 6 pages: Store Front, Marketing, Checkout Flow, Design Library, Admin Dashboard, Onboarding). The Admin Dashboard page alone has grown to 22 artboards (Dashboard, Products, Orders + order details/action menu, Settings + 7 Store Settings sub-pages, Product Editor, filter/modal overlays) — far more than §4.8–4.12 below describe; the Checkout Flow page has 7 (3 steps × mobile/desktop + a mobile-only Order Confirmed screen). This document's brand/typography/spacing/radius tokens (§2) and the design tokens reference (§10) have been re-synced to that file's live token set as of 2026-06-30. §4.5, §4.7, and §4.8 have been re-verified against their live artboards (see changelog notes); §4.1–4.4, §4.6, and §4.9–4.14 are still the original written brief and have **not** been individually re-verified against each Paper artboard — treat them as design intent, not a guaranteed pixel match. For current per-screen build status, see [`docs/2026-06-28-PAPER-DESIGN-INVENTORY.md`](../2026-06-28-PAPER-DESIGN-INVENTORY.md) (**note: this file does not currently exist in the repo** — recreate it before relying on it).
+
+**Changelog v1.10 (2026-07-17)**
+- **NOT PAPER-VERIFIED — code moved ahead of design:** the onboarding wizard shipped in code (`docs/superpowers/specs/2026-07-17-onboarding-v2-design.md`) grew from the 5 steps §4.7 describes to **7 steps** (per-step accent colors added: Store, Brand, Contact & Address, Your Story, Product, Payment, Go Live), and every step now persists immediately to `Tenant`/`StoreBranch`/`Product` via owner-scoped Server Actions instead of writing only at Go Live — a returning owner resumes at their last completed step rather than restarting. §4.7 below still documents the old 5-step artboards and has **not** been re-verified against updated Paper artboards for the new 2-step split (Contact & Address, Your Story) — treat §4.7 as stale until that verification pass happens.
+- **NEW route, no Paper artboard yet:** `/welcome` — a hub page signed-in owners land on from every marketing CTA (nav avatar, hero, CTA band, pricing), showing either "Continue setup" or "View My Store"/"View Admin" depending on `Tenant.isOnboarded`. No Paper page exists for this screen; the shipped layout (`app/welcome/page.tsx`) is a plain centered card, not a designed artboard. Flagged here rather than invented as a spec section.
+- **Marketing CTAs (nav, hero, CTA band, pricing) are now state-aware** for signed-in owners — see `docs/2026-06-23-talam-design.md` Changelog v1.10 for the full behavior. No corresponding Paper artboards exist for the signed-in nav/hero/CTA states either; this doc's Marketing page section (not itemized above — Marketing lives in the Paper file, not narrated section-by-section here) should be re-verified alongside §4.7 once Paper catches up.
 
 **Changelog v1.9 (2026-07-11)**
 - **REWROTE:** §4.7 Onboarding Wizard re-verified against the live `Onboarding / Mobile — Step 1..5` Paper artboards. Corrections: Step 3 (product) collects **Product photo, Price (₹ prefix), and Stock quantity** — not a Category dropdown or Size checkboxes, which don't exist on that artboard. Step 4 payment methods are ordered **UPI, Razorpay, Instamojo** (not UPI/Instamojo/Razorpay) with a "💡 Pro tip" callout instead of an inline setup-fields note. Step 5 is a **completion checklist** (4 done-items: store/brand/product/payment) plus a "💡 Next steps" callout and a **"Go Live →"** primary CTA — not a WhatsApp-share/copy-link screen. Steps 1–3 footer includes a **Skip** button between Back and Next (step 4 has none, matching the live artboards).
@@ -791,7 +796,7 @@ Live in Paper as `Edit Profile — Mobile` and `Edit Profile — Desktop` (both 
 
 ### 4.7 Tenant Admin — Onboarding Wizard
 
-> **Re-verified against live Paper artboards 2026-07-11** (`Onboarding / Mobile — Step 1..5`, `Onboarding / Desktop — Step 1..3`). See v1.9 changelog for corrections (Step 3 fields, Step 4 payment order/copy, Step 5 rebuilt as a completion checklist).
+> **STALE as of v1.10 (2026-07-17):** the artboards below are the last Paper-verified state (2026-07-11, 5 steps). Shipped code has since grown this to **7 steps** — Store, Brand, Contact & Address, Your Story, Product, Payment, Go Live — with each step persisting immediately (see v1.10 changelog above and `docs/superpowers/specs/2026-07-17-onboarding-v2-design.md`). The step content, indicator styling, and footer nav below are unverified against updated Paper artboards for the 2 new steps; do not treat them as a pixel match until a fresh Paper re-verification pass.
 
 **Triggered:** First login after signup. Can be skipped and resumed.
 

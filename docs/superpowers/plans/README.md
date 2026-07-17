@@ -1,6 +1,8 @@
 # Talam Implementation Plans
 
-**2026-07-17:** [2026-07-17-talam-onboarding-persistence.md](2026-07-17-talam-onboarding-persistence.md) — post-login routing (both Google and OTP) + per-step onboarding persistence, keyed by owner id, resumable across sessions. Depends on Google/OTP sign-in already being live. Not part of the storefront-first sequence below — pick this up whenever onboarding/auth work is next, independent of where the storefront-first track below currently stands.
+**2026-07-17 — DONE:** [2026-07-17-talam-onboarding-persistence.md](2026-07-17-talam-onboarding-persistence.md) — post-login routing (Google + OTP) + per-step onboarding persistence, keyed by owner id, resumable across sessions. Shipped as commits `8473b1b`, `c72baee` plus the fuller [2026-07-17-onboarding-v2-implementation.md](2026-07-17-onboarding-v2-implementation.md) (schema flags, 7-step wizard, Go Live wiring — commits `814a178`..`785940c`). Not part of the storefront-first sequence below — was picked up independently of where that track stood.
+
+**2026-07-17 — DONE:** [2026-07-17-welcome-page-and-cta-state.md](2026-07-17-welcome-page-and-cta-state.md) — `/welcome` hub page + state-aware marketing CTAs (nav/hero/CTA-band/pricing) for signed-in owners. Depends on the onboarding persistence work above (`Tenant.isOnboarded`). Shipped as commits `eaad135`..`e04a9d3`, `a2f5ae0`. See `docs/2026-06-23-talam-design.md` Changelog v1.10.
 
 Revised 2026-07-09 into a **storefront-first execution sequence**:
 

@@ -2,9 +2,16 @@
 
 **Date:** 2026-06-23  
 **Last updated:** 2026-07-17  
-**Status:** Approved — v1.9  
+**Status:** Approved — v1.10  
 **Author:** Surya Prakash  
-**Version:** 1.9 (Onboarding persistence: per-step save, resumable wizard, one store per owner)
+**Version:** 1.10 (Welcome hub + state-aware marketing CTAs)
+
+**Changelog v1.10 (2026-07-17)**
+- **New `/welcome` hub route**, added to §3.2's storefront/marketing route lists: the single destination for every signed-in-owner CTA (nav avatar, hero, CTA band, pricing) — never a direct link to `/admin/onboarding` or the live store. Shows "Continue setup" (routes to `/admin/onboarding`) while `Tenant.isOnboarded` is false, or "View My Store" + "View Admin" (subdomain-aware URLs, see §5.1) once true. Backed by `getOwnerCtaState()` (`signed-out | in-progress | onboarded`), re-derived server-side from the Supabase session + `Tenant.isOnboarded` on every call — never trusts a client-supplied id, same convention as `requireOwnerSession`/`requireSuperAdmin`.
+- **Marketing CTAs are now state-aware**, not just a static "Start free" everywhere: the nav bar, hero, CTA band, and pricing plan cards all read the same `useOwnerCta()` client hook. Signed-out visitors see unchanged copy ("Start free" / "Start free trial"). Signed-in owners see "Finish Setting Up" (mid-onboarding, subtext "Pick up where you left off") or "View My Store" (onboarded, subtext "Takes you to your store & admin") — both linking to `/welcome`. The nav's avatar (photo or initial) replaces the CTA button for signed-in users and also links to `/welcome`; the old Account Menu dropdown and its `handleSignOut` were removed since sign-out now lives on the `/welcome` page itself.
+- **`lib/tenant-url.ts` added** as the one shared source for building a tenant's store/admin URL (`getStoreUrl`/`getAdminUrl`) — dev-proxy path (`/dev/store/{slug}[/admin]`) locally, real subdomain URL (`https://{slug}.talam4shop.com[/admin]`) in production. Both the onboarding-redirect logic in §5.1 and the new `/welcome` page consume this instead of each re-deriving the dev/prod branch inline.
+- **`requireOwnerSession` gains an optional redirect-target param** (default unchanged, `/admin/onboarding`) so `/welcome` can pass its own path (`requireOwnerSession('/welcome')`) and get `?next=/welcome` on the `/auth` redirect instead of always bouncing back to onboarding.
+- Confirmed still not built (unchanged from v1.9): logo/product-photo upload (no Cloudinary pipeline), and the storefront-side "not onboarded yet" interstitial from §5.1 step 7 — `/welcome` and the state-aware CTAs solve *owner-facing* routing, not the public storefront gate, which remains a separate open item.
 
 **Changelog v1.9 (2026-07-17)**
 - **Onboarding is now per-step, not "write everything at the end":** §5.1 step 4 previously said the wizard "writes the `Tenant` row" as a single event on final submit. Revised: the `Tenant` row is created as soon as Step 1 (Store name/slug/category) is submitted — those are exactly the fields the schema requires as non-null — and each subsequent step (Brand, Product, Payment) persists immediately via its own Server Action, keyed by the signed-in user's id (`Tenant.ownerId`), not by anything the client supplies. Leaving mid-wizard and returning resumes at the last completed step instead of restarting.
@@ -159,6 +166,9 @@ admin.talam4shop.com/                 → Super admin (platform owner)
 /account/profile          Edit Profile — full name, email (editable), phone number (read-only). Reached only from
                           the Account Menu's "Profile" row, not from the Settings page itself (v1.6, see changelog).
 /auth                     OTP / Google / Email login
+/welcome                  Signed-in owner hub — "Continue setup" or "View My Store"/"View Admin"
+                          depending on Tenant.isOnboarded. Every signed-in marketing CTA routes
+                          here, never directly to /admin/onboarding or the storefront (v1.10).
 ```
 
 **Tenant admin routes:**
@@ -181,7 +191,10 @@ admin.talam4shop.com/                 → Super admin (platform owner)
   ├── /admin/payouts              Settlement history from payment gateway
   ├── /admin/billing              Subscription plan, upgrade, payment history
   └── Danger Zone                 Delete store (soft-delete)
-/admin/onboarding    First-run setup wizard (5 steps: Store → Brand → Product → Payment → Go Live)
+/admin/onboarding    First-run setup wizard (7 steps: Store → Brand → Contact & Address →
+                     Your Story → Product → Payment → Go Live; grew from the originally
+                     scoped 5 steps, see Changelog v1.9/v1.10 and
+                     docs/superpowers/specs/2026-07-17-onboarding-v2-design.md)
 
 Mobile bottom nav (5 items): Dashboard, Products, Orders, Customers, Settings.
 Desktop: fixed left sidebar nav (icon-only, expandable), not a top header nav — see `docs/superpowers/specs/2026-06-27-admin-dashboard-design.md`.
@@ -295,7 +308,8 @@ The full owner journey, marketing landing page to a live storefront:
      Tenant row exists, is_onboarded=false  → /admin/onboarding, resumes at onboarding_step
      is_onboarded=true                      → that tenant's own /admin/dashboard
                                                (subdomain-aware URL — see Changelog v1.9)
-4. Onboarding wizard (5 steps: Store → Brand → Product → Payment → Go Live)
+4. Onboarding wizard (7 steps: Store → Brand → Contact & Address → Your Story →
+   Product → Payment → Go Live — grew from the originally scoped 5, see Changelog v1.9/v1.10)
      → Step 1 (Store name/slug/category) submit creates the Tenant row
        (owner_id = authenticated user, onboarding_step = 1)
      → each later step persists immediately via its own action, bumping onboarding_step
@@ -666,7 +680,7 @@ Triggered by Vercel Cron — checks tenant state daily:
 | 4 | Orders, account, wishlist, `/about` storefront page with trust stats + branches |
 | 5 | Tenant admin — dashboard (notifications, trends), products CRUD, orders management, customers tab, categories CRUD |
 | 6 | Admin settings hub (Store Details, Brand, Payment, WhatsApp, Delivery & Trust, Notifications, Danger Zone), `/admin/about` (story, social, branches), `/admin/reviews` moderation |
-| 7 | Onboarding wizard (5 steps: Store → Brand → Product → Payment → Go Live), trust badges, size guide, review reporting, OG cards |
+| 7 | Onboarding wizard (7 steps: Store → Brand → Contact & Address → Your Story → Product → Payment → Go Live), trust badges, size guide, review reporting, OG cards |
 | 8 | Super admin, PostHog analytics, Resend emails + nurture sequences, rate limiting |
 | 9 | D'Mystique goes live as Store #1, QA, Lighthouse performance audit, security headers, go-live |
 
