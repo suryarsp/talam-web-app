@@ -6,11 +6,13 @@ export function BrandStep({
   setBrandColor,
   brandLogo,
   setBrandLogo,
+  errors,
 }: {
   readonly brandColor: BrandColor
   readonly setBrandColor: (value: BrandColor) => void
   readonly brandLogo: File | null
   readonly setBrandLogo: (file: File | null) => void
+  readonly errors: Record<string, string>
 }) {
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
@@ -23,6 +25,7 @@ export function BrandStep({
             fileName={brandLogo?.name ?? null}
             onFileChange={setBrandLogo}
           />
+          {errors.brandLogo ? <span className="mt-1.5 block font-body text-xs font-medium text-danger">{errors.brandLogo}</span> : null}
         </div>
         <div>
           <p className="font-body text-sm font-medium leading-[18px] text-[#374151]">Brand color</p>

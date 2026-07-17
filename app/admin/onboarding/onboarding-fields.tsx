@@ -67,6 +67,24 @@ export function TextInput({
   )
 }
 
+export function TextArea({
+  invalid,
+  className,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { readonly invalid?: boolean }) {
+  return (
+    <textarea
+      {...props}
+      rows={5}
+      className={[
+        'resize-none rounded-xl border bg-surface px-5 py-4 font-body text-base leading-6 text-[#1F2937] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-2 focus:shadow-[0_0_0_4px_#4F3FF014]',
+        invalid ? 'border-danger focus:border-danger' : 'border-[#E5E7EB] focus:border-brand-primary',
+        className ?? '',
+      ].join(' ')}
+    />
+  )
+}
+
 export function SelectField({
   children,
   value,
