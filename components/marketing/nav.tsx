@@ -6,10 +6,12 @@ import type { User } from '@supabase/supabase-js'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 import { createBrowserClient } from '@/lib/supabase/client'
+import { useOwnerCta } from './use-owner-cta'
 
 export function MarketingNav() {
   const [scrolled, setScrolled] = useState(false)
   const [user, setUser] = useState<User | null | undefined>(undefined)
+  const cta = useOwnerCta()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -26,11 +28,6 @@ export function MarketingNav() {
     } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
     return () => subscription.unsubscribe()
   }, [])
-
-  async function handleSignOut() {
-    const supabase = createBrowserClient()
-    await supabase.auth.signOut()
-  }
 
   return (
     <nav
@@ -53,7 +50,7 @@ export function MarketingNav() {
           FAQ
         </a>
         {user ? (
-          <AccountMenu user={user} onSignOut={handleSignOut} />
+          <Avatar user={user} />
         ) : user === null ? (
           <>
             <Link
@@ -63,52 +60,54 @@ export function MarketingNav() {
               Sign in
             </Link>
             <Link
-              href="/auth"
+              href={cta?.href ?? '/auth'}
               className="px-5 py-[9px] rounded-full bg-brand-primary text-white text-sm font-semibold font-body hover:opacity-90 transition-opacity"
             >
-              Start free
+              {cta?.label ?? 'Start free'}
             </Link>
           </>
         ) : null}
       </div>
       {user === null && (
         <Link
-          href="/auth"
+          href={cta?.href ?? '/auth'}
           className="md:hidden px-4 py-2 rounded-full bg-brand-primary text-white text-xs font-semibold font-body"
         >
-          Start free
+          {cta?.label ?? 'Start free'}
+        </Link>
+      )}
+      {user && (
+        <Link
+          href="/welcome"
+          className="md:hidden flex items-center justify-center w-9 h-9 rounded-full overflow-hidden bg-white/10 text-white text-sm font-semibold"
+        >
+          <AvatarContent user={user} />
         </Link>
       )}
     </nav>
   )
 }
 
-function AccountMenu({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+function Avatar({ user }: { user: User }) {
+  return (
+    <Link
+      href="/welcome"
+      className="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden bg-white/10 text-white text-sm font-semibold hover:opacity-80 transition-opacity"
+    >
+      <AvatarContent user={user} />
+    </Link>
+  )
+}
+
+function AvatarContent({ user }: { user: User }) {
   const name = user.user_metadata.full_name ?? user.email ?? ''
   const avatarUrl = user.user_metadata.avatar_url as string | undefined
   const initial = name.charAt(0).toUpperCase() || '?'
 
-  return (
-    <details className="relative">
-      <summary className="list-none cursor-pointer flex items-center justify-center w-9 h-9 rounded-full overflow-hidden bg-white/10 text-white text-sm font-semibold">
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          initial
-        )}
-      </summary>
-      <div className="absolute right-0 mt-2 w-56 rounded-lg bg-bg-dark border border-white/10 shadow-lg p-3 flex flex-col gap-2">
-        <p className="text-sm text-white font-body truncate">{name}</p>
-        {user.email && <p className="text-xs text-white/50 font-body truncate">{user.email}</p>}
-        <button
-          type="button"
-          onClick={onSignOut}
-          className="mt-1 text-sm text-left text-white/70 hover:text-white transition-colors font-body"
-        >
-          Sign out
-        </button>
-      </div>
-    </details>
+  return avatarUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+  ) : (
+    <>{initial}</>
   )
 }
