@@ -45,11 +45,9 @@ export function AboutHero({ tenant }: Props) {
 
       <div className="flex-1 space-y-5">
         <h2 className="font-body text-lg font-bold text-fg">{tenant.about?.storyTitle ?? 'Our Story'}</h2>
-        {tenant.about?.description && (
-          <p className="font-body text-[15px] leading-[165%] whitespace-pre-line text-muted-warm">
-            {tenant.about.description}
-          </p>
-        )}
+        <p className="font-body text-[15px] leading-[165%] whitespace-pre-line text-muted-warm">
+          {tenant.about?.description ?? <span className="italic text-muted-warm/70">Store description coming soon</span>}
+        </p>
         {socials.length > 0 && (
           <div className="space-y-3">
             <p className="font-body text-lg font-bold text-fg">Follow Us</p>

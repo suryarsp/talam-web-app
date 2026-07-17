@@ -138,12 +138,12 @@ function ContactIcon({ icon, color }: { icon: keyof typeof contactIconPaths; col
 export function StoreFooter({ tenant, categories }: Props) {
   const storeAddress = tenant.branch ? [tenant.branch.address, tenant.branch.city].filter(Boolean).join(', ') : null
 
-  const contactRows = [
-    tenant.contactPhone && { icon: 'phone' as const, label: 'Phone', value: tenant.contactPhone },
-    tenant.contactEmail && { icon: 'email' as const, label: 'Email', value: tenant.contactEmail },
-    storeAddress && { icon: 'pin' as const, label: 'Store', value: storeAddress },
-    tenant.branch?.hours && { icon: 'hours' as const, label: 'Hours', value: tenant.branch.hours },
-  ].filter((row): row is { icon: keyof typeof contactIconPaths; label: string; value: string } => Boolean(row))
+  const contactRows: { icon: keyof typeof contactIconPaths; label: string; value: string; isPlaceholder: boolean }[] = [
+    { icon: 'phone', label: 'Phone', value: tenant.contactPhone ?? 'Coming soon', isPlaceholder: !tenant.contactPhone },
+    { icon: 'email', label: 'Email', value: tenant.contactEmail ?? 'Coming soon', isPlaceholder: !tenant.contactEmail },
+    { icon: 'pin', label: 'Store', value: storeAddress ?? 'Coming soon', isPlaceholder: !storeAddress },
+    { icon: 'hours', label: 'Hours', value: tenant.branch?.hours ?? 'Coming soon', isPlaceholder: !tenant.branch?.hours },
+  ]
 
   return (
     <footer className="font-body">
@@ -203,26 +203,26 @@ export function StoreFooter({ tenant, categories }: Props) {
             </div>
           </div>
 
-          {contactRows.length > 0 && (
-            <div className="basis-[300px] shrink-0 border-l border-white/10 pl-12">
-              <div className="mb-5 text-[10px] leading-3 font-bold tracking-[0.12em] text-white/30 uppercase">
-                Get in Touch
-              </div>
-              <div className="flex flex-col gap-4">
-                {contactRows.map((row) => (
-                  <div key={row.label} className="flex items-start gap-3">
-                    <div className="mt-px flex size-8 shrink-0 items-center justify-center rounded-lg bg-store-primary/10">
-                      <ContactIcon icon={row.icon} color="var(--color-store-primary)" />
-                    </div>
-                    <div>
-                      <div className="mb-[3px] text-xs/tight text-white/35">{row.label}</div>
-                      <div className="font-medium whitespace-pre-line text-surface text-md/snug">{row.value}</div>
+          <div className="basis-[300px] shrink-0 border-l border-white/10 pl-12">
+            <div className="mb-5 text-[10px] leading-3 font-bold tracking-[0.12em] text-white/30 uppercase">
+              Get in Touch
+            </div>
+            <div className="flex flex-col gap-4">
+              {contactRows.map((row) => (
+                <div key={row.label} className="flex items-start gap-3">
+                  <div className="mt-px flex size-8 shrink-0 items-center justify-center rounded-lg bg-store-primary/10">
+                    <ContactIcon icon={row.icon} color="var(--color-store-primary)" />
+                  </div>
+                  <div>
+                    <div className="mb-[3px] text-xs/tight text-white/35">{row.label}</div>
+                    <div className={row.isPlaceholder ? 'text-md/snug italic text-white/35' : 'font-medium whitespace-pre-line text-surface text-md/snug'}>
+                      {row.value}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between px-24 py-5">
@@ -261,18 +261,18 @@ export function StoreFooter({ tenant, categories }: Props) {
             ))}
           </div>
 
-          {contactRows.length > 0 && (
-            <div className="flex flex-col gap-2.5">
-              {contactRows.map((row) => (
-                <div key={row.label} className="flex items-start gap-2.5">
-                  <span className="mt-px shrink-0">
-                    <ContactIcon icon={row.icon} color="var(--color-muted-warm)" />
-                  </span>
-                  <span className="whitespace-pre-line text-sm/tight text-fg">{row.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-col gap-2.5">
+            {contactRows.map((row) => (
+              <div key={row.label} className="flex items-start gap-2.5">
+                <span className="mt-px shrink-0">
+                  <ContactIcon icon={row.icon} color="var(--color-muted-warm)" />
+                </span>
+                <span className={row.isPlaceholder ? 'text-sm/tight italic text-muted-warm/70' : 'whitespace-pre-line text-sm/tight text-fg'}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
 
           {(tenant.about?.instagramUrl || tenant.about?.facebookUrl || tenant.about?.youtubeUrl || tenant.whatsappNumber) && (
             <div>
