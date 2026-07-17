@@ -23,6 +23,8 @@ const MOBILE_NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
+  if (pathname.startsWith('/admin/onboarding')) return <>{children}</>
+
   return (
     <div className="font-admin min-h-screen bg-bg">
       {/* Desktop: dark sidebar + content */}
