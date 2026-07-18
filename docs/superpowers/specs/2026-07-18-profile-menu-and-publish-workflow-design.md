@@ -35,9 +35,9 @@ No new route — `app/welcome/page.tsx` keeps its existing guard (`requireOwnerS
 
 Admin content edits become drafts; a **Publish** button applies all pending drafts for a tenant at once and logs the event.
 
-**In scope** (content, safe to stage): `Product`, `StoreAbout`, `StoreBanner`, `StorePromotion`, `Occasion`.
+**In scope** (content, with an actual admin write path today): `Product`, `StoreAbout`, `ProductTag` (the "Occasion" model — `themeKey`/`layout`/name/emoji/product assignments, edited via `app/admin/settings/occasions`).
 
-**Out of scope** (operational, must stay live-write): `Tenant`'s own fields (`paymentProvider`, `paymentConfig`, `shippingFee`, `notifyEmailOnOrder`, `contactPhone`, etc.) — these are read by checkout/order-notification code paths and staging them adds risk without benefit. `Order` status changes (transactional, not content). Onboarding (`app/admin/onboarding`) — pre-launch wizard, store isn't live yet.
+**Out of scope:** `StoreBanner` and `StorePromotion` — no admin screen writes to these after onboarding (only `prisma/seed.ts` and the onboarding wizard do), so there's no draft to create; revisit when an admin screen for them exists. `Tenant`'s own fields (`paymentProvider`, `paymentConfig`, `shippingFee`, `notifyEmailOnOrder`, `contactPhone`, etc.) — read by checkout/order-notification code paths, staging them adds risk without benefit. `Order` status changes (transactional, not content). Onboarding (`app/admin/onboarding`) — pre-launch wizard, store isn't live yet.
 
 ## 4. Data model
 
@@ -48,7 +48,7 @@ enum PublishStatus {
 }
 ```
 
-Added to `Product`, `StoreAbout`, `StoreBanner`, `StorePromotion`, `Occasion`:
+Added to `Product`, `StoreAbout`, `ProductTag`:
 ```prisma
 status PublishStatus @default(published)
 ```
@@ -69,18 +69,18 @@ model PublishLog {
 }
 ```
 
-Storefront reads add `status: 'published'` to their existing `where` filters: `lib/data/tenant.ts` (`getTenantStorefront`), `lib/data/products.ts` (`getProducts`), and the occasions data module. Admin reads (`app/admin/products`, `app/admin/settings`, occasions picker) are unfiltered — owners need to see and edit their own drafts.
+Storefront reads add `status: 'published'` to their existing `where` filters: `lib/data/products.ts` (`getProducts`, `getOfferProducts`, `getProductBySlug`), `lib/data/tenant.ts` (`getTenantStorefront`'s `about` selection only returns published `StoreAbout`), and `lib/data/storefront.ts` (`getProductTags`). Admin reads (`app/admin/products`, `app/admin/settings`, occasions picker) are unfiltered — owners need to see and edit their own drafts.
 
 ## 5. Admin write paths become draft writes
 
-`app/admin/products/actions.ts`, `app/admin/settings/actions.ts`, `app/admin/settings/occasions/actions.ts`: creates/updates that touch the five in-scope models write `status: 'draft'` instead of leaving `status` at its default. (A brand-new row created via one of these actions starts as `draft`, not `published` — the schema default of `published` only exists to keep pre-existing rows live through the migration.)
+`app/admin/products/actions.ts`, `app/admin/settings/actions.ts`, `app/admin/settings/occasions/actions.ts`: creates/updates that touch the three in-scope models write `status: 'draft'` instead of leaving `status` at its default. (A brand-new row created via one of these actions starts as `draft`, not `published` — the schema default of `published` only exists to keep pre-existing rows live through the migration.)
 
 ## 6. Publish action
 
 `publishChangesAction(input?: { force: boolean })` — new server action, colocated with the other admin actions (e.g. `app/admin/actions.ts`, shared across sections):
 
 1. **Conflict pre-check** (skipped if `force: true`): find `Product` rows with `status: draft` for the tenant; for each, check for `OrderItem` rows referencing it whose parent `Order.status IN (pending, confirmed, shipped)`. If any exist, return `{ conflicts: [{ productName, openOrderCount }] }` **without publishing anything**.
-2. **Publish**, in a single transaction: bulk-update `status: draft → published` across all five content tables for the tenant; count affected rows; insert one `PublishLog` row with a human-readable `summary` (e.g. "3 products, 1 banner").
+2. **Publish**, in a single transaction: bulk-update `status: draft → published` across all three content tables for the tenant; count affected rows; insert one `PublishLog` row with a human-readable `summary` (e.g. "3 products, 1 occasion").
 3. `revalidatePath` the admin pages and the storefront root so both reflect the change immediately.
 
 No conflict → publishes directly (step 1 finds nothing, proceeds to step 2 in the same call).
@@ -95,7 +95,7 @@ Delivered/cancelled/returned orders never trigger this — only `pending`/`confi
 
 ## 8. UI wiring
 
-A **Publish** button lives in `components/admin/admin-nav-shell.tsx` (shared admin chrome, visible from every admin page), showing a pending-count badge from `SELECT count(*)` across the five tables `WHERE status = 'draft' AND tenantId = ...`. Disabled when the count is 0.
+A **Publish** button lives in `components/admin/admin-nav-shell.tsx` (shared admin chrome, visible from every admin page), showing a pending-count badge from `SELECT count(*)` across the three tables `WHERE status = 'draft' AND tenantId = ...`. Disabled when the count is 0.
 
 `/welcome`'s new "Recent publishes" section queries the 5 most recent `PublishLog` rows for the tenant (`summary` + relative timestamp, e.g. "3 products, 1 banner — 2 hours ago").
 
