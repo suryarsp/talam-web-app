@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockFindMany, mockAggregate, mockCreateMany } = vi.hoisted(() => ({
+const { mockFindMany, mockAggregate, mockCreateMany, mockCreate, mockDeleteMany } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockAggregate: vi.fn(),
   mockCreateMany: vi.fn(),
+  mockCreate: vi.fn(),
+  mockDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -13,12 +15,14 @@ vi.mock('@/lib/prisma', () => ({
         findMany: mockFindMany,
         aggregate: mockAggregate,
         createMany: mockCreateMany,
+        create: mockCreate,
+        deleteMany: mockDeleteMany,
       },
     })
   ),
 }))
 
-import { assignProductsToOccasion } from './occasions'
+import { assignProductsToOccasion, updateProductOccasions } from './occasions'
 
 describe('assignProductsToOccasion', () => {
   beforeEach(() => {
@@ -56,5 +60,34 @@ describe('assignProductsToOccasion', () => {
     expect(mockCreateMany).toHaveBeenCalledWith({
       data: [{ tenantId: 'tenant-1', tagId: 'occasion-1', productId: 'p1', sortOrder: 0 }],
     })
+  })
+})
+
+describe('updateProductOccasions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('removes unchecked occasions and adds newly-checked ones', async () => {
+    mockFindMany.mockResolvedValueOnce([{ tagId: 'diwali' }, { tagId: 'pongal' }])
+    mockAggregate.mockResolvedValueOnce({ _max: { sortOrder: 2 } })
+
+    await updateProductOccasions('tenant-1', 'p1', ['diwali', 'festive'])
+
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1', productId: 'p1', tagId: { in: ['pongal'] } },
+    })
+    expect(mockCreate).toHaveBeenCalledWith({
+      data: { tenantId: 'tenant-1', tagId: 'festive', productId: 'p1', sortOrder: 3 },
+    })
+  })
+
+  it('does nothing when the selection is unchanged', async () => {
+    mockFindMany.mockResolvedValueOnce([{ tagId: 'diwali' }])
+
+    await updateProductOccasions('tenant-1', 'p1', ['diwali'])
+
+    expect(mockDeleteMany).not.toHaveBeenCalled()
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 })

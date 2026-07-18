@@ -70,3 +70,37 @@ export async function assignProductsToOccasion(tenantId: string, occasionId: str
     })
   )
 }
+
+// Per-product complement to assignProductsToOccasion: replaces which occasions a single
+// product belongs to. Diffs against current assignments rather than delete-all-then-recreate,
+// so it doesn't disturb other products' sortOrder within a shared occasion.
+export async function updateProductOccasions(tenantId: string, productId: string, occasionIds: string[]): Promise<void> {
+  const current = await withTenant(tenantId, (db) =>
+    db.productTagAssignment.findMany({
+      where: { tenantId, productId },
+      select: { tagId: true },
+    })
+  )
+  const currentIds = new Set(current.map((c) => c.tagId))
+  const wantedIds = new Set(occasionIds)
+
+  const toRemove = [...currentIds].filter((id) => !wantedIds.has(id))
+  const toAdd = [...wantedIds].filter((id) => !currentIds.has(id))
+
+  if (toRemove.length > 0) {
+    await withTenant(tenantId, (db) =>
+      db.productTagAssignment.deleteMany({ where: { tenantId, productId, tagId: { in: toRemove } } })
+    )
+  }
+
+  for (const tagId of toAdd) {
+    const max = await withTenant(tenantId, (db) =>
+      db.productTagAssignment.aggregate({ where: { tenantId, tagId }, _max: { sortOrder: true } })
+    )
+    await withTenant(tenantId, (db) =>
+      db.productTagAssignment.create({
+        data: { tenantId, tagId, productId, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+      })
+    )
+  }
+}
