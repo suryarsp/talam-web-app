@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { unstable_cache } from 'next/cache'
 import { prisma, withTenant } from '@/lib/prisma'
 
 export type TenantStorefront = {
@@ -38,7 +39,13 @@ export async function getBranches(tenantId: string) {
   )
 }
 
-export async function getTenantStorefront(tenantId: string): Promise<TenantStorefront | null> {
+export const getTenantStorefront = unstable_cache(
+  fetchTenantStorefront,
+  ['tenant-storefront'],
+  { revalidate: 60 }
+)
+
+async function fetchTenantStorefront(tenantId: string): Promise<TenantStorefront | null> {
   const tenant = await withTenant(tenantId, (db) =>
     db.tenant.findUnique({
       where: { id: tenantId },

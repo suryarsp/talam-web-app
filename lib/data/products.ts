@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { withTenant } from '@/lib/prisma'
 
 export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular'
@@ -101,7 +102,13 @@ export async function getProductReviews(tenantId: string, productId: string) {
   )
 }
 
-export async function getCategories(tenantId: string): Promise<CategoryMeta[]> {
+export const getCategories = unstable_cache(
+  fetchCategories,
+  ['store-categories'],
+  { revalidate: 60 }
+)
+
+async function fetchCategories(tenantId: string): Promise<CategoryMeta[]> {
   return withTenant(tenantId, (db) =>
     db.productCategory.findMany({
       where: { tenantId },
