@@ -2,9 +2,21 @@
 
 **Date:** 2026-06-23  
 **Last updated:** 2026-07-18  
-**Status:** Approved — v1.12  
+**Status:** Approved — v1.13  
 **Author:** Surya Prakash  
-**Version:** 1.12 (Observability: error capture + transaction audit log)
+**Version:** 1.13 (Product↔occasion linking moves to Products page; batch product operations; soft-delete)
+
+**Changelog v1.13 (2026-07-18)**
+- **Product↔occasion assignment moves from the Occasion panel to the Products page.** The v1.11 "Occasion settings" panel (admin `/admin/settings` → Occasions tab) drops its Products section entirely — occasions are now configured there for *display only* (name, theme, layout), never product membership. Occasion rows also become compact, content-sized cards (a `flex-wrap` of chips) instead of full-width stretchy bars, since a name + emoji + count no longer needs a full-width row now that the products list is gone.
+- **New batch-selection system on `/admin/products`**, product-centric rather than occasion-centric: a checkbox per row (desktop table + mobile list), a header "select all visible" checkbox, and a "Select by category" dropdown that selects every product in a chosen category in one click. Selecting ≥1 product surfaces a floating action bar ("{n} selected" + actions).
+- **Batch actions are an explicitly extensible registry** (`app/admin/products/batch-actions.ts` — a plain array of `{id, label, variant, confirm?, run}`), not one bespoke UI per action, so adding a new batch action later is a one-line addition, not a toolbar redesign. V1 ships four actions:
+  - **Assign to Occasion** — opens a dialog listing existing occasions; picking one calls `assignProductsToOccasion(occasionId, productIds)`, which *adds* the selection to that occasion additively (skips products already in it, appends at the end of that occasion's order). A product can belong to multiple occasions at once — unchanged from the existing `ProductTagAssignment` many-to-many.
+  - **Bulk edit** — scoped narrowly to fields that are meaningfully uniform across a multi-product selection: **category reassignment** and **active/inactive status** only. Name, price, images, and description are never bulk-edited — those stay per-product, edited individually via the existing Product Editor.
+  - **Bulk delete** — see soft-delete note below; this is what actually performs the soft delete on the selection.
+  - **Reset to default** — clears a product's occasion *and* offer associations (`ProductTagAssignment` + `StorePromotionProduct` rows deleted in one transaction) without touching any other field. Confirmation-gated like delete, since it's a destructive-to-associations action.
+- **New schema field: `products.deleted_at timestamptz`, nullable — soft delete, mirroring the existing `tenants.deleted_at` pattern (§6).** A hard delete was rejected: `order_items.product_id` has a FK to `products`, and past orders must keep referencing the product row they were placed against (the row itself, not just the `order_items.product_name` snapshot — e.g. for admin drill-through from an order back to the product). Storefront queries (`getProducts`, `getProductBySlug`, category/occasion listings) and the admin product list all gain a `deletedAt: null` filter. "Delete" in the admin UI is therefore always reversible at the DB level (no UI to un-delete yet — that's a V2 gap, not blocking this pass).
+- **Product Editor (Add/Edit dialog) gains an Occasions field** — a checkbox list of existing occasions, pre-checked to whatever the product is currently assigned to when editing. Saved via `updateProductOccasions(productId, occasionIds)`, which diffs against current assignments (add newly-checked, remove unchecked) after the product itself is created/updated. This is the per-product, one-at-a-time complement to the Products-page batch "Assign to Occasion" action — both write through the same `ProductTagAssignment` table.
+- **CSV bulk import explicitly deferred to its own spec**, not built in this pass. Scoping note for that future spec: reuse `createProduct` row-by-row (not a separate bulk-SQL write path, to keep slug generation and stock-shape validation in one place); a 3-step upload → preview/validate → confirm modal serves as the "guided tour" rather than pulling in a tour/onboarding library for one modal. Added to §12 V2 backlog.
 
 **Changelog v1.12 (2026-07-18)**
 - **Error/crash capture added: Sentry (`@sentry/nextjs`).** `instrumentation.ts` (server + edge) and `instrumentation-client.ts` (browser) initialize Sentry; `next.config.ts` wraps with `withSentryConfig`. Crash/error alerting to the founder is Sentry's own Issue Alert rule (email), configured in the Sentry dashboard — not app code, since Sentry already does this and building a parallel notification pipeline would duplicate it. Requires `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN`/`SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` (added to `.env.example`) to be filled in with a real Sentry project before it captures anything — account creation is a manual step for the store owner, not something built here.
@@ -717,6 +729,7 @@ Triggered by Vercel Cron — checks tenant state daily:
 - **Admin:** PostHog analytics dashboard page (`/admin/analytics` — beyond dashboard stat cards), GST-compliant invoice PDF generation for registered sellers
 - **Integrations:** SMS fallback for owner/customer alerts when WhatsApp contact-check fails (V1 fallback is email-only, see §3.4/§4/Changelog v1.4), Vyapar CSV export for accounting sync, custom domain per Pro tenant (Vercel Domains API)
 - **Observability:** Heavy-usage / traffic-spike alerting (no threshold-alert infra exists yet — see Changelog v1.12), a super-admin-facing view of `OrderEvent` audit history across tenants (today's super-admin scope per Phase 6 data is tier/GMV stats only, not per-order history)
+- **CSV bulk product import:** deferred from Changelog v1.13's batch-operations pass — a dedicated 3-step (template/upload → validate/preview → confirm) modal on `/admin/products`, reusing `createProduct` per row rather than a separate write path. Not scoped in detail yet.
 
 **Resolved questions (moved from backlog):**
 - ~~Domain `talam.app`~~ → **`talam4shop.com`** (registered) — v1.1
