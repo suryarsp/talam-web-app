@@ -5,7 +5,7 @@
 **Author:** Surya Prakash + Claude
 **Scope:** Turn the marketing nav's profile icon into a dropdown, repurpose `/welcome` into a real tenant home page with a change log, and introduce a draft/publish workflow so content edits in admin no longer go live instantly.
 
-**Supersedes:** §6 of `docs/superpowers/specs/2026-07-17-welcome-page-and-cta-state-design.md` — that spec deleted the nav's `AccountMenu` dropdown in favor of a plain `Link` to `/welcome`. This spec reintroduces a dropdown on the same avatar, but with different content (see §1) than the old `AccountMenu` (name/email + sign-out).
+**Supersedes:** §6 of `docs/superpowers/specs/2026-07-17-welcome-page-and-cta-state-design.md` — that spec deleted the nav's `AccountMenu` dropdown in favor of a plain `Link` to `/welcome`. This spec reintroduces a dropdown on the same avatar, but with different content (see §1) than the old `AccountMenu` (name/email + sign-out). It also supersedes §5's visual design for `/welcome` (dark, marketing-styled centered cards) — see §2.
 
 ## 1. Profile dropdown
 
@@ -17,9 +17,19 @@ Two items:
 
 The mobile avatar link (`nav.tsx` lines 79-86) gets the same treatment for consistency.
 
-## 2. `/welcome` becomes the tenant home page
+## 2. `/welcome` becomes the tenant home page — redesigned in the admin's visual language
 
-No new route. `app/welcome/page.tsx` already does the tenant lookup and store/admin nav links (§5 of the 2026-07-17 spec) — it's extended with a **"Recent publishes"** section (§4 below) between the header and the store/admin link cards. Everything else about that page (states, guard, sign-out button) is unchanged.
+No new route — `app/welcome/page.tsx` keeps its existing guard (`requireOwnerSession`), tenant lookup, and state logic (onboarded vs. in-progress, from the 2026-07-17 spec). What changes is the visual design and structure.
+
+**Why:** the marketing site (dark `bg-bg-dark`, centered card, `nav.tsx`'s styling) is for *visitors* — it shouldn't carry tenant-specific operational content. `/welcome` is where a signed-in tenant lands to do something (check recent activity, jump into admin or the store), and that's structurally the same job as `app/admin/dashboard/page.tsx` — a light, section-based, card-driven layout that's easy to extend with more sections later. So `/welcome` adopts that visual language instead of the marketing one: `font-admin`, light `bg-bg` page background, sections built from `bg-surface rounded-lg` cards, the same type-scale conventions (`text-2xs uppercase tracking-[0.06em] text-muted-warm` section labels, `font-marketing` for large numerals/headings) already established in `admin-dashboard/page.tsx`.
+
+**Not reused:** `AdminNavShell`'s sidebar/bottom-tab-bar chrome. `/welcome` is a landing/dispatch page a tenant sees *before* entering `/admin` — it isn't itself a page within the admin nav, so it keeps its own simple header (logo + user name/avatar, no sidebar, no nav links) rather than being wrapped in the full admin shell.
+
+**Structure** (server component, same as today, `SignOutButton` still the only client island):
+1. Simple header bar: logo + signed-in user's name/avatar (light, not the dark marketing logo treatment).
+2. **"Recent publishes"** card section (§8) — same list-row pattern as `admin-dashboard/page.tsx`'s "Recent Orders" section (`bg-surface rounded-lg`, row-per-item, relative timestamps).
+3. Store/admin navigation, restyled as card-style action rows (matching the admin dashboard's list-row visual treatment) instead of the marketing page's large dark pill buttons — same **View My Store** / **View Admin** (or **Continue setup**, if not yet onboarded) destinations as today, unchanged.
+4. Sign out, kept as a plain text action near the header, not a large button.
 
 ## 3. Draft/publish workflow — scope
 
