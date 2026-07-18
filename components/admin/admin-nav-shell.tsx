@@ -2,7 +2,9 @@
 
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, ClipboardList, Users, Settings, PartyPopper } from 'lucide-react'
+import type { User } from '@supabase/supabase-js'
 import { StoreLink, useStoreBase } from '@/components/store/store-context'
+import { ProfileMenu } from '@/components/marketing/profile-menu'
 import { PublishButton } from './publish-button'
 
 const NAV = [
@@ -28,7 +30,7 @@ function isActive(rel: string, href: string) {
     || (href === '/admin/dashboard' && (rel === '/admin/dashboard' || rel === '/admin'))
 }
 
-export function AdminNavShell({ children }: { children: React.ReactNode }) {
+export function AdminNavShell({ children, user }: { children: React.ReactNode; user: User | null }) {
   const pathname = usePathname()
   const storeBase = useStoreBase()
   const rel = storeBase ? pathname.replace(storeBase, '') || '/' : pathname
@@ -75,9 +77,12 @@ export function AdminNavShell({ children }: { children: React.ReactNode }) {
                 </svg>
                 <div className="absolute -right-1 -top-1 size-2 rounded-full bg-danger" />
               </button>
-              <div className="flex size-8 items-center justify-center rounded-full bg-brand-primary">
-                <span className="text-xs font-semibold text-surface">S</span>
-              </div>
+              {user && (
+                <ProfileMenu
+                  user={user}
+                  triggerClassName="flex size-8 items-center justify-center rounded-full bg-brand-primary text-xs font-semibold text-surface overflow-hidden hover:opacity-80 transition-opacity"
+                />
+              )}
             </div>
           </header>
           <main className="p-8">{children}</main>
@@ -97,9 +102,12 @@ export function AdminNavShell({ children }: { children: React.ReactNode }) {
               </svg>
               <div className="absolute -right-0.5 -top-0.5 size-[6px] rounded-full bg-danger" />
             </button>
-            <div className="flex size-8 items-center justify-center rounded-full bg-brand-primary">
-              <span className="text-xs font-semibold text-surface">S</span>
-            </div>
+            {user && (
+              <ProfileMenu
+                user={user}
+                triggerClassName="flex size-8 items-center justify-center rounded-full bg-brand-primary text-xs font-semibold text-surface overflow-hidden hover:opacity-80 transition-opacity"
+              />
+            )}
           </div>
         </header>
         <main className="pb-20">{children}</main>
