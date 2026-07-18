@@ -26,13 +26,12 @@ type OccasionRow = {
 
 /* ── Small controls ── */
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
-      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`flex h-[26px] w-12 shrink-0 items-center rounded-full px-[2px] transition-colors ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${checked ? 'bg-brand-primary' : 'bg-[#D1D5DB]'}`}
+      className={`flex h-[26px] w-12 shrink-0 cursor-pointer items-center rounded-full px-[2px] transition-colors ${checked ? 'bg-brand-primary' : 'bg-[#D1D5DB]'}`}
     >
       <div className={`size-[22px] rounded-full bg-surface shadow-sm transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-0'}`} />
     </button>
@@ -157,6 +156,10 @@ function OccasionEditor({
 
             <ThemePicker value={themeKey} onChange={setThemeKey} />
             <LayoutToggle value={layout} onChange={setLayout} />
+
+            <p className="text-xs text-muted-warm">
+              Products aren&apos;t assigned here — use the Products page&apos;s &quot;Assign to Occasion&quot; batch action, or link products individually from each product&apos;s editor.
+            </p>
           </div>
         </div>
 
@@ -206,7 +209,7 @@ export function OccasionsClient({ initialOccasions }: { initialOccasions: Occasi
         <input className="grow bg-transparent text-md outline-none placeholder:text-muted-warm" placeholder="Search occasions..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       <p className="mb-3 text-xs text-muted-warm">
-        Occasions power the storefront&apos;s &quot;Shop by Occasion&quot; strip and each occasion&apos;s own page. Default festivals can&apos;t be deleted, but every occasion can be turned on or off.
+        Occasions power the storefront&apos;s &quot;Shop by Occasion&quot; strip and each occasion&apos;s own page. Default festivals can&apos;t be deleted, but every occasion can be turned on or off. Assign products from the Products page.
       </p>
 
       {error && <p className="mb-3 rounded-lg bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
