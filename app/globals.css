@@ -201,9 +201,8 @@
   50% { transform: translate3d(0, -14px, 0) rotate(2deg); }
 }
 @keyframes marketingStoreCycle {
-  0%, 28% { opacity: 1; }
-  34%, 94% { opacity: 0; }
-  100% { opacity: 1; }
+  0%, 33.333% { opacity: 1; z-index: 1; }
+  33.334%, 100% { opacity: 0; z-index: 0; }
 }
 
 @layer base {
@@ -263,12 +262,20 @@
 
   .marketing-store-card {
     opacity: 0;
-    animation: marketingStoreCycle 12s ease-in-out infinite;
+    animation: marketingStoreCycle 12s step-end infinite;
     will-change: opacity;
   }
 
   .marketing-store-card:first-child {
     opacity: 1;
+  }
+
+  .marketing-store-card-delay-one {
+    animation-delay: 4s;
+  }
+
+  .marketing-store-card-delay-two {
+    animation-delay: 8s;
   }
 
   @media (prefers-reduced-motion: reduce) {

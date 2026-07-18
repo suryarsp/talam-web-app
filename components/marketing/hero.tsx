@@ -19,7 +19,7 @@ const STORES = [
   {
     name: "Maya's Bakehouse",
     domain: 'maya.talam4shop.com',
-    delayClass: '[animation-delay:4s]',
+    delayClass: 'marketing-store-card-delay-one',
     products: [
       { name: 'Truffle Cake', price: '₹899', from: '#F59E0B', to: '#E8577E' },
       { name: 'Sourdough Loaf', price: '₹349', from: '#10B981', to: '#F59E0B' },
@@ -30,7 +30,7 @@ const STORES = [
   {
     name: "Priya's Salon",
     domain: 'priya.talam4shop.com',
-    delayClass: '[animation-delay:8s]',
+    delayClass: 'marketing-store-card-delay-two',
     products: [
       { name: 'Bridal Package', price: '₹15,999', from: '#4F3FF0', to: '#E8577E' },
       { name: 'Hair Spa', price: '₹1,499', from: '#E8577E', to: '#F59E0B' },
