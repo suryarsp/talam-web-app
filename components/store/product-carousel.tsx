@@ -24,9 +24,9 @@ export function ProductCarousel({ products }: Props) {
 
   return (
     <CarouselScroller>
-      {products.map((product) => (
+      {products.map((product, i) => (
         <div key={product.id} className="w-[45vw] shrink-0 snap-start sm:w-[260px]">
-          <ProductCard product={product} />
+          <ProductCard product={product} priority={i === 0} />
         </div>
       ))}
     </CarouselScroller>

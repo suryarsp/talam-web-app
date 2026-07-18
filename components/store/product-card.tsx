@@ -9,9 +9,10 @@ type Props = {
     averageRating: number | null
     isNew: boolean
   }
+  priority?: boolean
 }
 
-export function ProductCard({ product }: Props) {
+export function ProductCard({ product, priority }: Props) {
   const discount =
     product.comparePrice && Number(product.comparePrice) > Number(product.price)
       ? Math.round((1 - Number(product.price) / Number(product.comparePrice)) * 100)
@@ -33,6 +34,7 @@ export function ProductCard({ product }: Props) {
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
+            priority={priority}
           />
         )}
         <div className="absolute inset-x-2 bottom-2 flex items-end justify-between sm:inset-x-3 sm:bottom-3">

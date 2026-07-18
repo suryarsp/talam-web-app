@@ -506,7 +506,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                 return (
                   <StoreLink key={i} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
                     <div className="aspect-[3/4] relative bg-bg">
-                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 20vw, 50vw" className="object-cover" />}
+                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 20vw, 50vw" className="object-cover" priority={i === 0} />}
                       {label && <span className="absolute top-2 left-2 px-2 py-[3px] bg-danger rounded text-white text-[10px] font-bold font-body leading-3">{label}</span>}
                     </div>
                     <div className="p-2.5">
