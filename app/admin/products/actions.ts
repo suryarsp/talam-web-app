@@ -40,9 +40,11 @@ export async function updateProductOccasionsAction(productId: string, occasionId
   revalidatePath('/admin/products')
 }
 
-export async function bulkAssignToOccasionAction(occasionId: string, productIds: string[]) {
-  await assignProductsToOccasionAction(occasionId, productIds)
+export async function bulkAssignToOccasionAction(occasionId: string, productIds: string[]): Promise<{ error?: string }> {
+  const result = await assignProductsToOccasionAction(occasionId, productIds)
+  if (result.error) return result
   revalidatePath('/admin/products')
+  return {}
 }
 
 export async function bulkSetCategoryAction(productIds: string[], categoryId: string | null) {
