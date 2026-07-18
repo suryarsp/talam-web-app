@@ -1,5 +1,7 @@
 # Talam Implementation Plans
 
+**2026-07-18 — PARTIAL:** [2026-07-18-observability-and-order-audit-log-data.md](2026-07-18-observability-and-order-audit-log-data.md) — Sentry error/crash capture shipped (Task 1, commit pending). `OrderEvent` audit-log schema + wiring (Tasks 2–3) scoped but not started — Task 3 is blocked on Phase 3/5 commerce-data's `updateOrderPayment`/`updateOrderStatus`, which don't exist in the repo yet. See `docs/2026-06-23-talam-design.md` Changelog v1.12.
+
 **2026-07-17 — DONE:** [2026-07-17-talam-onboarding-persistence.md](2026-07-17-talam-onboarding-persistence.md) — post-login routing (Google + OTP) + per-step onboarding persistence, keyed by owner id, resumable across sessions. Shipped as commits `8473b1b`, `c72baee` plus the fuller [2026-07-17-onboarding-v2-implementation.md](2026-07-17-onboarding-v2-implementation.md) (schema flags, 7-step wizard, Go Live wiring — commits `814a178`..`785940c`). Not part of the storefront-first sequence below — was picked up independently of where that track stood.
 
 **2026-07-17 — DONE:** [2026-07-17-welcome-page-and-cta-state.md](2026-07-17-welcome-page-and-cta-state.md) — `/welcome` hub page + state-aware marketing CTAs (nav/hero/CTA-band/pricing) for signed-in owners. Depends on the onboarding persistence work above (`Tenant.isOnboarded`). Shipped as commits `eaad135`..`e04a9d3`, `a2f5ae0`. See `docs/2026-06-23-talam-design.md` Changelog v1.10.

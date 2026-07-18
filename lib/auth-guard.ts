@@ -9,8 +9,13 @@ export async function requireAuth(nextPath?: string) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    const suffix = nextPath ? `?next=${encodeURIComponent(nextPath)}` : ''
-    redirect(`/auth${suffix}`)
+    // Tenant is path-prefixed in dev (/dev/store/<tenant>/...) rather than by subdomain, so the
+    // bounce target and the post-login "next" destination both need the store-base prefix here —
+    // otherwise this lands on the root owner-login page instead of the tenant's own /store/auth.
+    const storeBase = (await headers()).get('x-store-base') ?? ''
+    const target = nextPath ? `${storeBase}${nextPath}` : undefined
+    const suffix = target ? `?next=${encodeURIComponent(target)}` : ''
+    redirect(`${storeBase}/auth${suffix}`)
   }
 
   return user

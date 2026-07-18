@@ -393,7 +393,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <StoreLink href={`/store/product/${hero.slug}`} className="inline-flex items-center gap-2 bg-store-primary rounded-[10px] px-5 md:px-8 py-3 md:py-3.5 hover:opacity-90 transition-opacity">
+                <StoreLink href={`/product/${hero.slug}`} className="inline-flex items-center gap-2 bg-store-primary rounded-[10px] px-5 md:px-8 py-3 md:py-3.5 hover:opacity-90 transition-opacity">
                   <CartIcon />
                   <span className="text-white text-[15px] font-bold font-body leading-[18px]">View Product</span>
                 </StoreLink>
@@ -535,7 +535,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {newThisWeek.map((p, i) => (
-                <StoreLink key={i} href={`/store/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
+                <StoreLink key={i} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
                   <div className="aspect-[3/4] relative bg-bg">
                     {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 20vw, 50vw" className="object-cover" />}
                     <span className="absolute top-2 left-2 px-2 py-[3px] bg-success rounded text-white text-[10px] font-bold font-body leading-3">NEW</span>
@@ -643,7 +643,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {visibleProducts.map((p, i) => (
-                  <StoreLink key={`${p.name}-${i}`} href={`/store/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden group cursor-pointer block hover:border-store-primary hover:shadow-md transition">
+                  <StoreLink key={`${p.name}-${i}`} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden group cursor-pointer block hover:border-store-primary hover:shadow-md transition">
                     <div className="aspect-[3/4] relative bg-bg">
                       {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 30vw, 50vw" className="object-cover" />}
                       {p.discount && <span className="absolute top-2 left-2 px-2.5 py-[3px] bg-store-primary rounded-full text-white text-[10px] font-bold font-body leading-3">{p.discount}</span>}

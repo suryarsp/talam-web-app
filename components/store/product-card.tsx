@@ -23,7 +23,7 @@ export function ProductCard({ product }: Props) {
 
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition hover:border-store-primary hover:shadow-md">
-      <StoreLink href={`/product/${product.slug}`} className="absolute inset-0 z-0" aria-label={product.name} />
+      <StoreLink href={`/product/${product.slug}`} className="absolute inset-0 z-[5]" aria-label={product.name} />
 
       <div className="relative aspect-[2/3] bg-bg sm:aspect-[3/4]">
         {imageUrl && (

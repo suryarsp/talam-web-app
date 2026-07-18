@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, AlertTriangle, X, GripVertical } from 'lucide-react'
+import { ChevronLeft, AlertTriangle, X, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import {
   getOccasions,
@@ -9,7 +9,12 @@ import {
   createOccasion,
   deleteOccasion,
   setOccasionProducts,
+  setOccasionSettings,
 } from './occasions/actions'
+import { getAboutAction, updateAboutAction } from './actions'
+import { RichTextEditor } from '@/components/admin/rich-text-editor'
+import type { SocialLink } from '@/lib/data/tenant'
+import { OCCASION_THEMES, SELECTABLE_OCCASION_THEMES } from '@/lib/occasion-themes'
 
 const TABS = ['About', 'Store', 'Alerts', 'Occasions', 'Promotions', 'Subscription', 'Payments', 'Contact Info'] as const
 type Tab = (typeof TABS)[number] | 'Delete Store'
@@ -51,69 +56,107 @@ function Input({ label, defaultValue, type = 'text', ...props }: { label: string
   )
 }
 
+function ImageUploadPreview({ initialLabel }: { initialLabel: string }) {
+  const [preview, setPreview] = useState<string | null>(null)
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) setPreview(URL.createObjectURL(file))
+  }
+
+  return (
+    <label
+      title="Click to change"
+      className="flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-brand-primary/10 transition-opacity hover:opacity-80"
+    >
+      <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {preview ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt="" className="size-full object-cover" />
+      ) : (
+        <span className="text-sm font-bold tracking-[0.04em] text-brand-primary">{initialLabel}</span>
+      )}
+    </label>
+  )
+}
+
 // ── About Tab ──
 function AboutTab() {
+  const [loaded, setLoaded] = useState(false)
+  const [description, setDescription] = useState('')
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    getAboutAction().then((about) => {
+      setDescription(about.description)
+      setSocialLinks(about.socialLinks)
+      setLoaded(true)
+    })
+  }, [])
+
+  function updateLink(i: number, patch: Partial<SocialLink>) {
+    setSocialLinks((prev) => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await updateAboutAction({ description, socialLinks })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  if (!loaded) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
+
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <SectionLabel>Store Story</SectionLabel>
+        <SectionLabel right={saved ? <span className="text-xs font-medium text-success">✓ Saved</span> : undefined}>Store Story</SectionLabel>
         <label className="flex flex-col gap-1">
           <span className="text-sm font-semibold text-fg">Your Story</span>
-          <textarea
-            rows={4}
-            defaultValue="Meena Silks is a family-owned business founded in 1995, specializing in handcrafted sarees and traditional wear. Each piece is curated with care..."
-            className="rounded-lg border border-border bg-surface px-3 py-3 text-md text-fg outline-none transition-colors focus:border-brand-primary"
-          />
-          <span className="text-xs text-muted-warm">324 / 1000 characters</span>
+          <RichTextEditor defaultValue={description} onChange={setDescription} />
         </label>
       </div>
       <div>
-        <SectionLabel>Owner Information</SectionLabel>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8">
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex size-24 items-center justify-center rounded-full border-2 border-brand-primary/20 bg-brand-primary/5">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#C1502E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <button type="button" className="text-sm font-semibold text-brand-primary">Change Photo</button>
-          </div>
-          <div className="flex flex-1 flex-col gap-4">
-            <Input label="Owner Name" defaultValue="Meena Patel" />
-            <Input label="Title / Role" defaultValue="Founder & Designer" />
-          </div>
-        </div>
-      </div>
-      <div>
-        <SectionLabel>Social Links</SectionLabel>
+        <SectionLabel right={<button type="button" onClick={() => setSocialLinks((prev) => [...prev, { platform: '', url: '' }])} className="cursor-pointer text-xs font-semibold text-brand-primary">+ Add link</button>}>
+          Social Links
+        </SectionLabel>
         <div className="flex flex-col gap-3">
-          {[
-            { label: 'IG', value: 'https://instagram.com/meenasilks' },
-            { label: 'FB', value: 'https://facebook.com/meenasilks' },
-            { label: 'YT', value: 'https://youtube.com/@meenasilks' },
-          ].map(({ label, value }) => (
-            <div key={value} className="flex items-center gap-3 rounded-lg border border-border px-3 py-[11px]">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded text-[9px] font-bold text-muted-warm">{label}</span>
-              <input defaultValue={value} className="min-w-0 flex-1 bg-transparent text-md text-fg outline-none" />
+          {socialLinks.length === 0 && <p className="text-sm text-muted-warm">No social links yet. Add Instagram, Facebook, YouTube — anything.</p>}
+          {socialLinks.map((link, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-[9px]">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded bg-bg text-[10px] font-bold uppercase text-muted-warm">
+                {link.platform.slice(0, 2) || '—'}
+              </span>
+              <input
+                value={link.platform}
+                onChange={(e) => updateLink(i, { platform: e.target.value })}
+                placeholder="Platform (e.g., Instagram)"
+                className="w-[120px] shrink-0 border-r border-border bg-transparent pr-2 text-sm font-semibold text-fg outline-none"
+              />
+              <input
+                value={link.url}
+                onChange={(e) => updateLink(i, { url: e.target.value })}
+                placeholder="https://instagram.com/yourstore"
+                className="min-w-0 flex-1 bg-transparent text-md text-fg outline-none"
+              />
+              <button type="button" onClick={() => setSocialLinks((prev) => prev.filter((_, j) => j !== i))} className="text-muted-warm hover:text-danger">
+                <X className="size-4" />
+              </button>
             </div>
           ))}
         </div>
       </div>
-      <div>
-        <SectionLabel>Trust Statistics</SectionLabel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            { value: '₹50L+ GMV', label: 'Label' },
-            { value: '2K+ Customers', label: 'Label' },
-            { value: '98% Rated', label: 'Label' },
-          ].map((stat) => (
-            <div key={stat.value} className="flex flex-col gap-1 rounded-lg border border-border p-3">
-              <input defaultValue={stat.value} className="bg-transparent text-sm font-semibold text-fg outline-none" />
-              <input defaultValue={stat.label} className="bg-transparent text-xs text-muted-warm outline-none" placeholder="Label" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="self-start rounded-lg bg-brand-primary px-5 py-[9px] text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-60"
+      >
+        {saving ? 'Saving…' : 'Save About Page'}
+      </button>
     </div>
   )
 }
@@ -154,7 +197,7 @@ function StoreTab() {
               <button type="button" className="text-muted-warm hover:text-danger"><X className="size-4" /></button>
             </div>
           ))}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5">
             <input placeholder="New category name..." className="min-w-0 flex-1 bg-transparent text-md text-fg outline-none" />
             <button type="button" className="rounded-lg border border-brand-primary px-3 py-1 text-sm font-semibold text-brand-primary">Add</button>
           </div>
@@ -164,15 +207,12 @@ function StoreTab() {
 
       <div>
         <SectionLabel right={<span className="text-xs font-medium text-success">✓ Autosaves</span>}>Brand</SectionLabel>
-        <div className="flex items-center gap-[14px] rounded-lg border border-border p-3">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10">
-            <span className="text-sm font-bold tracking-[0.04em] text-brand-primary">MS</span>
-          </div>
+        <div className="flex items-center gap-[14px] rounded-lg border border-border bg-surface p-3">
+          <ImageUploadPreview initialLabel="MS" />
           <div className="grow">
             <p className="text-md font-semibold text-fg">Store Logo</p>
             <p className="text-xs text-muted-warm">PNG or SVG, min 200×200px</p>
           </div>
-          <button type="button" className="rounded-lg border border-border px-[14px] py-2 text-sm font-semibold text-fg">Change Logo</button>
         </div>
         <div className="mt-4">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-warm">Primary Colour</p>
@@ -189,7 +229,7 @@ function StoreTab() {
             <input
               value={selectedColor}
               onChange={(e) => setSelectedColor(e.target.value)}
-              className="min-w-[100px] grow rounded-lg border border-border px-[10px] py-2 font-mono text-md text-fg"
+              className="min-w-[100px] grow rounded-lg border border-border bg-surface px-[10px] py-2 font-mono text-md text-fg"
             />
           </div>
         </div>
@@ -197,18 +237,18 @@ function StoreTab() {
 
       <div>
         <SectionLabel right={<span className="text-xs font-medium text-success">✓ Autosaves</span>}>Delivery & Trust</SectionLabel>
-        <div className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-fg">Free Delivery Above</span>
-              <div className="flex items-center rounded-lg border border-border px-2 py-[9px]">
+              <div className="flex items-center rounded-lg border border-border bg-bg px-2 py-[9px]">
                 <span className="text-muted-warm">₹</span>
                 <input defaultValue="500" className="ml-1 min-w-0 flex-1 bg-transparent text-md text-fg outline-none" />
               </div>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-fg">Shipping Fee</span>
-              <div className="flex items-center rounded-lg border border-border px-2 py-[9px]">
+              <div className="flex items-center rounded-lg border border-border bg-bg px-2 py-[9px]">
                 <span className="text-muted-warm">₹</span>
                 <input defaultValue="60" className="ml-1 min-w-0 flex-1 bg-transparent text-md text-fg outline-none" />
               </div>
@@ -221,7 +261,7 @@ function StoreTab() {
               <p className="text-xs text-muted-warm">Show return window on product pages</p>
             </div>
             <div className="flex items-center gap-2">
-              <input defaultValue="7" className="w-12 rounded-lg border border-border px-2 py-1 text-center text-sm text-fg" />
+              <input defaultValue="7" className="w-12 rounded-lg border border-border bg-bg px-2 py-1 text-center text-sm text-fg" />
               <span className="text-xs text-muted-warm">days</span>
               <Toggle checked={acceptReturns} onChange={setAcceptReturns} />
             </div>
@@ -232,12 +272,12 @@ function StoreTab() {
 
       <div>
         <SectionLabel right={<span className="text-xs font-medium text-success">✓ Autosaves</span>}>WhatsApp</SectionLabel>
-        <div className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-semibold text-fg">WhatsApp Number</span>
             <div className="flex items-center gap-2">
-              <span className="rounded-lg border border-border px-3 py-[9px] text-sm text-muted-warm">+91</span>
-              <input defaultValue="98765 43210" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary" />
+              <span className="rounded-lg border border-border bg-bg px-3 py-[9px] text-sm text-muted-warm">+91</span>
+              <input defaultValue="98765 43210" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary" />
             </div>
           </label>
           <div className="flex items-center justify-between">
@@ -332,6 +372,8 @@ type OccasionRow = {
   slug: string
   emoji: string | null
   isDefault: boolean
+  themeKey: string | null
+  layout: 'grid' | 'carousel'
   _count: { products: number }
 }
 
@@ -343,55 +385,148 @@ type PickerProduct = {
   tagAssignments: { id: string }[]
 }
 
-function OccasionProductPicker({ occasionId, onClose, onSaved }: { occasionId: string; onClose: () => void; onSaved: () => void }) {
+function ThemePicker({ value, onChange }: { value: string | null; onChange: (key: string) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-2xs font-semibold tracking-wide text-muted-warm uppercase">Theme</p>
+      <div className="flex gap-2.5">
+        {SELECTABLE_OCCASION_THEMES.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-label={key}
+            className="size-9 shrink-0 rounded-full box-border"
+            style={{
+              backgroundImage: OCCASION_THEMES[key].gradient,
+              border: value === key ? '2px solid var(--color-brand-primary)' : '2px solid transparent',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function LayoutToggle({ value, onChange }: { value: 'grid' | 'carousel'; onChange: (v: 'grid' | 'carousel') => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-2xs font-semibold tracking-wide text-muted-warm uppercase">Layout</p>
+      <div className="flex w-fit gap-0.5 rounded-lg bg-bg p-0.5">
+        {(['grid', 'carousel'] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`rounded-md px-4 py-1.5 text-sm capitalize ${
+              value === option ? 'bg-surface font-semibold text-fg shadow-sm' : 'font-medium text-muted-warm'
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OccasionSettingsPanel({
+  occasion,
+  onClose,
+  onSaved,
+}: {
+  occasion: OccasionRow
+  onClose: () => void
+  onSaved: () => void
+}) {
   const [products, setProducts] = useState<PickerProduct[] | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [order, setOrder] = useState<string[]>([])
+  const [themeKey, setThemeKey] = useState(occasion.themeKey ?? SELECTABLE_OCCASION_THEMES[0])
+  const [layout, setLayout] = useState(occasion.layout)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    getOccasionProductPicker(occasionId).then((rows) => {
+    getOccasionProductPicker(occasion.id).then((rows) => {
       setProducts(rows)
-      setSelected(new Set(rows.filter((r) => r.tagAssignments.length > 0).map((r) => r.id)))
+      setOrder(rows.filter((r) => r.tagAssignments.length > 0).map((r) => r.id))
     })
-  }, [occasionId])
+  }, [occasion.id])
 
   const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+    setOrder((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const move = (id: string, direction: -1 | 1) => {
+    setOrder((prev) => {
+      const index = prev.indexOf(id)
+      const swapWith = index + direction
+      if (swapWith < 0 || swapWith >= prev.length) return prev
+      const next = [...prev]
+      ;[next[index], next[swapWith]] = [next[swapWith], next[index]]
       return next
     })
   }
 
   const save = async () => {
     setSaving(true)
-    await setOccasionProducts(occasionId, [...selected])
+    await Promise.all([setOccasionProducts(occasion.id, order), setOccasionSettings(occasion.id, { themeKey, layout })])
     setSaving(false)
     onSaved()
     onClose()
   }
 
+  const byId = new Map((products ?? []).map((p) => [p.id, p]))
+  const unassigned = (products ?? []).filter((p) => !order.includes(p.id))
+
   return (
-    <div className="mt-2 rounded-lg border border-border-light bg-bg p-3">
-      {products === null ? (
-        <p className="py-4 text-center text-sm text-muted-warm">Loading products…</p>
-      ) : products.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-warm">No active products yet.</p>
-      ) : (
-        <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-          {products.map((p) => (
-            <label key={p.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-border-light">
-              <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} className="size-4 rounded border-border accent-brand-primary" />
-              <span className="flex-1 text-sm text-fg">{p.name}</span>
-              <span className="text-xs text-muted-warm">₹{Number(p.price).toLocaleString('en-IN')}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      <div className="mt-3 flex justify-end gap-2">
+    <div className="mt-2 flex flex-col gap-5 rounded-lg border border-border-light bg-bg p-4">
+      <ThemePicker value={themeKey} onChange={setThemeKey} />
+      <LayoutToggle value={layout} onChange={setLayout} />
+
+      <div className="flex flex-col gap-2">
+        <p className="text-2xs font-semibold tracking-wide text-muted-warm uppercase">
+          Products {order.length ? `— drag order sets the ${layout} order` : ''}
+        </p>
+        {products === null ? (
+          <p className="py-4 text-center text-sm text-muted-warm">Loading products…</p>
+        ) : (
+          <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+            {order.map((id, index) => {
+              const p = byId.get(id)
+              if (!p) return null
+              return (
+                <div key={id} className="flex items-center gap-2 rounded-md bg-surface px-2 py-1.5">
+                  <GripVertical className="size-3.5 shrink-0 text-border" />
+                  <span className="flex-1 text-sm text-fg">{p.name}</span>
+                  <span className="text-xs text-muted-warm">₹{Number(p.price).toLocaleString('en-IN')}</span>
+                  <button type="button" onClick={() => move(id, -1)} disabled={index === 0} className="text-muted-warm hover:text-fg disabled:opacity-30">
+                    <ChevronUp className="size-3.5" />
+                  </button>
+                  <button type="button" onClick={() => move(id, 1)} disabled={index === order.length - 1} className="text-muted-warm hover:text-fg disabled:opacity-30">
+                    <ChevronDown className="size-3.5" />
+                  </button>
+                  <button type="button" onClick={() => toggle(id)} className="text-muted-warm hover:text-danger">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )
+            })}
+            {unassigned.map((p) => (
+              <label key={p.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-border-light">
+                <input type="checkbox" checked={false} onChange={() => toggle(p.id)} className="size-4 rounded border-border accent-brand-primary" />
+                <span className="flex-1 text-sm text-fg">{p.name}</span>
+                <span className="text-xs text-muted-warm">₹{Number(p.price).toLocaleString('en-IN')}</span>
+              </label>
+            ))}
+            {products.length === 0 && <p className="py-4 text-center text-sm text-muted-warm">No active products yet.</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-muted-warm">Cancel</button>
         <button type="button" onClick={save} disabled={saving || products === null} className="rounded-lg bg-brand-primary px-4 py-1.5 text-sm font-semibold text-surface disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save products'}
+          {saving ? 'Saving…' : 'Save settings'}
         </button>
       </div>
     </div>
@@ -462,10 +597,12 @@ function OccasionsTab() {
                       {o.name}
                       {o.isDefault && <span className="ml-2 rounded-full bg-brand-primary/10 px-2 py-0.5 text-2xs font-semibold text-brand-primary">Default</span>}
                     </p>
-                    <p className="text-xs text-muted-warm">{o._count.products} product{o._count.products === 1 ? '' : 's'}</p>
+                    <p className="text-xs text-muted-warm capitalize">
+                      {o._count.products} product{o._count.products === 1 ? '' : 's'} · {o.layout} layout
+                    </p>
                   </div>
                   <button type="button" onClick={() => setManagingId(managingId === o.id ? null : o.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-fg">
-                    {managingId === o.id ? 'Close' : 'Manage products'}
+                    {managingId === o.id ? 'Close' : 'Configure'}
                   </button>
                   {!o.isDefault && (
                     <button type="button" onClick={() => handleDelete(o.id)} className="text-muted-warm hover:text-danger">
@@ -474,7 +611,7 @@ function OccasionsTab() {
                   )}
                 </div>
                 {managingId === o.id && (
-                  <OccasionProductPicker occasionId={o.id} onClose={() => setManagingId(null)} onSaved={refresh} />
+                  <OccasionSettingsPanel occasion={o} onClose={() => setManagingId(null)} onSaved={refresh} />
                 )}
               </div>
             ))}
@@ -689,7 +826,7 @@ function PaymentsTab() {
             <div>
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-semibold text-fg">UPI ID</span>
-                <input defaultValue="meena@ybl" className="rounded-lg border border-border px-3 py-[11px] text-md text-fg outline-none focus:border-brand-primary" />
+                <input defaultValue="meena@ybl" className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg outline-none focus:border-brand-primary" />
               </label>
               <p className="mt-1 text-xs text-muted-warm">Customers scan your QR and share UTR manually to confirm payment</p>
             </div>
@@ -752,8 +889,8 @@ function ContactInfoTab() {
           <label className="flex flex-col gap-1">
             <span className="text-sm font-semibold text-fg">WhatsApp Number</span>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg border border-border px-3 py-[9px] text-sm text-muted-warm">+91</span>
-              <input defaultValue="98765 43210" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary" />
+              <span className="rounded-lg border border-border bg-surface px-3 py-[9px] text-sm text-muted-warm">+91</span>
+              <input defaultValue="98765 43210" className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary" />
               <label className="flex shrink-0 items-center gap-1.5 text-sm text-muted-warm">
                 <input type="checkbox" defaultChecked className="size-4 accent-brand-primary" />
                 Same as contact phone
@@ -776,7 +913,7 @@ function ContactInfoTab() {
           <Input label="City" defaultValue="Chennai" />
           <label className="flex flex-col gap-1">
             <span className="text-sm font-semibold text-fg">State</span>
-            <select defaultValue="Tamil Nadu" className="rounded-lg border border-border px-3 py-[11px] text-md text-fg">
+            <select defaultValue="Tamil Nadu" className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg">
               <option>Tamil Nadu</option>
               <option>Karnataka</option>
               <option>Kerala</option>
@@ -803,14 +940,14 @@ function ContactInfoTab() {
 
       <div>
         <SectionLabel>Store Hours</SectionLabel>
-        <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center gap-4">
             <span className="w-20 text-sm font-semibold text-fg">Mon – Sat</span>
-            <input defaultValue="10 AM – 7 PM" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-[9px] text-md text-fg outline-none" />
+            <input defaultValue="10 AM – 7 PM" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-[9px] text-md text-fg outline-none" />
           </div>
           <div className="flex items-center gap-4">
             <span className="w-20 text-sm font-semibold text-fg">Sunday</span>
-            <input defaultValue="Closed" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-[9px] text-md text-muted-warm outline-none" />
+            <input defaultValue="Closed" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-[9px] text-md text-muted-warm outline-none" />
           </div>
         </div>
       </div>
@@ -839,7 +976,7 @@ function DeleteStoreTab() {
 
       <label className="flex flex-col gap-1">
         <span className="text-sm font-semibold text-fg">Type your store name to confirm</span>
-        <input placeholder="Meena Silks" className="rounded-lg border border-border px-3 py-[11px] text-md text-fg outline-none focus:border-danger" />
+        <input placeholder="Meena Silks" className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg outline-none focus:border-danger" />
       </label>
 
       <button type="button" className="w-full rounded-lg bg-danger py-3.5 text-md font-semibold text-surface transition-colors hover:bg-danger/90">

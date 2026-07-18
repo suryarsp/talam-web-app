@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, CreditCard, Pencil, Trash, Info } from 'lucide-react'
+import { Plus, Pencil, Trash, Info, X } from 'lucide-react'
+import { Dialog } from '@/components/ui/dialog'
 
 const mockAddresses = [
   { id: '1', label: 'Home', name: 'Priya Rajan', line1: '42, Bharathi Nagar, 2nd Cross Street', line2: 'Madurai, Tamil Nadu 625001', phone: '+91 98765 43210', isDefault: true },
   { id: '2', label: 'Office', name: 'Priya Rajan', line1: '3rd Floor, Tech Park, Anna Salai', line2: 'Chennai, Tamil Nadu 600002', phone: '+91 98765 43210', isDefault: false },
 ]
 
-const mockPayments = [
-  { id: '1', type: 'card' as const, brand: 'HDFC Visa', last4: '4821', expiry: '08/28', isDefault: true },
-  { id: '2', type: 'upi' as const, upiId: 'priya@okicici', isDefault: false },
-]
+// ponytail: no PaymentMethod table or gateway tokenization exists yet — UPI ID is a safe,
+// non-PCI identifier to store as-is. Card capture needs real tokenization before it's added.
+type PaymentMethod = { id: string; upiId: string; isDefault: boolean }
 
 export function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -74,48 +74,107 @@ export function AddressesContent() {
   )
 }
 
+function AddPaymentDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (upiId: string) => void }) {
+  const [upiId, setUpiId] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!/^[\w.\-]+@[\w.\-]+$/.test(upiId.trim())) {
+      setError('Enter a valid UPI ID, e.g. name@bank')
+      return
+    }
+    onAdd(upiId.trim())
+    setUpiId('')
+    setError(null)
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-body text-base font-bold text-fg">Add Payment Method</h3>
+          <button type="button" onClick={onClose} className="text-muted-warm hover:text-fg"><X className="h-5 w-5" /></button>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="font-body text-sm font-semibold text-fg">UPI ID</span>
+          <input
+            autoFocus
+            value={upiId}
+            onChange={(e) => setUpiId(e.target.value)}
+            placeholder="yourname@bank"
+            className="rounded-lg border border-border bg-bg px-3 py-[11px] font-body text-md text-fg outline-none focus:border-store-primary"
+          />
+          {error && <span className="font-body text-xs text-danger">{error}</span>}
+        </label>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose} className="grow rounded-lg border border-border py-2.5 font-body text-sm font-semibold text-fg">Cancel</button>
+          <button type="submit" className="grow rounded-lg bg-store-primary py-2.5 font-body text-sm font-semibold text-surface">Save</button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
 export function PaymentsContent() {
+  const [payments, setPayments] = useState<PaymentMethod[]>([])
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  function addPayment(upiId: string) {
+    setPayments((prev) => [...prev, { id: crypto.randomUUID(), upiId, isDefault: prev.length === 0 }])
+  }
+
+  function removePayment(id: string) {
+    setPayments((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  function setDefault(id: string) {
+    setPayments((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })))
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-body text-sm font-bold text-fg">Saved Payment Methods</h3>
-        <button className="flex items-center gap-1.5 rounded-lg border border-store-primary px-3 py-1.5 font-body text-xs font-semibold text-store-primary hover:bg-store-primary/5">
+        <button onClick={() => setDialogOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-store-primary px-3 py-1.5 font-body text-xs font-semibold text-store-primary hover:bg-store-primary/5">
           <Plus className="h-3.5 w-3.5" /> Add Payment Method
         </button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {mockPayments.map(pm => (
-          <div key={pm.id} className="rounded-xl border border-border p-4">
-            <div className="flex items-center gap-2 mb-2">
-              {pm.type === 'card' ? (
-                <CreditCard className="h-4 w-4 text-muted-warm" />
-              ) : (
+
+      {payments.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <p className="font-body text-sm font-semibold text-fg">No payment methods saved yet</p>
+          <p className="font-body text-xs text-muted-warm mt-1">Add a UPI ID to check out faster next time.</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {payments.map(pm => (
+            <div key={pm.id} className="rounded-xl border border-border p-4">
+              <div className="flex items-center gap-2 mb-2">
                 <span className="font-body text-xs font-bold text-green-600">UPI</span>
-              )}
-              <span className="font-body text-sm font-bold text-fg">
-                {pm.type === 'card' ? `${pm.brand} •••• ${pm.last4}` : pm.upiId}
-              </span>
-              {pm.isDefault && (
-                <span className="rounded-full bg-success/10 px-2 py-0.5 font-body text-[10px] font-bold text-success uppercase tracking-wide">Default</span>
-              )}
+                <span className="font-body text-sm font-bold text-fg">{pm.upiId}</span>
+                {pm.isDefault && (
+                  <span className="rounded-full bg-success/10 px-2 py-0.5 font-body text-[10px] font-bold text-success uppercase tracking-wide">Default</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                {!pm.isDefault && (
+                  <>
+                    <button onClick={() => setDefault(pm.id)} className="font-body text-xs font-medium text-fg hover:underline">Set as Default</button>
+                    <span className="text-border">·</span>
+                  </>
+                )}
+                <button onClick={() => removePayment(pm.id)} className="flex items-center gap-1 font-body text-xs font-medium text-danger hover:underline">
+                  <Trash className="h-3 w-3" /> Remove
+                </button>
+              </div>
             </div>
-            {pm.type === 'card' && pm.expiry && (
-              <p className="font-body text-xs text-muted-warm">Expires {pm.expiry}</p>
-            )}
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-              {!pm.isDefault && (
-                <>
-                  <button className="font-body text-xs font-medium text-fg hover:underline">Set as Default</button>
-                  <span className="text-border">·</span>
-                </>
-              )}
-              <button className="flex items-center gap-1 font-body text-xs font-medium text-danger hover:underline">
-                <Trash className="h-3 w-3" /> Remove
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      <AddPaymentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={addPayment} />
     </div>
   )
 }

@@ -25,11 +25,23 @@ export default async function OnboardingPage() {
     redirect(getStoreUrl(tenant.slug, isLocalDev))
   }
 
+  const initialTenant = tenant && {
+    ...tenant,
+    freeDeliveryAbove: tenant.freeDeliveryAbove?.toNumber() ?? null,
+    shippingFee: tenant.shippingFee.toNumber(),
+  }
+  const initialProduct = tenant?.products[0]
+  const serializedProduct = initialProduct && {
+    ...initialProduct,
+    price: initialProduct.price.toNumber(),
+    comparePrice: initialProduct.comparePrice?.toNumber() ?? null,
+  }
+
   return (
     <OnboardingWizard
-      initialTenant={tenant}
+      initialTenant={initialTenant}
       initialBranch={tenant?.branches[0] ?? null}
-      initialProduct={tenant?.products[0] ?? null}
+      initialProduct={serializedProduct ?? null}
     />
   )
 }

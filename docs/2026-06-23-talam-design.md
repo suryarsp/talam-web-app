@@ -1,10 +1,26 @@
 # Talam — Full Product Design Spec
 
 **Date:** 2026-06-23  
-**Last updated:** 2026-07-17  
-**Status:** Approved — v1.10  
+**Last updated:** 2026-07-18  
+**Status:** Approved — v1.12  
 **Author:** Surya Prakash  
-**Version:** 1.10 (Welcome hub + state-aware marketing CTAs)
+**Version:** 1.12 (Observability: error capture + transaction audit log)
+
+**Changelog v1.12 (2026-07-18)**
+- **Error/crash capture added: Sentry (`@sentry/nextjs`).** `instrumentation.ts` (server + edge) and `instrumentation-client.ts` (browser) initialize Sentry; `next.config.ts` wraps with `withSentryConfig`. Crash/error alerting to the founder is Sentry's own Issue Alert rule (email), configured in the Sentry dashboard — not app code, since Sentry already does this and building a parallel notification pipeline would duplicate it. Requires `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN`/`SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` (added to `.env.example`) to be filled in with a real Sentry project before it captures anything — account creation is a manual step for the store owner, not something built here.
+- **"Publishers are added" maps to the existing `PublishLog` model**, not a new concept: the sibling 2026-07-18 draft/publish-workflow plan (`docs/superpowers/plans/2026-07-18-profile-menu-and-publish-workflow-implementation.md`) already records one `PublishLog` row per publish action (`itemCount`, `summary`) across `Product`/`StoreAbout`/`ProductTag`. This changelog does not duplicate that table.
+- **New gap identified and scoped: no audit trail for transactions (`Order`) yet.** Unlike publish events, an order's lifecycle (`pending → confirmed → shipped → delivered`, `paymentStatus` flips) today only overwrites the `Order` row in place — no history of *when* or *why* it changed. New `OrderEvent` table scoped in `docs/superpowers/plans/2026-07-18-observability-and-order-audit-log-data.md`, written at the same two hook points Phase 3/5 already define (`updateOrderPayment` webhook handler, `updateOrderStatus` admin Server Action) — **explicitly gated on those Phase 3/5 functions existing first**, same dependency Phase 7 growth-data already declares for order-event wiring. Not built yet; this is a scoping/plan entry only.
+- **"Heavy usage" alerting confirmed as a real gap, not scoped further today:** no traffic-threshold or rate-of-error infra exists (`@vercel/analytics` is a passive dashboard, not an alerting API on the free tier). Left as a V2 backlog item (§12) rather than inventing bespoke monitoring — Sentry's error-rate alerts (from the same Issue Alert rule above) are the nearest existing coverage for "the app is failing more than usual."
+- Order-paid email alert to the store owner ("New order ₹X from {name}" via Resend) was already scoped in §3.4 — unaffected by this changelog, and not re-scoped here.
+
+**Changelog v1.11 (2026-07-18)**
+- **Occasions gain per-occasion display settings**, designed in Paper (Talam Design file, "Store Settings / Occasions / Desktop" and "Occasion — Desktop" artboards) before implementation. Today's admin UI (`app/admin/settings/page.tsx` OccasionsTab) only lets an owner assign products to an occasion — no control over how the occasion's own storefront page looks. Adds:
+  - **`ProductTag.layout` enum** (`grid` | `carousel`, default `grid`) — how the storefront occasion page (`/store/occasion/[occasionSlug]`) renders its products.
+  - **`ProductTagAssignment.sortOrder` int** (default 0) — manual product order, editable via drag-to-reorder in the admin picker, drives both grid and carousel display order.
+  - **Theme picker**, not image upload: a curated set of gradient presets extending `lib/occasion-themes.ts`'s `OCCASION_THEMES` (today only Diwali/Pongal are defined). No Cloudinary pipeline exists yet (confirmed gap, unchanged from v1.9), so custom occasions pick from platform-curated gradients rather than uploading a banner image.
+  - Admin's existing "Manage products" row-expansion becomes a full "Occasion settings" panel: Theme swatches → Layout toggle (Grid/Carousel) → Products (existing checkbox picker + reorder), in that order.
+  - Storefront occasion page keeps its existing hero (theme gradient + emoji + headline) unchanged; only the products section below switches between the existing `ProductGrid` and a new horizontal-scroll `ProductCarousel`, per the occasion's `layout`.
+- Not yet implemented — Paper design only at this point; schema migration and the two UI surfaces above are still pending.
 
 **Changelog v1.10 (2026-07-17)**
 - **New `/welcome` hub route**, added to §3.2's storefront/marketing route lists: the single destination for every signed-in-owner CTA (nav avatar, hero, CTA band, pricing) — never a direct link to `/admin/onboarding` or the live store. Shows "Continue setup" (routes to `/admin/onboarding`) while `Tenant.isOnboarded` is false, or "View My Store" + "View Admin" (subdomain-aware URLs, see §5.1) once true. Backed by `getOwnerCtaState()` (`signed-out | in-progress | onboarded`), re-derived server-side from the Supabase session + `Tenant.isOnboarded` on every call — never trusts a client-supplied id, same convention as `requireOwnerSession`/`requireSuperAdmin`.
@@ -700,6 +716,7 @@ Triggered by Vercel Cron — checks tenant state daily:
 - **Logistics:** COD (cash on delivery) support, international shipping / currency, real-time courier serviceability check
 - **Admin:** PostHog analytics dashboard page (`/admin/analytics` — beyond dashboard stat cards), GST-compliant invoice PDF generation for registered sellers
 - **Integrations:** SMS fallback for owner/customer alerts when WhatsApp contact-check fails (V1 fallback is email-only, see §3.4/§4/Changelog v1.4), Vyapar CSV export for accounting sync, custom domain per Pro tenant (Vercel Domains API)
+- **Observability:** Heavy-usage / traffic-spike alerting (no threshold-alert infra exists yet — see Changelog v1.12), a super-admin-facing view of `OrderEvent` audit history across tenants (today's super-admin scope per Phase 6 data is tier/GMV stats only, not per-order history)
 
 **Resolved questions (moved from backlog):**
 - ~~Domain `talam.app`~~ → **`talam4shop.com`** (registered) — v1.1

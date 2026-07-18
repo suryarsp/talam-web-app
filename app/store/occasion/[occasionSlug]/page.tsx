@@ -5,6 +5,7 @@ import { getOccasionBySlug } from '@/lib/data/occasions'
 import { getProducts } from '@/lib/data/products'
 import { getOccasionTheme } from '@/lib/occasion-themes'
 import { ProductGrid } from '@/components/store/product-grid'
+import { ProductCarousel } from '@/components/store/product-carousel'
 
 type Props = { params: Promise<{ occasionSlug: string }> }
 
@@ -39,7 +40,11 @@ export default async function OccasionPage({ params }: Props) {
         <p className="mb-4 font-body text-sm text-muted-warm">
           {products.length} {products.length === 1 ? 'item' : 'items'}
         </p>
-        <ProductGrid products={products as any} />
+        {occasion.layout === 'carousel' ? (
+          <ProductCarousel products={products as any} />
+        ) : (
+          <ProductGrid products={products as any} />
+        )}
       </div>
     </main>
   )
