@@ -15,7 +15,7 @@ type RouteDecision =
 export async function proxy(request: NextRequest) {
   const hostname = request.headers.get('host') ?? ''
   const pathname = request.nextUrl.pathname
-  const host = hostname.split(':')[0]
+  const host = normalizeHost(hostname.split(':')[0])
   const sessionResponse = await updateSession(request)
   const decision = getRouteDecision(host, pathname)
 
@@ -81,8 +81,12 @@ function getDevRouteDecision(host: string, pathname: string): RouteDecision | nu
   }
 }
 
+function normalizeHost(host: string) {
+  return host.startsWith('www.') ? host.slice('www.'.length) : host
+}
+
 function isRootHost(host: string) {
-  return host === ROOT_DOMAIN || host === `www.${ROOT_DOMAIN}` || isLocalhost(host)
+  return host === ROOT_DOMAIN || isLocalhost(host)
 }
 
 function isLocalhost(host: string) {
