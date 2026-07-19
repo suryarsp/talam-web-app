@@ -2,10 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, SlidersHorizontal, MoreHorizontal, Plus, X, Image as ImageIcon } from 'lucide-react'
+import { Search, SlidersHorizontal, MoreHorizontal, Plus, X, Image as ImageIcon, CheckSquare, Square } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import type { AdminProduct, CategoryMeta, ProductInput } from '@/lib/data/products'
-import { createProductAction, updateProductAction, setProductActiveAction } from './actions'
+import {
+  createProductAction,
+  updateProductAction,
+  setProductActiveAction,
+  bulkAssignToOccasionAction,
+  bulkSetCategoryAction,
+  bulkSetActiveAction,
+  bulkDeleteAction,
+  bulkResetToDefaultAction,
+} from './actions'
+import { BATCH_ACTIONS, type BatchAction } from './batch-actions'
+
+type OccasionOption = { id: string; name: string; emoji: string | null }
 
 type StockFilter = 'in_stock' | 'low' | 'out'
 type SortKey = 'newest' | 'price_asc' | 'price_desc'
@@ -369,7 +381,7 @@ function ProductEditor({
 
 /* ── Main page ── */
 
-export function AdminProductsClient({ products, categories }: { products: AdminProduct[]; categories: CategoryMeta[] }) {
+export function AdminProductsClient({ products, categories, occasions }: { products: AdminProduct[]; categories: CategoryMeta[]; occasions: OccasionOption[] }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [stockFilters, setStockFilters] = useState<Set<StockFilter>>(new Set())
@@ -379,6 +391,21 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<AdminProduct | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [pickerAction, setPickerAction] = useState<BatchAction | null>(null)
+  const [pickerBusy, setPickerBusy] = useState(false)
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setSelected(new Set())
+  }
 
   function toggleStock(k: StockFilter) { setStockFilters(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
 
@@ -406,6 +433,51 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
       return 0
     })
 
+  function selectAllVisible() {
+    setSelected(new Set(filtered.map((p) => p.id)))
+  }
+
+  function selectByCategory(categoryId: string) {
+    setSelected(new Set(filtered.filter((p) => p.categoryId === categoryId).map((p) => p.id)))
+  }
+
+  async function runBatchAction(action: BatchAction, extra?: { occasionId?: string; categoryId?: string | null }) {
+    const ids = [...selected]
+    if (ids.length === 0) return
+
+    if (action.id === 'assign-occasion' && extra?.occasionId) {
+      const result = await bulkAssignToOccasionAction(extra.occasionId, ids)
+      if (result.error) {
+        window.alert(result.error)
+        return
+      }
+    } else if (action.id === 'change-category') {
+      await bulkSetCategoryAction(ids, extra?.categoryId ?? null)
+    } else if (action.id === 'set-active') {
+      await bulkSetActiveAction(ids, true)
+    } else if (action.id === 'set-inactive') {
+      await bulkSetActiveAction(ids, false)
+    } else if (action.id === 'reset-default') {
+      await bulkResetToDefaultAction(ids)
+    } else if (action.id === 'delete') {
+      await bulkDeleteAction(ids)
+    }
+
+    clearSelection()
+    router.refresh()
+  }
+
+  async function handleBatchActionClick(action: BatchAction) {
+    if (action.kind === 'occasion-picker' || action.kind === 'category-picker') {
+      setPickerAction(action)
+      return
+    }
+    if (action.kind === 'confirm') {
+      if (!window.confirm(`${action.confirmText!.title}\n\n${action.confirmText!.body}`)) return
+    }
+    await runBatchAction(action)
+  }
+
   function openAdd() { setEditProduct(null); setEditorOpen(true) }
   function openEdit(p: AdminProduct) { setEditProduct(p); setEditorOpen(true) }
   async function toggleActive(p: AdminProduct) {
@@ -422,6 +494,16 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
           <Search className="size-[18px] text-muted-warm" />
           <input className="grow bg-transparent text-md outline-none placeholder:text-muted-warm" placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <select
+          onChange={(e) => { if (e.target.value) selectByCategory(e.target.value); e.target.value = '' }}
+          defaultValue=""
+          className="hidden h-10 cursor-pointer rounded-lg border border-border bg-surface px-2 text-sm text-muted-warm outline-none md:block"
+        >
+          <option value="" disabled>Select by category…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
         <button onClick={() => setMobileFilterOpen(true)} className="flex size-10 cursor-pointer items-center justify-center rounded-lg border border-border bg-surface shadow-sm transition-colors hover:bg-bg md:hidden">
           <SlidersHorizontal className="size-[18px] text-muted-warm" />
         </button>
@@ -447,7 +529,10 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
         <div className="min-w-0 flex-1">
           {/* Desktop table */}
           <div className="hidden md:block">
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-x-4 border-b border-border pb-2 text-2xs font-bold uppercase tracking-[0.06em] text-muted-warm">
+            <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_auto] gap-x-4 border-b border-border pb-2 text-2xs font-bold uppercase tracking-[0.06em] text-muted-warm">
+              <button onClick={selected.size === filtered.length && filtered.length > 0 ? clearSelection : selectAllVisible} className="flex size-5 cursor-pointer items-center justify-center">
+                {selected.size === filtered.length && filtered.length > 0 ? <CheckSquare className="size-4 text-brand-primary" /> : <Square className="size-4 text-border" />}
+              </button>
               <span>Product Name</span>
               <span>Price</span>
               <span>Stock</span>
@@ -458,7 +543,10 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
               const stock = stockInfo(p.stockBySize)
               const swatch = SWATCHES[i % SWATCHES.length]
               return (
-                <div key={p.id} className="grid cursor-pointer grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-x-4 border-b border-border-light py-3 transition-colors hover:bg-bg" onClick={() => openEdit(p)}>
+                <div key={p.id} className="grid cursor-pointer grid-cols-[auto_2fr_1fr_1fr_1fr_auto] items-center gap-x-4 border-b border-border-light py-3 transition-colors hover:bg-bg" onClick={() => openEdit(p)}>
+                  <button onClick={(e) => { e.stopPropagation(); toggleSelected(p.id) }} className="flex size-5 cursor-pointer items-center justify-center">
+                    {selected.has(p.id) ? <CheckSquare className="size-4 text-brand-primary" /> : <Square className="size-4 text-border" />}
+                  </button>
                   <div className="flex items-center gap-3">
                     <div className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ${swatch.bg}`}>
                       {p.images[0] ? (
@@ -489,6 +577,9 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
               const swatch = SWATCHES[i % SWATCHES.length]
               return (
                 <div key={p.id} className="flex cursor-pointer items-center gap-3 border-b border-border-light py-3.5 transition-colors active:bg-bg" onClick={() => openEdit(p)}>
+                  <button onClick={(e) => { e.stopPropagation(); toggleSelected(p.id) }} className="flex size-5 shrink-0 cursor-pointer items-center justify-center">
+                    {selected.has(p.id) ? <CheckSquare className="size-4 text-brand-primary" /> : <Square className="size-4 text-border" />}
+                  </button>
                   <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl ${swatch.bg}`}>
                     {p.images[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -517,6 +608,72 @@ export function AdminProductsClient({ products, categories }: { products: AdminP
       <button onClick={openAdd} className="fixed bottom-24 right-4 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-primary shadow-lg transition-transform active:scale-90 md:bottom-8 md:right-8">
         <Plus className="size-7 text-surface" />
       </button>
+
+      {selected.size > 0 && (
+        <div className="fixed inset-x-4 bottom-24 z-40 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-3 shadow-lg md:inset-x-auto md:bottom-8 md:left-1/2 md:-translate-x-1/2">
+          <span className="mr-1 text-sm font-semibold text-fg">{selected.size} selected</span>
+          {BATCH_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              onClick={() => handleBatchActionClick(action)}
+              className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                action.variant === 'danger' ? 'border-danger text-danger hover:bg-danger/10' : 'border-border text-fg hover:bg-bg'
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+          <button onClick={clearSelection} className="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-warm hover:text-fg">
+            Clear
+          </button>
+        </div>
+      )}
+
+      {pickerAction && (
+        <Dialog open onClose={() => setPickerAction(null)}>
+          <div className="flex max-h-[70vh] flex-col p-4">
+            <span className="mb-3 text-base font-bold text-fg">{pickerAction.label}</span>
+            <div className="flex-1 overflow-y-auto">
+              {pickerAction.kind === 'occasion-picker' &&
+                occasions.map((o) => (
+                  <button
+                    key={o.id}
+                    disabled={pickerBusy}
+                    onClick={async () => {
+                      setPickerBusy(true)
+                      await runBatchAction(pickerAction, { occasionId: o.id })
+                      setPickerBusy(false)
+                      setPickerAction(null)
+                    }}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-fg hover:bg-bg disabled:opacity-50"
+                  >
+                    <span className="text-lg leading-none">{o.emoji || '🎉'}</span>
+                    {o.name}
+                  </button>
+                ))}
+              {pickerAction.kind === 'category-picker' &&
+                categories.map((c) => (
+                  <button
+                    key={c.id}
+                    disabled={pickerBusy}
+                    onClick={async () => {
+                      setPickerBusy(true)
+                      await runBatchAction(pickerAction, { categoryId: c.id })
+                      setPickerBusy(false)
+                      setPickerAction(null)
+                    }}
+                    className="flex w-full cursor-pointer items-center rounded-lg px-2 py-2 text-left text-sm text-fg hover:bg-bg disabled:opacity-50"
+                  >
+                    {c.name}
+                  </button>
+                ))}
+            </div>
+            <button onClick={() => setPickerAction(null)} className="mt-3 cursor-pointer rounded-lg border border-border py-2.5 text-sm font-semibold text-fg">
+              Cancel
+            </button>
+          </div>
+        </Dialog>
+      )}
 
       {/* Modals */}
       <MobileFilterSheet
