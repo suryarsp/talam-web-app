@@ -108,7 +108,7 @@ function OccasionEditor({
   }, [open, occasion, isEdit])
 
   async function handleSave() {
-    if (!isEdit && !name.trim()) { setError('Name is required.'); return }
+    if (!name.trim()) { setError('Name is required.'); return }
 
     setSaving(true)
     setError(null)

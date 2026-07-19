@@ -282,10 +282,14 @@ export async function getCategories(tenantId: string, department?: string): Prom
 
 export async function softDeleteProducts(tenantId: string, productIds: string[]): Promise<void> {
   await withTenant(tenantId, (db) =>
-    db.product.updateMany({
-      where: { tenantId, id: { in: productIds } },
-      data: { deletedAt: new Date() },
-    })
+    db.$transaction([
+      db.product.updateMany({
+        where: { tenantId, id: { in: productIds } },
+        data: { deletedAt: new Date() },
+      }),
+      db.productTagAssignment.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
+      db.storePromotionProduct.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
+    ])
   )
 }
 

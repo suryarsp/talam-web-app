@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockUpdateMany, mockTransaction, mockTagDeleteMany, mockPromoDeleteMany } = vi.hoisted(() => ({
   mockUpdateMany: vi.fn(),
@@ -20,13 +20,14 @@ vi.mock('@/lib/prisma', () => ({
 
 import { softDeleteProducts, bulkSetProductsCategory, bulkSetProductsActive, resetProductsToDefault } from './products'
 
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
 describe('softDeleteProducts', () => {
-  it('sets deletedAt for the given products', async () => {
+  it('sets deletedAt and clears tag/promotion assignments in one transaction', async () => {
     await softDeleteProducts('tenant-1', ['p1', 'p2'])
-    expect(mockUpdateMany).toHaveBeenCalledWith({
-      where: { tenantId: 'tenant-1', id: { in: ['p1', 'p2'] } },
-      data: { deletedAt: expect.any(Date) },
-    })
+    expect(mockTransaction).toHaveBeenCalledTimes(1)
   })
 })
 

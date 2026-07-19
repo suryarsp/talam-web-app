@@ -467,22 +467,27 @@ export function AdminProductsClient({ products, categories, occasions }: { produ
     const ids = [...selected]
     if (ids.length === 0) return
 
-    if (action.id === 'assign-occasion' && extra?.occasionId) {
-      const result = await bulkAssignToOccasionAction(extra.occasionId, ids)
-      if (result.error) {
-        window.alert(result.error)
-        return
+    try {
+      if (action.id === 'assign-occasion' && extra?.occasionId) {
+        const result = await bulkAssignToOccasionAction(extra.occasionId, ids)
+        if (result.error) {
+          window.alert(result.error)
+          return
+        }
+      } else if (action.id === 'change-category') {
+        await bulkSetCategoryAction(ids, extra?.categoryId ?? null)
+      } else if (action.id === 'set-active') {
+        await bulkSetActiveAction(ids, true)
+      } else if (action.id === 'set-inactive') {
+        await bulkSetActiveAction(ids, false)
+      } else if (action.id === 'reset-default') {
+        await bulkResetToDefaultAction(ids)
+      } else if (action.id === 'delete') {
+        await bulkDeleteAction(ids)
       }
-    } else if (action.id === 'change-category') {
-      await bulkSetCategoryAction(ids, extra?.categoryId ?? null)
-    } else if (action.id === 'set-active') {
-      await bulkSetActiveAction(ids, true)
-    } else if (action.id === 'set-inactive') {
-      await bulkSetActiveAction(ids, false)
-    } else if (action.id === 'reset-default') {
-      await bulkResetToDefaultAction(ids)
-    } else if (action.id === 'delete') {
-      await bulkDeleteAction(ids)
+    } catch {
+      window.alert('Something went wrong. Please try again.')
+      return
     }
 
     clearSelection()
