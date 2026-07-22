@@ -35,24 +35,18 @@ Consequence (documented, not solved here): a phone-OTP owner who signs up and dr
 
 ### Reminder link needs no token
 
-The reminder/welcome links point at the plain root-domain `/admin/onboarding` route (`https://{ROOT_DOMAIN}/admin/onboarding` in prod, `http://localhost:3000/admin/onboarding` in dev — this route resolves on the root host per `proxy.ts`'s `isRootHost` check, not a tenant subdomain). `requireOwnerSession()` already redirects an unauthenticated visit to `/auth?next=/admin/onboarding`, and the wizard already resumes at `Tenant.onboardingStep` server-side (`onboarding-wizard.tsx`'s `useState(initialTenant?.onboardingStep ?? 0)`). So: click link → log in if needed → land exactly where they left off, with no magic-link/JWT machinery required.
+The reminder/welcome links point at the plain root-domain `/admin/onboarding` route (`https://{ROOT_DOMAIN}/admin/onboarding` in prod, `http://localhost:3000/admin/onboarding` in dev — this route resolves on the root host per `proxy.ts`'s `isRootHost` check, not a tenant subdomain). `requireOwnerSession()` already redirects an unauthenticated visit to `/auth?next=/admin/onboarding`, and the wizard already resumes at `Tenant.onboardingStep` server-side (`onboarding-wizard.tsx`'s `useState(initialTenant?.onboardingStep ?? 0)`). So: click link → sign-in page appears if not logged in → land exactly where they left off, with no magic-link/JWT/auto-OAuth machinery required.
 
-### Auto-login on the link — Google sign-ups only
+`lib/tenant-url.ts` gains `getOnboardingUrl(): string`, returning the plain absolute `/admin/onboarding` URL (root-domain in prod, `localhost:3000` in dev).
 
-Requested: clicking the link shouldn't require a manual login step. Two real constraints shape this (see "why not a magic link" below), so the actual behavior is:
+### Fix: phone OTP sign-in doesn't currently redirect anywhere
 
-- **Owner is already logged in (same browser/session that signed up):** already works today, no change — `requireOwnerSession()` finds the session and renders onboarding directly.
-- **Owner signed up via Google and isn't currently logged in:** the link routes through `/auth?next=/admin/onboarding&auto=google`. The `/auth` page, on seeing `auto=google` with no active session, auto-triggers `supabase.auth.signInWithOAuth({ provider: 'google' })` on page load (no button click) via a new `autoTrigger` prop on the existing `GoogleButton` component. If the browser already has an active Google session and has previously consented, Google skips its account picker/consent screen and redirects straight back — effectively zero-click. If not, the owner sees Google's normal chooser once.
-- **Owner signed up via phone OTP and isn't currently logged in:** falls back to today's behavior — the normal `/auth` screen (OTP + Google buttons), no `auto` param. There is no Google identity to redirect to for these owners; forcing one would either fail to match or create a disconnected account. This is the one case where "click link → immediately in" isn't achievable without building a whole separate magic-link auth path (rejected — see below).
+Requirement: after signing in from the onboarding link's `/auth?next=/admin/onboarding` redirect, the owner must land back on `/admin/onboarding` "without fail," regardless of which method they use to sign in.
 
-**Why not a real magic link (embed an auth code in the URL) for everyone:** rejected for two reasons — (1) a code generated at send-time would frequently be expired by click-time for the 3-day/7-day reminders, so it can't actually guarantee "no login prompt" either; (2) a login credential riding in an email body is a real trust-boundary change (forwarded mail, link-scanning proxies, mail server logs) that shouldn't be a silent default. The Google-OAuth-redirect approach above sidesteps both — it carries no credential in the URL at all, just a UX shortcut through a flow the browser may already be authenticated for.
+- **Google OAuth:** already correct today — `app/auth/callback/route.ts` reads `explicitNext` from the query string and redirects there after `exchangeCodeForSession`.
+- **Phone OTP:** currently broken. `components/auth/otp-form.tsx`'s `handleVerifyOtp` calls `supabase.auth.verifyOtp()` and does nothing else — no navigation, no `next` handling. Its comment ("redirects via the auth state listener") describes something that doesn't exist anywhere in the codebase (confirmed: zero `onAuthStateChange` listeners in `app/auth` or `components/auth`). Today, a phone-OTP owner who verifies successfully is left sitting on the OTP screen.
 
-**Determining "did this owner sign up via Google" per email:**
-- **Welcome email:** trivial — it's already gated on `user.email` being present (`saveStoreStep`'s create path), and in this app's current provider set (Phone OTP, Google) only Google populates `user.email`. So welcome links always pass `autoGoogle: true` when the email exists at all.
-- **Reminder emails:** `Tenant.contactEmail` (what gates whether a reminder fires) is typed manually at the Contact step regardless of login provider, so its presence does *not* imply Google. The cron route looks up the owner's actual provider via `createAdminClient().auth.admin.getUserById(tenant.ownerId)` and checks `app_metadata.provider === 'google'` before setting `autoGoogle: true` — one extra Supabase Admin API call per reminder-eligible tenant per day, acceptable at this volume.
-- **Completion email:** no auto-login concern — the owner is already mid-session when this fires.
-
-`lib/tenant-url.ts` gains `getOnboardingUrl(autoGoogle: boolean): string`, returning `/auth?next=/admin/onboarding&auto=google` (absolute, root-domain) when `autoGoogle` is true, else the plain `/admin/onboarding` absolute URL.
+**Fix:** `OtpForm` reads `next` via `useSearchParams()` (the param persists in the URL across the phone → OTP steps since it's a single client component, no navigation between them) and, on successful verification, hard-navigates via `window.location.href = next ?? '/auth'`. A full navigation (not `router.push`) so the freshly-set session cookie is picked up by the next server render. Falling back to `/auth` (not e.g. `/admin/dashboard`) when there's no explicit `next` reuses `app/auth/page.tsx`'s existing top-of-page check — it already redirects a signed-in visitor to `resolveSignedInDestination(...)`, so no destination logic needs duplicating in `OtpForm`.
 
 ### Cron mechanism
 
@@ -147,9 +141,7 @@ Each function wraps its `resend.emails.send()` call in try/catch, logs `console.
   - Skips tenants with `onboardingReminderCount >= 3`.
   - Skips tenants with no `contactEmail`.
   - Does not re-send within the same day once already caught up to the correct count for their age.
-  - Passes `autoGoogle: true` when `auth.admin.getUserById` reports `app_metadata.provider === 'google'`, `false` otherwise.
-- `components/auth/google-button.test.tsx` — extend: with `autoTrigger`, `signInWithOAuth` fires on mount without a click; without it, behavior is unchanged (click-triggered only).
-- `app/auth/page.test.ts` — extend `resolveSignedInDestination`-adjacent coverage: `auto=google` with no session renders the auto-triggering `GoogleButton`; `auto=google` with an active session is unaffected (still redirects to `resolveSignedInDestination`, same as today); no `auto` param renders the normal form unchanged.
+- `components/auth/otp-form.test.tsx` (new or extended) — after a successful `verifyOtp`, navigates to the `next` search param when present; falls back to `/auth` when absent; does not navigate at all when `verifyOtp` returns an error.
 
 ## Known limitations (explicitly out of scope)
 
