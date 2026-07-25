@@ -72,3 +72,69 @@ export function renderEmailBody(params: {
 
   return `${greetingHtml}${headingHtml}${paragraphsHtml}${listHtml}${ctasHtml}${signatureHtml}${params.extraHtml ?? ''}`
 }
+
+function renderLogoLockup(iconSize: number, fontSize: number, textColor: string): string {
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center">
+      <tr>
+        <td bgcolor="${EMAIL_BRAND.primary}" width="${iconSize}" height="${iconSize}" style="border-radius: ${Math.round(iconSize * 0.28)}px; text-align: center; vertical-align: middle;">
+          <span style="font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: ${Math.round(iconSize * 0.4)}px; color: ${EMAIL_BRAND.surface};">t4</span>
+        </td>
+        <td style="padding-left: 12px; font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: ${fontSize}px; color: ${textColor};">
+          talam4shop
+        </td>
+      </tr>
+    </table>`
+}
+
+export function renderEmailShell(bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>talam4shop</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${EMAIL_BRAND.bg};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${EMAIL_BRAND.bg}">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;" bgcolor="${EMAIL_BRAND.surface}">
+          <tr>
+            <td bgcolor="${EMAIL_BRAND.primary}" style="background-image: linear-gradient(135deg, ${EMAIL_BRAND.surface} 0%, ${EMAIL_BRAND.bg} 55%, #F3E3DC 100%); padding: 32px 0;">
+              ${renderLogoLockup(32, 17, EMAIL_BRAND.ink)}
+            </td>
+          </tr>
+          <tr>
+            <td bgcolor="${EMAIL_BRAND.primary}" height="3" style="font-size: 0; line-height: 0;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td bgcolor="${EMAIL_BRAND.surface}" style="padding: 40px 48px;">
+              ${bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td bgcolor="${EMAIL_BRAND.bgDark}" style="background-image: linear-gradient(160deg, ${EMAIL_BRAND.bgDark} 0%, #241B18 60%, #2B1E19 100%); padding: 28px 24px;">
+              <div style="text-align: center; padding-bottom: 16px;">
+                ${renderLogoLockup(22, 13, EMAIL_BRAND.surface)}
+              </div>
+              <p style="margin: 0 0 4px 0; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; color: #FFFFFF8C;">
+                &copy; 2026 talam4shop. All rights reserved.
+              </p>
+              <p style="margin: 0 0 12px 0; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; color: #FFFFFF8C;">
+                ${EMAIL_BRAND.address} &middot; ${EMAIL_BRAND.contactEmail}
+              </p>
+              <p style="margin: 0; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; font-weight: 500;">
+                <a href="mailto:${EMAIL_BRAND.contactEmail}" style="color: ${EMAIL_BRAND.primaryTint}; text-decoration: none;">Help Center</a>
+                &middot;
+                <a href="mailto:${EMAIL_BRAND.contactEmail}" style="color: ${EMAIL_BRAND.primaryTint}; text-decoration: none;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}

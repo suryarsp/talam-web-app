@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMAIL_BRAND, escapeHtml, renderEmailBody } from './email-templates'
+import { EMAIL_BRAND, escapeHtml, renderEmailBody, renderEmailShell } from './email-templates'
 
 describe('EMAIL_BRAND', () => {
   it('matches the live theme brand color from app/globals.css', () => {
@@ -80,5 +80,31 @@ describe('renderEmailBody', () => {
       extraHtml: '<p data-testid="extra">Extra block</p>',
     })
     expect(html.indexOf('data-testid="extra"')).toBeGreaterThan(html.indexOf('Body copy.'))
+  })
+})
+
+describe('renderEmailShell', () => {
+  it('wraps the given bodyHtml unmodified', () => {
+    const html = renderEmailShell('<p data-testid="marker">unique body content</p>')
+    expect(html).toContain('<p data-testid="marker">unique body content</p>')
+  })
+
+  it('includes the footer copyright and fixed contact address', () => {
+    const html = renderEmailShell('<p>body</p>')
+    expect(html).toContain('All rights reserved')
+    expect(html).toContain(EMAIL_BRAND.contactEmail)
+    expect(html).toContain(EMAIL_BRAND.address)
+  })
+
+  it('includes the talam4shop wordmark in both header and footer', () => {
+    const html = renderEmailShell('<p>body</p>')
+    expect(html.match(/talam4shop/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('is a full HTML document', () => {
+    const html = renderEmailShell('<p>body</p>')
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<html')
+    expect(html).toContain('</html>')
   })
 })
