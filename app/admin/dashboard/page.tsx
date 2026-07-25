@@ -1,12 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { ChevronRight, Clock, Package, AlertTriangle, TrendingUp, TrendingDown, Rocket, CheckCircle2 } from 'lucide-react'
+import { ChevronRight, Clock, Package, AlertTriangle, TrendingUp, TrendingDown, Rocket } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Dialog } from '@/components/ui/dialog'
-import { getTenantLiveStateAction, goLiveAction } from './actions'
-import type { MissingConfigItem } from '@/lib/data/tenant'
+import { getTenantLiveStateAction } from './actions'
 
 type MockStat = { label: string; value: string; change: string; up: boolean }
 const MOCK_STATS: MockStat[] = [
@@ -91,64 +88,23 @@ const CHART_METRICS: ChartMetric[] = [
 const TODAY = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
 
 export default function AdminDashboardPage() {
-  const router = useRouter()
   const [activeTab, setActiveTab] = useState('This Week')
   const [activeMetric, setActiveMetric] = useState<ChartMetric['key']>('revenue')
   const metric = CHART_METRICS.find((m) => m.key === activeMetric)!
   const [isLive, setIsLive] = useState<boolean | null>(null)
-  const [missing, setMissing] = useState<MissingConfigItem[]>([])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [launching, setLaunching] = useState(false)
 
   useEffect(() => {
-    getTenantLiveStateAction().then((state) => {
-      setIsLive(state.isLive)
-      setMissing(state.missing)
-    })
+    getTenantLiveStateAction().then((state) => setIsLive(state.isLive))
   }, [])
-
-  async function handleGoLive() {
-    setLaunching(true)
-    const result = await goLiveAction()
-    setLaunching(false)
-    if (!result.error) {
-      setIsLive(true)
-      setDialogOpen(false)
-    }
-  }
-
-  function goToItem(item: MissingConfigItem) {
-    setDialogOpen(false)
-    router.push(item.href)
-  }
 
   return (
     <div className="px-4 pb-24 md:px-0 md:pb-0">
 
       {isLive === false ? (
-        <>
-          <div className="mb-5 flex items-center justify-between rounded-lg border border-brand-primary/20 bg-brand-primary/5 p-4">
-            <div className="flex items-center gap-3">
-              <Rocket className="size-5 shrink-0 text-brand-primary" strokeWidth={2} />
-              <p className="text-sm font-semibold text-fg">Your store isn&apos;t live yet</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setDialogOpen(true)}
-              className="shrink-0 cursor-pointer rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Go Live 🚀
-            </button>
-          </div>
-          <GoLiveDialog
-            open={dialogOpen}
-            onClose={() => setDialogOpen(false)}
-            missing={missing}
-            launching={launching}
-            onGoLive={handleGoLive}
-            onGoToItem={goToItem}
-          />
-        </>
+        <div className="mb-5 flex items-center gap-3 rounded-lg border border-brand-primary/20 bg-brand-primary/5 p-4">
+          <Rocket className="size-5 shrink-0 text-brand-primary" strokeWidth={2} />
+          <p className="text-sm font-semibold text-fg">Your store isn&apos;t live yet — hit Go Live in the header when you&apos;re ready.</p>
+        </div>
       ) : null}
 
       {/* ── Header ── */}
@@ -347,86 +303,5 @@ export default function AdminDashboardPage() {
         </section>
       </div>
     </div>
-  )
-}
-
-function GoLiveDialog({
-  open,
-  onClose,
-  missing,
-  launching,
-  onGoLive,
-  onGoToItem,
-}: {
-  readonly open: boolean
-  readonly onClose: () => void
-  readonly missing: MissingConfigItem[]
-  readonly launching: boolean
-  readonly onGoLive: () => void
-  readonly onGoToItem: (item: MissingConfigItem) => void
-}) {
-  const ready = missing.length === 0
-
-  return (
-    <Dialog open={open} onClose={onClose} position="center">
-      <div className="p-6">
-        <h2 className="font-marketing text-lg font-semibold text-fg">
-          {ready ? "You're ready to go live" : 'Finish setup to go live'}
-        </h2>
-        <p className="mt-1 text-sm text-muted-warm">
-          {ready
-            ? 'Publish your store so customers can start browsing and ordering.'
-            : 'Complete these before your store can go live. Tap an item to fix it now.'}
-        </p>
-
-        {!ready && (
-          <ul className="mt-4 flex flex-col gap-2">
-            {missing.map((item) => (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  onClick={() => onGoToItem(item)}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-bg"
-                >
-                  <AlertTriangle className="size-4 shrink-0 text-amber" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-fg">{item.label}</span>
-                    <span className="block text-xs text-muted-warm">{item.description}</span>
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-warm" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {ready && (
-          <div className="mt-4 flex items-center gap-3 rounded-lg bg-success-bg p-3">
-            <CheckCircle2 className="size-5 shrink-0 text-success" />
-            <span className="text-sm font-semibold text-success">Everything's set — you're good to go.</span>
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-4 py-2 font-body text-sm font-semibold text-muted-warm hover:bg-bg"
-          >
-            Close
-          </button>
-          {ready && (
-            <button
-              type="button"
-              disabled={launching}
-              onClick={onGoLive}
-              className="rounded-lg bg-brand-primary px-4 py-2 font-body text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {launching ? 'Launching…' : 'Go Live 🚀'}
-            </button>
-          )}
-        </div>
-      </div>
-    </Dialog>
   )
 }

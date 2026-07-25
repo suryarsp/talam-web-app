@@ -4,7 +4,13 @@ import { BRAND_COLORS } from './onboarding-data'
 import { FileDropzone, StepTitle } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
 
-export function BrandStep({ control }: { readonly control: Control<OnboardingValues> }) {
+export function BrandStep({
+  control,
+  existingLogoUrl,
+}: {
+  readonly control: Control<OnboardingValues>
+  readonly existingLogoUrl?: string | null
+}) {
   const brandColor = useWatch({ control, name: 'brandColor' })
 
   return (
@@ -22,6 +28,7 @@ export function BrandStep({ control }: { readonly control: Control<OnboardingVal
                   hint="Upload a square image (PNG, JPG, or SVG). Recommended: 512×512px or larger."
                   file={field.value}
                   onFileChange={field.onChange}
+                  existingUrl={existingLogoUrl}
                 />
                 {fieldState.error ? (
                   <span className="mt-1.5 block font-body text-xs font-medium text-danger">{fieldState.error.message}</span>

@@ -9,6 +9,7 @@ import {
   createProductAction,
   updateProductAction,
   updateProductOccasionsAction,
+  uploadProductImageAction,
   setProductActiveAction,
   bulkAssignToOccasionAction,
   bulkSetCategoryAction,
@@ -57,20 +58,6 @@ function stockInfo(stockBySize: Record<string, number>) {
   if (total === 0) return { filter: 'out' as StockFilter, label: 'Out of stock', color: 'text-danger' }
   if (total <= 5) return { filter: 'low' as StockFilter, label: `Low (${total})`, color: 'text-amber' }
   return { filter: 'in_stock' as StockFilter, label: 'In stock', color: 'text-success' }
-}
-
-function filesToDataUrls(files: FileList): Promise<string[]> {
-  return Promise.all(
-    Array.from(files).map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        })
-    )
-  )
 }
 
 /* ── Filter chips ── */
@@ -275,6 +262,7 @@ function ProductEditor({
   const [images, setImages] = useState<string[]>([])
   const [selectedOccasions, setSelectedOccasions] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sizesOpen, setSizesOpen] = useState(false)
   const sizesRef = useRef<HTMLDivElement>(null)
@@ -305,8 +293,16 @@ function ProductEditor({
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
-    const urls = await filesToDataUrls(fileList)
-    setImages((prev) => [...prev, ...urls].slice(0, 5))
+    setUploading(true)
+    setError(null)
+    try {
+      const urls = await Promise.all(Array.from(fileList).map((file) => uploadProductImageAction(file)))
+      setImages((prev) => [...prev, ...urls].slice(0, 5))
+    } catch {
+      setError('Image upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -416,10 +412,10 @@ function ProductEditor({
                 </div>
               )}
               {images.length < 5 && (
-                <label className="flex cursor-pointer flex-col items-center rounded-lg border-2 border-dashed border-border bg-bg px-4 py-6 transition-colors hover:border-brand-primary">
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+                <label className={`flex flex-col items-center rounded-lg border-2 border-dashed border-border bg-bg px-4 py-6 transition-colors ${uploading ? 'cursor-wait opacity-60' : 'cursor-pointer hover:border-brand-primary'}`}>
+                  <input type="file" accept="image/*" multiple disabled={uploading} className="hidden" onChange={(e) => handleFiles(e.target.files)} />
                   <ImageIcon className="mb-1.5 size-7 text-muted-warm" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-fg">Click to upload or drag and drop</span>
+                  <span className="text-sm font-medium text-fg">{uploading ? 'Uploading…' : 'Click to upload or drag and drop'}</span>
                   <span className="text-2xs text-muted-warm">PNG, JPG, GIF up to 5MB each</span>
                 </label>
               )}
@@ -476,7 +472,7 @@ function ProductEditor({
 
         <div className="flex shrink-0 gap-3 border-t border-border p-4">
           <button type="button" onClick={onClose} className="grow cursor-pointer rounded-lg border border-border py-3 text-md font-semibold text-fg transition-colors active:bg-bg">Cancel</button>
-          <button form="product-form" type="submit" disabled={saving} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
+          <button form="product-form" type="submit" disabled={saving || uploading} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
             {saving ? 'Saving…' : submitLabel}
           </button>
         </div>
@@ -721,7 +717,7 @@ export function AdminProductsClient({ products, categories, occasions }: { produ
       </div>
 
       {/* FAB */}
-      <button onClick={openAdd} className="fixed bottom-24 right-4 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-primary shadow-lg transition-transform active:scale-90 md:bottom-8 md:right-8">
+      <button data-tour="add-product" onClick={openAdd} className="fixed bottom-24 right-4 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-primary shadow-lg transition-transform active:scale-90 md:bottom-8 md:right-8">
         <Plus className="size-7 text-surface" />
       </button>
 

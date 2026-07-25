@@ -71,19 +71,8 @@ export async function publishChangesAction(input?: { force?: boolean }): Promise
 
   revalidatePath('/admin/products')
   revalidatePath('/admin/settings')
+  revalidatePath('/admin/versions')
   revalidatePath('/store')
 
   return {}
-}
-
-export async function getRecentPublishLogsAction(limit = 5): Promise<{ summary: string; publishedAt: Date }[]> {
-  const { tenantId } = await requireOwnerTenant()
-  return withTenant(tenantId, (db) =>
-    db.publishLog.findMany({
-      where: { tenantId },
-      orderBy: { publishedAt: 'desc' },
-      take: limit,
-      select: { summary: true, publishedAt: true },
-    })
-  )
 }

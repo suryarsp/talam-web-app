@@ -32,6 +32,7 @@ type InitialTenant = {
   slug: string
   storeType: string | null
   brandColor: string | null
+  logoUrl: string | null
   contactPhone: string | null
   contactEmail: string | null
   tagline: string | null
@@ -41,7 +42,7 @@ type InitialTenant = {
 } | null
 
 type InitialBranch = { name: string; address: string | null; city: string | null } | null
-type InitialProduct = { name: string; price: unknown; stockBySize: unknown } | null
+type InitialProduct = { name: string; price: unknown; stockBySize: unknown; images: string[] } | null
 
 function firstStockValue(stockBySize: unknown): string {
   if (!stockBySize || typeof stockBySize !== 'object') return ''
@@ -70,6 +71,8 @@ export function OnboardingWizard({
   const [step, setStep] = useState(initialTenant?.onboardingStep ?? 0)
   const [serverError, setServerError] = useState<string | null>(null)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [existingLogoUrl, setExistingLogoUrl] = useState(initialTenant?.logoUrl ?? null)
+  const [existingProductPhotoUrl, setExistingProductPhotoUrl] = useState(initialProduct?.images[0] ?? null)
 
   const { control, trigger, getValues, setError, watch } = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
@@ -137,7 +140,11 @@ export function OnboardingWizard({
       const category = values.category === 'Other' ? (values.customCategory ?? '').trim() : values.category
       return saveStoreStep({ storeName: values.storeName, slug, category })
     }
-    if (current === 1) return saveBrandStep({ brandColor: values.brandColor })
+    if (current === 1) {
+      const result = await saveBrandStep({ brandColor: values.brandColor, logo: values.brandLogo })
+      if (result.logoUrl) setExistingLogoUrl(result.logoUrl)
+      return result
+    }
     if (current === 2)
       return saveContactStep({
         contactPhone: values.contactPhone,
@@ -147,13 +154,17 @@ export function OnboardingWizard({
         branchCity: values.branchCity,
       })
     if (current === 3) return saveStoryStep({ tagline: values.tagline, aboutDescription: values.aboutDescription })
-    if (current === 4)
-      return saveProductStep({
+    if (current === 4) {
+      const result = await saveProductStep({
         productName: values.productName,
         productPrice: values.productPrice,
         productStock: values.productStock,
         categoryId: values.categoryId || undefined,
+        photo: values.productPhoto,
       })
+      if (result.photoUrl) setExistingProductPhotoUrl(result.photoUrl)
+      return result
+    }
     if (current === 5) return savePaymentStep({ paymentId: values.paymentId })
     return {}
   }
@@ -163,6 +174,14 @@ export function OnboardingWizard({
       if (!valid) return
       if (step === 0 && slugStatus === 'taken') {
         setServerError('That store URL is taken — try another.')
+        return
+      }
+      if (step === 1 && !getValues('brandLogo') && !existingLogoUrl) {
+        setError('brandLogo', { type: 'manual', message: 'Upload a store logo' })
+        return
+      }
+      if (step === 4 && !getValues('productPhoto') && !existingProductPhotoUrl) {
+        setError('productPhoto', { type: 'manual', message: 'Upload a product photo' })
         return
       }
       setServerError(null)
@@ -215,10 +234,12 @@ export function OnboardingWizard({
             <BackNav step={step} goBack={goBack} />
             {serverError ? <p className="mb-4 font-body text-sm font-medium text-danger">{serverError}</p> : null}
             {step === 0 ? <StoreStep control={control} slug={slug} serverError={serverError} slugStatus={slugStatus} /> : null}
-            {step === 1 ? <BrandStep control={control} /> : null}
+            {step === 1 ? <BrandStep control={control} existingLogoUrl={existingLogoUrl} /> : null}
             {step === 2 ? <ContactStep control={control} /> : null}
             {step === 3 ? <StoryStep control={control} /> : null}
-            {step === 4 ? <ProductStep control={control} categories={categories} /> : null}
+            {step === 4 ? (
+              <ProductStep control={control} categories={categories} existingPhotoUrl={existingProductPhotoUrl} />
+            ) : null}
             {step === 5 ? <PaymentStep control={control} /> : null}
           </div>
           <DesktopFooter step={step} goNext={goNext} isPending={isPending} />

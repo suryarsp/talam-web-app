@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
+import { uploadImage } from '@/lib/cloudinary'
 import {
   createProduct,
   updateProduct,
@@ -14,6 +15,11 @@ import {
 } from '@/lib/data/products'
 import { updateProductOccasions } from '@/lib/data/occasions'
 import { assignProductsToOccasionAction } from '@/app/admin/occasions/actions'
+
+export async function uploadProductImageAction(file: File): Promise<string> {
+  const { tenantId } = await requireOwnerTenant()
+  return uploadImage(file, `talam/${tenantId}/products`)
+}
 
 export async function createProductAction(input: ProductInput): Promise<string> {
   const { tenantId } = await requireOwnerTenant()

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, AlertTriangle, X, GripVertical } from 'lucide-react'
 import Link from 'next/link'
 import { getAboutAction, updateAboutAction, getContactSettingsAction, updateContactSettingsAction } from './actions'
@@ -105,7 +106,7 @@ function AboutTab() {
     <div className="flex flex-col gap-8">
       <div>
         <SectionLabel right={saved ? <span className="text-xs font-medium text-success">✓ Saved</span> : undefined}>Store Story</SectionLabel>
-        <label className="flex flex-col gap-1">
+        <label data-tour="store-about" className="flex flex-col gap-1">
           <span className="text-sm font-semibold text-fg">Your Story</span>
           <RichTextEditor defaultValue={description} onChange={setDescription} />
         </label>
@@ -520,7 +521,7 @@ function PaymentsTab() {
   const [razorpayEnabled, setRazorpayEnabled] = useState(false)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div data-tour="payments" className="flex flex-col gap-6">
       <div className="flex items-center gap-3 rounded-lg bg-[#FEF3C7] p-4">
         <AlertTriangle className="size-5 shrink-0 text-amber" />
         <div className="flex-1">
@@ -634,7 +635,7 @@ function ContactInfoTab() {
       <div>
         <SectionLabel right={saved ? <span className="text-xs font-medium text-success">✓ Saved</span> : undefined}>Contact Details</SectionLabel>
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div data-tour="contact-info" className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Input label="Contact Phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
             <Input label="Contact Email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
           </div>
@@ -659,7 +660,7 @@ function ContactInfoTab() {
         </div>
       </div>
 
-      <div>
+      <div data-tour="store-address">
         <SectionLabel>Store Address</SectionLabel>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -742,11 +743,12 @@ function DeleteStoreTab() {
 // ── Main Page ──
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Store')
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab')
+    const tab = searchParams.get('tab')
     if (tab && ([...TABS, 'Delete Store'] as readonly string[]).includes(tab)) setActiveTab(tab as Tab)
-  }, [])
+  }, [searchParams])
 
   return (
     <div className="mx-auto max-w-3xl">

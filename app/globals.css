@@ -180,6 +180,10 @@
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50% { transform: translateY(-24px) rotate(3deg); }
 }
+@keyframes tourHandTap {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(3px) scale(0.9); }
+}
 @keyframes marketingHeroLine {
   from { transform: translateY(110%); }
   to { transform: translateY(0); }
@@ -241,6 +245,11 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+  .tour-hand-beacon {
+    display: inline-flex;
+    animation: tourHandTap 900ms ease-in-out infinite;
+  }
+
   .marketing-hero-line {
     animation: marketingHeroLine 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -295,7 +304,8 @@
     .marketing-blob-one,
     .marketing-blob-two,
     .marketing-phone,
-    .marketing-store-card {
+    .marketing-store-card,
+    .tour-hand-beacon {
       animation: none;
       opacity: 1;
       transform: none;

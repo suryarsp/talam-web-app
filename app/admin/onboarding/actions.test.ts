@@ -1,16 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/admin-guard', () => ({
-  requireOwnerSession: vi.fn().mockResolvedValue({ userId: 'user-1' }),
+  requireOwnerSession: vi.fn().mockResolvedValue({ userId: 'user-1', email: 'owner@example.com' }),
 }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    tenant: { upsert: vi.fn(), update: vi.fn() },
+    tenant: { upsert: vi.fn(), update: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     storeBranch: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     storeAbout: { upsert: vi.fn() },
     product: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    productCategory: { count: vi.fn(), createMany: vi.fn(), findMany: vi.fn() },
+    storeBanner: { count: vi.fn(), create: vi.fn() },
+    storePromotion: { count: vi.fn(), create: vi.fn() },
+    productTag: { upsert: vi.fn() },
   },
+}))
+
+vi.mock('@/lib/cloudinary', () => ({
+  uploadImage: vi.fn().mockResolvedValue('https://res.cloudinary.com/test/logo.png'),
+}))
+
+vi.mock('@/lib/resend', () => ({
+  sendOnboardingWelcomeEmail: vi.fn().mockResolvedValue(undefined),
+  sendOnboardingCompleteEmail: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('next/headers', () => ({
@@ -18,6 +31,9 @@ vi.mock('next/headers', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
+import { uploadImage } from '@/lib/cloudinary'
+import { sendOnboardingCompleteEmail, sendOnboardingWelcomeEmail } from '@/lib/resend'
+import { requireOwnerSession } from '@/lib/admin-guard'
 import {
   completeOnboarding,
   saveBrandStep,
@@ -33,11 +49,32 @@ beforeEach(() => {
 })
 
 describe('saveStoreStep', () => {
-  it('upserts the tenant by ownerId', async () => {
-    vi.mocked(prisma.tenant.upsert).mockResolvedValue({} as never)
+  it('upserts the tenant by ownerId and sends the welcome email for a new tenant', async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.tenant.upsert).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.productCategory.count).mockResolvedValue(0)
     const result = await saveStoreStep({ storeName: 'Priya Boutique', slug: 'priya-boutique', category: 'Clothing' })
     expect(result).toEqual({})
     expect(prisma.tenant.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: 'user-1' } }))
+    expect(sendOnboardingWelcomeEmail).toHaveBeenCalledWith('owner@example.com', { onboardingUrl: expect.stringContaining('/admin/onboarding') })
+  })
+
+  it('does not send the welcome email when the tenant already exists (resume)', async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.tenant.upsert).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.productCategory.count).mockResolvedValue(1)
+    await saveStoreStep({ storeName: 'Priya Boutique', slug: 'priya-boutique', category: 'Clothing' })
+    expect(sendOnboardingWelcomeEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not send the welcome email when the session has no email (phone OTP)', async () => {
+    vi.mocked(requireOwnerSession).mockResolvedValueOnce({ userId: 'user-1', email: null })
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.tenant.upsert).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.productCategory.count).mockResolvedValue(0)
+    const result = await saveStoreStep({ storeName: 'Priya Boutique', slug: 'priya-boutique', category: 'Clothing' })
+    expect(result).toEqual({})
+    expect(sendOnboardingWelcomeEmail).not.toHaveBeenCalled()
   })
 
   it('returns a friendly error on slug collision', async () => {
@@ -45,6 +82,7 @@ describe('saveStoreStep', () => {
     const error = Object.create(Prisma.PrismaClientKnownRequestError.prototype)
     error.code = 'P2002'
     error.meta = { target: ['slug'] }
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.tenant.upsert).mockRejectedValue(error)
     const result = await saveStoreStep({ storeName: 'Priya', slug: 'priya', category: 'Clothing' })
     expect(result).toEqual({ error: 'That store URL is taken — try another.' })
@@ -59,6 +97,26 @@ describe('saveBrandStep', () => {
     expect(prisma.tenant.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { ownerId: 'user-1' }, data: expect.objectContaining({ brandColor: '#4F3FF0' }) })
     )
+  })
+
+  it('uploads a logo and saves logoUrl when a file is provided', async () => {
+    vi.mocked(prisma.tenant.findUniqueOrThrow).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.tenant.update).mockResolvedValue({} as never)
+    const logo = new File(['x'], 'logo.png', { type: 'image/png' })
+    const result = await saveBrandStep({ brandColor: '#4F3FF0', logo })
+    expect(result).toEqual({ logoUrl: 'https://res.cloudinary.com/test/logo.png' })
+    expect(uploadImage).toHaveBeenCalledWith(logo, 'talam/tenant-1/brand')
+    expect(prisma.tenant.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ logoUrl: 'https://res.cloudinary.com/test/logo.png' }) })
+    )
+  })
+
+  it('returns a friendly error when the upload fails', async () => {
+    vi.mocked(prisma.tenant.findUniqueOrThrow).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(uploadImage).mockRejectedValueOnce(new Error('boom'))
+    const logo = new File(['x'], 'logo.png', { type: 'image/png' })
+    const result = await saveBrandStep({ brandColor: '#4F3FF0', logo })
+    expect(result).toEqual({ error: 'Logo upload failed — try again.' })
   })
 })
 
@@ -117,6 +175,28 @@ describe('saveProductStep', () => {
       expect.objectContaining({ data: expect.objectContaining({ tenantId: 'tenant-1', name: 'Cotton Saree', sizes: ['Free Size'] }) })
     )
   })
+
+  it('uploads a photo and saves it on the product when a file is provided', async () => {
+    vi.mocked(prisma.tenant.update).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.product.create).mockResolvedValue({} as never)
+    const photo = new File(['x'], 'saree.png', { type: 'image/png' })
+    const result = await saveProductStep({ productName: 'Cotton Saree', productPrice: '1499', productStock: '10', photo })
+    expect(result).toEqual({ photoUrl: 'https://res.cloudinary.com/test/logo.png' })
+    expect(uploadImage).toHaveBeenCalledWith(photo, 'talam/tenant-1/products')
+    expect(prisma.product.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ images: ['https://res.cloudinary.com/test/logo.png'] }) })
+    )
+  })
+
+  it('returns a friendly error when the photo upload fails', async () => {
+    vi.mocked(prisma.tenant.update).mockResolvedValue({ id: 'tenant-1' } as never)
+    vi.mocked(uploadImage).mockRejectedValueOnce(new Error('boom'))
+    const photo = new File(['x'], 'saree.png', { type: 'image/png' })
+    const result = await saveProductStep({ productName: 'Cotton Saree', productPrice: '1499', productStock: '10', photo })
+    expect(result).toEqual({ error: 'Photo upload failed — try again.' })
+    expect(prisma.product.create).not.toHaveBeenCalled()
+  })
 })
 
 describe('savePaymentStep', () => {
@@ -131,9 +211,39 @@ describe('savePaymentStep', () => {
 })
 
 describe('completeOnboarding', () => {
-  it('marks the tenant onboarded and returns the dev storefront URL', async () => {
-    vi.mocked(prisma.tenant.update).mockResolvedValue({ slug: 'priya-boutique' } as never)
+  beforeEach(() => {
+    vi.mocked(prisma.storeBanner.count).mockResolvedValue(0)
+    vi.mocked(prisma.storePromotion.count).mockResolvedValue(0)
+    vi.mocked(prisma.productCategory.count).mockResolvedValue(1)
+    vi.mocked(prisma.productTag.upsert).mockResolvedValue({} as never)
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(null)
+  })
+
+  it('marks the tenant onboarded and returns the dev admin URL', async () => {
+    vi.mocked(prisma.tenant.update).mockResolvedValue({
+      id: 'tenant-1',
+      slug: 'priya-boutique',
+      name: 'Priya Boutique',
+      contactEmail: 'owner@store.com',
+    } as never)
     const result = await completeOnboarding()
-    expect(result).toEqual({ storeUrl: '/dev/store/priya-boutique' })
+    expect(result).toEqual({ adminUrl: '/dev/store/priya-boutique/admin/dashboard' })
+    expect(sendOnboardingCompleteEmail).toHaveBeenCalledWith('owner@store.com', {
+      storeName: 'Priya Boutique',
+      storeUrl: '/dev/store/priya-boutique',
+      adminUrl: '/dev/store/priya-boutique/admin/dashboard',
+    })
+  })
+
+  it('does not send the completion email when contactEmail is null', async () => {
+    vi.mocked(prisma.tenant.update).mockResolvedValue({
+      id: 'tenant-1',
+      slug: 'priya-boutique',
+      name: 'Priya Boutique',
+      contactEmail: null,
+    } as never)
+    const result = await completeOnboarding()
+    expect(result).toEqual({ adminUrl: '/dev/store/priya-boutique/admin/dashboard' })
+    expect(sendOnboardingCompleteEmail).not.toHaveBeenCalled()
   })
 })

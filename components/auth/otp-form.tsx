@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,8 @@ export function OtpForm() {
   const [loading, setLoading] = useState(false)
 
   const supabase = createBrowserClient()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next')
 
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault()
@@ -55,8 +58,15 @@ export function OtpForm() {
 
     if (error) {
       setError(error.message)
+      return
     }
-    // On success, Supabase sets the session cookie and redirects via the auth state listener
+
+    // Gated behind this flag until phone-OTP delivery is fully configured (MSG91_TEMPLATE_ID
+    // is currently empty). Falls back to /auth — that page already redirects a signed-in
+    // visitor to the right destination, so no destination logic is duplicated here.
+    if (process.env.NEXT_PUBLIC_OTP_SIGNIN_ENABLED === 'true') {
+      window.location.href = next ?? '/auth'
+    }
   }
 
   if (step === 'otp') {

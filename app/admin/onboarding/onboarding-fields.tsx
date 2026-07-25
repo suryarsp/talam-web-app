@@ -127,24 +127,29 @@ export function FileDropzone({
   file,
   onFileChange,
   boxClassName,
+  existingUrl,
 }: {
   readonly hint: string
   readonly file: File | null | undefined
   readonly onFileChange: (file: File | null) => void
   readonly boxClassName?: string
+  /** Already-uploaded image URL (e.g. from Cloudinary) to show when no new file is picked yet. */
+  readonly existingUrl?: string | null
 }) {
   const [isDragging, setIsDragging] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!file) {
-      setPreviewUrl(null)
+      setObjectUrl(null)
       return
     }
     const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
+    setObjectUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [file])
+
+  const previewUrl = objectUrl ?? existingUrl ?? null
 
   return (
     <div>

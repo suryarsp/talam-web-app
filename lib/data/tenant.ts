@@ -41,6 +41,16 @@ export type MissingConfigItem = {
   href: string
 }
 
+function getProductGapItem(productCount: number): MissingConfigItem | null {
+  if (productCount >= MIN_LIVE_PRODUCTS) return null
+  return {
+    key: 'products',
+    label: 'Products',
+    description: `Add at least ${MIN_LIVE_PRODUCTS} products (${productCount}/${MIN_LIVE_PRODUCTS})`,
+    href: '/admin/products',
+  }
+}
+
 export async function getMissingStoreConfig(tenantId: string): Promise<MissingConfigItem[]> {
   const [tenant, productCount] = await withTenant(tenantId, (db) =>
     Promise.all([
@@ -93,13 +103,8 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
       description: 'Add your store address',
       href: '/admin/settings?tab=Contact Info',
     })
-  if (productCount < MIN_LIVE_PRODUCTS)
-    missing.push({
-      key: 'products',
-      label: 'Products',
-      description: `Add at least ${MIN_LIVE_PRODUCTS} products (${productCount}/${MIN_LIVE_PRODUCTS})`,
-      href: '/admin/products',
-    })
+  const productGap = getProductGapItem(productCount)
+  if (productGap) missing.push(productGap)
   return missing
 }
 

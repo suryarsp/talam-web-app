@@ -27,16 +27,16 @@ export default async function StoreLayout({
 
   if (!tenant) notFound()
 
-  if (missingConfig.length > 0) {
-    return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-2 bg-bg px-6 text-center">
-        <h1 className="font-heading text-2xl font-bold text-fg">Coming soon</h1>
-        <p className="max-w-sm font-body text-sm text-muted-warm">
-          {tenant.name} is still setting up their store. Check back shortly.
-        </p>
-      </div>
-    )
-  }
+  // if (missingConfig.length > 0) {
+  //   return (
+  //     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-2 bg-bg px-6 text-center">
+  //       <h1 className="font-heading text-2xl font-bold text-fg">Coming soon</h1>
+  //       <p className="max-w-sm font-body text-sm text-muted-warm">
+  //         {tenant.name} is still setting up their store. Check back shortly.
+  //       </p>
+  //     </div>
+  //   )
+  // }
 
   const storeBase = hdrs.get('x-store-base') ?? ''
 

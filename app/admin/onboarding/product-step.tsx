@@ -6,9 +6,11 @@ import type { OnboardingValues } from './onboarding-schema'
 export function ProductStep({
   control,
   categories,
+  existingPhotoUrl,
 }: {
   readonly control: Control<OnboardingValues>
   readonly categories: { id: string; name: string }[]
+  readonly existingPhotoUrl?: string | null
 }) {
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
@@ -50,7 +52,12 @@ export function ProductStep({
           render={({ field, fieldState }) => (
             <div>
               <span className="font-body text-sm font-medium leading-[18px] text-[#374151]">Product photo</span>
-              <FileDropzone hint="High-quality photo (min 500×500px)" file={field.value} onFileChange={field.onChange} />
+              <FileDropzone
+                hint="High-quality photo (min 500×500px)"
+                file={field.value}
+                onFileChange={field.onChange}
+                existingUrl={existingPhotoUrl}
+              />
               {fieldState.error ? (
                 <span className="mt-1.5 block font-body text-xs font-medium text-danger">{fieldState.error.message}</span>
               ) : null}

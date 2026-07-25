@@ -624,6 +624,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 NEXT_PUBLIC_POSTHOG_KEY=
 NEXT_PUBLIC_ROOT_DOMAIN=talam4shop.com     # used in middleware, OG cards, badge links
+NEXT_PUBLIC_OTP_SIGNIN_ENABLED=false       # gates OtpForm's post-verify redirect — flip once MSG91_TEMPLATE_ID is set
 
 # ─── SERVER ONLY (never add NEXT_PUBLIC_ prefix) ─────────────────────────────
 SUPABASE_SERVICE_ROLE_KEY=
@@ -642,6 +643,7 @@ TALAM_RAZORPAY_KEY_SECRET=
 RAZORPAY_STARTER_PLAN_ID=               # plan_XXXX from Razorpay dashboard
 RAZORPAY_PRO_PLAN_ID=                   # plan_YYYY from Razorpay dashboard
 REVALIDATE_SECRET=                       # 32-byte hex — guards /api/revalidate endpoint
+CRON_SECRET=                             # 32-byte hex — guards /api/cron/onboarding-reminders
 DMYSTIQUE_OWNER_ID=                      # Supabase auth.users UUID for D'Mystique owner (seed only)
 ```
 

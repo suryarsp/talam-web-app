@@ -36,3 +36,8 @@ export async function goLiveAction(): Promise<{ error?: string }> {
   revalidatePath('/store')
   return {}
 }
+
+export async function markSetupTourSeenAction(): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await prisma.tenant.update({ where: { id: tenantId }, data: { hasSeenSetupTour: true } })
+}

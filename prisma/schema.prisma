@@ -61,6 +61,8 @@ model Tenant {
   onboardingStep       Int             @default(0) @map("onboarding_step")
   isOnboarded          Boolean         @default(false) @map("is_onboarded")
   isLive               Boolean         @default(false) @map("is_live")
+  hasSeenSetupTour     Boolean         @default(false) @map("has_seen_setup_tour")
+  onboardingReminderCount Int          @default(0) @map("onboarding_reminder_count")
   slug                 String          @unique
   name                 String
   tagline              String?

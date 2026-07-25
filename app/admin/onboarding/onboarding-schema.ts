@@ -14,7 +14,10 @@ export const onboardingSchema = z
     category: z.string().min(1, 'Select a category'),
     customCategory: z.string().trim().optional(),
     brandColor: z.string().min(1),
-    brandLogo: imageFile('Upload a store logo'),
+    // Optional in the schema: a File is only required on first upload — once a logo
+    // is saved to Cloudinary, revisiting this step shouldn't force a re-upload.
+    // The "must have a logo at all" check happens in the wizard against logoUrl.
+    brandLogo: imageFile('Upload a store logo').optional(),
     contactPhone: z.string().trim().min(1, 'Phone number is required'),
     contactEmail: z.string().trim().min(1, 'Enter a valid email').email('Enter a valid email'),
     branchName: z.string().trim().min(1, 'Store name is required'),
@@ -25,7 +28,9 @@ export const onboardingSchema = z
     productName: z.string().trim().min(1, 'Product name is required'),
     productPrice: z.string().refine((value) => value.trim() !== '' && Number(value) > 0, 'Enter a valid price'),
     productStock: z.string().refine((value) => value.trim() !== '' && Number(value) >= 0, 'Enter a valid stock quantity'),
-    productPhoto: imageFile('Upload a product photo'),
+    // Optional for the same reason as brandLogo — revisiting the step after a
+    // successful upload shouldn't force re-selecting a file.
+    productPhoto: imageFile('Upload a product photo').optional(),
     categoryId: z.string().optional(),
     paymentId: z.enum(['upi', 'razorpay', 'instamojo']),
   })

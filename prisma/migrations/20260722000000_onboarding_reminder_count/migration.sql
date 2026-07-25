@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN IF NOT EXISTS "onboarding_reminder_count" INTEGER NOT NULL DEFAULT 0;
