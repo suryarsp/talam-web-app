@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { escapeHtml, renderEmailBody, renderEmailShell } from './email-templates'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'hello@mailer.talam4shop.com'
@@ -9,12 +10,17 @@ export async function sendOnboardingWelcomeEmail(to: string, params: { onboardin
       from: FROM,
       to,
       subject: "You're in! 3 minutes to a live store",
-      html: `
-        <p>Hi there,</p>
-        <p>Thanks for signing up for Talam. You're just a few steps away from a store customers can actually buy from — logo, first product, and how you want to get paid.</p>
-        <p><a href="${params.onboardingUrl}">Finish setup</a></p>
-        <p>See you on the other side,<br/>The Talam Team</p>
-      `,
+      html: renderEmailShell(
+        renderEmailBody({
+          greeting: 'Hi there,',
+          heading: "You're in! 3 minutes to a live store",
+          paragraphs: [
+            "Thanks for signing up for Talam. You're just a few steps away from a store customers can actually buy from — logo, first product, and how you want to get paid.",
+          ],
+          ctas: [{ label: 'Finish setup →', href: params.onboardingUrl }],
+          signature: 'See you on the other side,<br/>The Talam Team',
+        })
+      ),
     })
   } catch (err) {
     console.error('[Resend] sendOnboardingWelcomeEmail failed:', err)
@@ -46,10 +52,12 @@ export async function sendOnboardingReminderEmail(
       from: FROM,
       to,
       subject: copy.subject,
-      html: `
-        <p>${copy.body}</p>
-        <p><a href="${params.onboardingUrl}">Resume setup</a></p>
-      `,
+      html: renderEmailShell(
+        renderEmailBody({
+          paragraphs: [copy.body],
+          ctas: [{ label: 'Resume setup →', href: params.onboardingUrl }],
+        })
+      ),
     })
   } catch (err) {
     console.error('[Resend] sendOnboardingReminderEmail failed:', err)
@@ -65,17 +73,16 @@ export async function sendOnboardingCompleteEmail(
       from: FROM,
       to,
       subject: "Your store is ready — here's what's next",
-      html: `
-        <p>Congrats — <strong>${params.storeName}</strong> is live on Talam!</p>
-        <p>Here's what to do next:</p>
-        <ol>
-          <li>Share your store link with customers</li>
-          <li>Add a few more products to fill out your catalog</li>
-          <li>Check Settings to make sure your payment details are correct</li>
-        </ol>
-        <p><a href="${params.storeUrl}">View your store</a></p>
-        <p><a href="${params.adminUrl}">Go to admin</a></p>
-      `,
+      html: renderEmailShell(
+        renderEmailBody({
+          paragraphs: [`Congrats — <strong>${escapeHtml(params.storeName)}</strong> is live on Talam!`, "Here's what to do next:"],
+          list: ['Share your store link with customers', 'Add a few more products to fill out your catalog', 'Check Settings to make sure your payment details are correct'],
+          ctas: [
+            { label: 'View your store', href: params.storeUrl },
+            { label: 'Go to admin', href: params.adminUrl },
+          ],
+        })
+      ),
     })
   } catch (err) {
     console.error('[Resend] sendOnboardingCompleteEmail failed:', err)
