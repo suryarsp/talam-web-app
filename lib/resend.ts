@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM = `hello@mail.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'mytalam.com'}`
+const FROM = 'hello@mailer.talam4shop.com'
 
 export async function sendOnboardingWelcomeEmail(to: string, params: { onboardingUrl: string }): Promise<void> {
   try {

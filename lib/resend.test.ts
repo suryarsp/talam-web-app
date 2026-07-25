@@ -20,7 +20,7 @@ describe('sendOnboardingWelcomeEmail', () => {
   it('sends with the right recipient and subject', async () => {
     await sendOnboardingWelcomeEmail('owner@example.com', { onboardingUrl: 'https://talam4shop.com/admin/onboarding' })
     expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'owner@example.com', from: expect.stringContaining('mail.'), subject: expect.any(String) })
+      expect.objectContaining({ to: 'owner@example.com', from: 'hello@mailer.talam4shop.com', subject: expect.any(String) })
     )
   })
 
