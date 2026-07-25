@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { Field, FieldHint, SelectField, StepTitle, TextInput } from './onboarding-fields'
 import { STORE_TYPES } from './onboarding-data'
 import type { OnboardingValues } from './onboarding-schema'
+import { ROOT_DOMAIN } from '@/lib/tenant-url'
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken'
 
@@ -84,7 +85,7 @@ export function StoreStep({
           <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-5 md:h-[52px]">
             <span className="text-brand-primary">⌁</span>
             <span className="font-body text-sm leading-[18px] text-[#9CA3AF]">{slug.replaceAll('-', '')}.</span>
-            <span className="font-body text-sm font-semibold leading-[18px] text-brand-primary">mytalam.com</span>
+            <span className="font-body text-sm font-semibold leading-[18px] text-brand-primary">{ROOT_DOMAIN}</span>
           </div>
         </Field>
       </div>

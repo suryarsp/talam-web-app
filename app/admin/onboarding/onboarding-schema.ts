@@ -18,10 +18,14 @@ export const onboardingSchema = z
     // is saved to Cloudinary, revisiting this step shouldn't force a re-upload.
     // The "must have a logo at all" check happens in the wizard against logoUrl.
     brandLogo: imageFile('Upload a store logo').optional(),
-    contactPhone: z.string().trim().min(1, 'Phone number is required'),
+    contactPhone: z
+      .string()
+      .trim()
+      .min(1, 'Phone number is required')
+      .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit phone number'),
     contactEmail: z.string().trim().min(1, 'Enter a valid email').email('Enter a valid email'),
-    branchName: z.string().trim().min(1, 'Store name is required'),
-    branchAddress: z.string().trim().min(1, 'Address is required'),
+    branchName: z.string().trim().min(1, 'Branch name is required'),
+    branchAddress: z.string().trim().min(5, 'Enter a complete address'),
     branchCity: z.string().trim().min(1, 'City is required'),
     tagline: z.string().trim().min(1, 'Tagline is required'),
     aboutDescription: z.string().trim().min(1, 'Tell customers your story'),

@@ -80,11 +80,16 @@ export function Tour() {
 
   if (!active || steps.length === 0) return null
 
-  const joyrideSteps: Step[] = steps.map((s) => ({
+  const joyrideSteps: Step[] = steps.map((s, i) => ({
     target: s.target,
     title: s.label,
     content: s.description,
     isFixed: s.isFixed,
+    // Only the very first step needs a beacon click — this tour is externally controlled
+    // (stepIndex driven by our own store, not Joyride's internal NEXT/PREV action), so
+    // react-joyride's own continuous-tour beacon skip never kicks in on later steps.
+    // Skipping it ourselves makes every step after the first jump straight to the tooltip.
+    skipBeacon: i > 0,
   }))
 
   return (
@@ -101,6 +106,7 @@ export function Tour() {
         // cancellable at any step: both the skip button and the × end the whole tour, not just the step
         closeButtonAction: 'skip',
         overlayColor: '#00000099',
+        spotlightPadding: 6,
       }}
     />
   )

@@ -7,8 +7,11 @@ import type { BeaconRenderProps } from 'react-joyride'
 // a single element (a <span>), not a <button>.
 export function TourHandBeacon(_props: BeaconRenderProps) {
   return (
-    <span className="tour-hand-beacon" aria-hidden="true">
-      <Hand className="size-6 text-brand-primary drop-shadow-md" strokeWidth={2} fill="white" />
+    <span
+      className="tour-hand-beacon inline-flex items-center justify-center rounded-full bg-surface p-2 shadow-lg ring-2 ring-brand-primary"
+      aria-hidden="true"
+    >
+      <Hand className="size-5 text-brand-primary" strokeWidth={2.2} />
     </span>
   )
 }

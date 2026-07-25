@@ -1,4 +1,4 @@
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'talam4shop.com'
+export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'talam4shop.com'
 
 export function isLocalDevHost(host: string | null | undefined): boolean {
   if (!host) return false

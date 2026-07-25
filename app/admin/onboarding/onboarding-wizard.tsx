@@ -230,7 +230,7 @@ export function OnboardingWizard({
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col px-6 pb-32 pt-9 md:pb-16 md:pt-14">
         <ProgressHeader step={step} />
         <section className="relative mt-7 flex max-h-[calc(100dvh-140px)] flex-1 flex-col rounded-3xl border border-white/70 bg-surface/90 shadow-[0_24px_70px_-20px_rgba(31,41,55,0.25)] backdrop-blur-sm">
-          <div className="flex-1 overflow-y-auto p-7 md:p-11">
+          <div className="no-scrollbar flex-1 scroll-smooth overflow-y-auto p-7 md:p-11">
             <BackNav step={step} goBack={goBack} />
             {serverError ? <p className="mb-4 font-body text-sm font-medium text-danger">{serverError}</p> : null}
             {step === 0 ? <StoreStep control={control} slug={slug} serverError={serverError} slugStatus={slugStatus} /> : null}

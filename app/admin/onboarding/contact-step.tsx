@@ -14,7 +14,14 @@ export function ContactStep({ control }: { readonly control: Control<OnboardingV
           render={({ field, fieldState }) => (
             <Field label="Contact phone" error={fieldState.error?.message}>
               <FieldHint>Shown on your storefront and used for order updates</FieldHint>
-              <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} inputMode="tel" />
+              <TextInput
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                invalid={Boolean(fieldState.error)}
+                inputMode="tel"
+                maxLength={10}
+              />
             </Field>
           )}
         />
@@ -32,7 +39,7 @@ export function ContactStep({ control }: { readonly control: Control<OnboardingV
           control={control}
           name="branchName"
           render={({ field, fieldState }) => (
-            <Field label="Store name" error={fieldState.error?.message}>
+            <Field label="Branch name" error={fieldState.error?.message}>
               <FieldHint>E.g., &quot;Main branch&quot; or your shop&apos;s name</FieldHint>
               <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} />
             </Field>
