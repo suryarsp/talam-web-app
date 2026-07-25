@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMAIL_BRAND, escapeHtml } from './email-templates'
+import { EMAIL_BRAND, escapeHtml, renderEmailBody } from './email-templates'
 
 describe('EMAIL_BRAND', () => {
   it('matches the live theme brand color from app/globals.css', () => {
@@ -22,5 +22,63 @@ describe('escapeHtml', () => {
 
   it('leaves plain text unchanged', () => {
     expect(escapeHtml('Priya Boutique')).toBe('Priya Boutique')
+  })
+})
+
+describe('renderEmailBody', () => {
+  it('includes the greeting, heading, and paragraphs when provided', () => {
+    const html = renderEmailBody({
+      greeting: 'Hi there,',
+      heading: "You're in! 3 minutes to a live store",
+      paragraphs: ['Thanks for signing up for Talam.'],
+      ctas: [{ label: 'Finish setup →', href: 'https://talam4shop.com/admin/onboarding' }],
+      signature: 'See you on the other side,<br/>The Talam Team',
+    })
+    expect(html).toContain('Hi there,')
+    expect(html).toContain("You're in! 3 minutes to a live store")
+    expect(html).toContain('Thanks for signing up for Talam.')
+    expect(html).toContain('See you on the other side,<br/>The Talam Team')
+  })
+
+  it('renders every CTA as a link to its href with its label', () => {
+    const html = renderEmailBody({
+      paragraphs: ['Congrats!'],
+      ctas: [
+        { label: 'View your store', href: 'https://priya-boutique.talam4shop.com' },
+        { label: 'Go to admin', href: 'https://priya-boutique.talam4shop.com/admin/dashboard' },
+      ],
+    })
+    expect(html).toContain('href="https://priya-boutique.talam4shop.com"')
+    expect(html).toContain('View your store')
+    expect(html).toContain('href="https://priya-boutique.talam4shop.com/admin/dashboard"')
+    expect(html).toContain('Go to admin')
+  })
+
+  it('renders list items as an ordered list when provided', () => {
+    const html = renderEmailBody({
+      paragraphs: ['Here is what to do next:'],
+      list: ['Share your store link', 'Add a few more products'],
+      ctas: [{ label: 'View your store', href: 'https://x' }],
+    })
+    expect(html).toContain('<ol')
+    expect(html).toContain('Share your store link')
+    expect(html).toContain('Add a few more products')
+  })
+
+  it('omits greeting, heading, list, and signature markup when not provided', () => {
+    const html = renderEmailBody({
+      paragraphs: ['You started setting up your Talam store but haven’t finished yet.'],
+      ctas: [{ label: 'Resume setup', href: 'https://x' }],
+    })
+    expect(html).not.toContain('<ol')
+  })
+
+  it('appends extraHtml after the rest of the content when provided', () => {
+    const html = renderEmailBody({
+      paragraphs: ['Body copy.'],
+      ctas: [{ label: 'Go', href: 'https://x' }],
+      extraHtml: '<p data-testid="extra">Extra block</p>',
+    })
+    expect(html.indexOf('data-testid="extra"')).toBeGreaterThan(html.indexOf('Body copy.'))
   })
 })
