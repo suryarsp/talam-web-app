@@ -126,8 +126,6 @@ export function renderEmailShell(bodyHtml: string): string {
               </p>
               <p style="margin: 0; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; font-weight: 500;">
                 <a href="mailto:${EMAIL_BRAND.contactEmail}" style="color: ${EMAIL_BRAND.primaryTint}; text-decoration: none;">Help Center</a>
-                &middot;
-                <a href="mailto:${EMAIL_BRAND.contactEmail}" style="color: ${EMAIL_BRAND.primaryTint}; text-decoration: none;">Unsubscribe</a>
               </p>
             </td>
           </tr>
