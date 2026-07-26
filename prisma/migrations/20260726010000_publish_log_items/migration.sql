@@ -1,0 +1,1 @@
+ALTER TABLE "publish_logs" ADD COLUMN "items" JSONB NOT NULL DEFAULT '[]';

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
+import type { PublishLogItem } from '@/lib/data/publish-logs'
 
 const OPEN_ORDER_STATUSES = ['pending', 'confirmed', 'shipped'] as const
 
@@ -49,6 +50,20 @@ export async function publishChangesAction(input?: { force?: boolean }): Promise
     }
   }
 
+  const [draftProducts, draftAbout, draftOccasions] = await withTenant(tenantId, (db) =>
+    Promise.all([
+      db.product.findMany({ where: { tenantId, status: 'draft' }, select: { name: true } }),
+      db.storeAbout.findFirst({ where: { tenantId, status: 'draft' } }),
+      db.productTag.findMany({ where: { tenantId, status: 'draft' }, select: { name: true } }),
+    ])
+  )
+
+  const items: PublishLogItem[] = [
+    ...draftProducts.map((p) => ({ type: 'product' as const, name: p.name })),
+    ...(draftAbout ? [{ type: 'store_info' as const, name: 'Store info' }] : []),
+    ...draftOccasions.map((o) => ({ type: 'occasion' as const, name: o.name })),
+  ]
+
   const [products, about, occasions] = await withTenant(tenantId, (db) =>
     db.$transaction([
       db.product.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } }),
@@ -65,7 +80,7 @@ export async function publishChangesAction(input?: { force?: boolean }): Promise
     if (occasions.count) parts.push(`${occasions.count} occasion${occasions.count === 1 ? '' : 's'}`)
 
     await withTenant(tenantId, (db) =>
-      db.publishLog.create({ data: { tenantId, itemCount, summary: parts.join(', ') } })
+      db.publishLog.create({ data: { tenantId, itemCount, summary: parts.join(', '), items } })
     )
   }
 
