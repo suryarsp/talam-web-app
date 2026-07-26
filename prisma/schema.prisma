@@ -422,6 +422,7 @@ model PublishLog {
   publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz
   itemCount   Int      @map("item_count")
   summary     String
+  items       Json     @default("[]") @map("items")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
