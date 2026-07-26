@@ -1,9 +1,18 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { Prisma } from '@prisma/client'
+import type { Tier, DiscountType } from '@prisma/client'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
+import { uploadImage } from '@/lib/cloudinary'
+import { createServerClient } from '@/lib/supabase/server'
+import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+}
 
 export async function getAboutAction(): Promise<{ description: string; socialLinks: SocialLink[] }> {
   const { tenantId } = await requireOwnerTenant()
@@ -30,14 +39,29 @@ export async function updateAboutAction(input: { description: string; socialLink
   revalidatePath('/admin/settings')
 }
 
-export type ContactSettings = { contactPhone: string; contactEmail: string; address: string; city: string }
+export type ContactSettings = {
+  contactPhone: string
+  contactEmail: string
+  address: string
+  city: string
+  ownerName: string
+  ownerTitle: string
+  whatsappNumber: string
+  showWhatsappButton: boolean
+  hours: string
+  galleryUrls: string[]
+}
 
 export async function getContactSettingsAction(): Promise<ContactSettings> {
   const { tenantId } = await requireOwnerTenant()
-  const [tenant, branch] = await withTenant(tenantId, (db) =>
+  const [tenant, branch, about] = await withTenant(tenantId, (db) =>
     Promise.all([
-      db.tenant.findUnique({ where: { id: tenantId }, select: { contactPhone: true, contactEmail: true, name: true } }),
-      db.storeBranch.findFirst({ where: { tenantId }, orderBy: { sortOrder: 'asc' }, select: { address: true, city: true } }),
+      db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { contactPhone: true, contactEmail: true, name: true, whatsappNumber: true, showWhatsappButton: true },
+      }),
+      db.storeBranch.findFirst({ where: { tenantId }, orderBy: { sortOrder: 'asc' }, select: { address: true, city: true, hours: true } }),
+      db.storeAbout.findUnique({ where: { tenantId }, select: { ownerName: true, ownerTitle: true, galleryUrls: true } }),
     ])
   )
   return {
@@ -45,27 +69,432 @@ export async function getContactSettingsAction(): Promise<ContactSettings> {
     contactEmail: tenant?.contactEmail ?? '',
     address: branch?.address ?? '',
     city: branch?.city ?? '',
+    ownerName: about?.ownerName ?? '',
+    ownerTitle: about?.ownerTitle ?? '',
+    whatsappNumber: tenant?.whatsappNumber ?? '',
+    showWhatsappButton: tenant?.showWhatsappButton ?? true,
+    hours: branch?.hours ?? '',
+    galleryUrls: about?.galleryUrls ?? [],
   }
 }
 
-export async function updateContactSettingsAction(input: ContactSettings): Promise<void> {
+export async function updateContactSettingsAction(input: Omit<ContactSettings, 'galleryUrls'>): Promise<void> {
   const { tenantId } = await requireOwnerTenant()
 
   await withTenant(tenantId, async (db) => {
     const tenant = await db.tenant.update({
       where: { id: tenantId },
-      data: { contactPhone: input.contactPhone, contactEmail: input.contactEmail },
+      data: {
+        contactPhone: input.contactPhone,
+        contactEmail: input.contactEmail,
+        whatsappNumber: input.whatsappNumber,
+        showWhatsappButton: input.showWhatsappButton,
+      },
       select: { name: true },
     })
 
     const existingBranch = await db.storeBranch.findFirst({ where: { tenantId }, orderBy: { sortOrder: 'asc' }, select: { id: true } })
     if (existingBranch) {
-      await db.storeBranch.update({ where: { id: existingBranch.id }, data: { address: input.address, city: input.city } })
+      await db.storeBranch.update({ where: { id: existingBranch.id }, data: { address: input.address, city: input.city, hours: input.hours } })
     } else {
-      await db.storeBranch.create({ data: { tenantId, name: tenant.name, address: input.address, city: input.city } })
+      await db.storeBranch.create({ data: { tenantId, name: tenant.name, address: input.address, city: input.city, hours: input.hours } })
     }
+
+    await db.storeAbout.upsert({
+      where: { tenantId },
+      create: { tenantId, ownerName: input.ownerName, ownerTitle: input.ownerTitle },
+      update: { ownerName: input.ownerName, ownerTitle: input.ownerTitle },
+    })
   })
 
   revalidatePath('/admin/settings')
   revalidatePath('/admin/dashboard')
+}
+
+const MAX_GALLERY_PHOTOS = 8
+
+export async function addGalleryPhotoAction(file: File): Promise<{ error?: string; url?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const about = await withTenant(tenantId, (db) => db.storeAbout.findUnique({ where: { tenantId }, select: { galleryUrls: true } }))
+  if ((about?.galleryUrls.length ?? 0) >= MAX_GALLERY_PHOTOS) return { error: `Max ${MAX_GALLERY_PHOTOS} photos.` }
+
+  let url: string
+  try {
+    url = await uploadImage(file, `talam/${tenantId}/gallery`)
+  } catch {
+    return { error: 'Photo upload failed — try again.' }
+  }
+
+  await withTenant(tenantId, (db) =>
+    db.storeAbout.upsert({
+      where: { tenantId },
+      create: { tenantId, galleryUrls: [url] },
+      update: { galleryUrls: { push: url } },
+    })
+  )
+  revalidatePath('/admin/settings')
+  return { url }
+}
+
+export async function removeGalleryPhotoAction(url: string): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, async (db) => {
+    const about = await db.storeAbout.findUnique({ where: { tenantId }, select: { galleryUrls: true } })
+    if (!about) return
+    await db.storeAbout.update({ where: { tenantId }, data: { galleryUrls: about.galleryUrls.filter((u) => u !== url) } })
+  })
+  revalidatePath('/admin/settings')
+}
+
+// ── Store Tab ──
+export type StoreSettings = {
+  name: string
+  tagline: string
+  slug: string
+  logoUrl: string | null
+  brandColor: string | null
+  whatsappNumber: string
+  showWhatsappButton: boolean
+  freeDeliveryAbove: number | null
+  shippingFee: number
+  deliveryEstimateText: string
+  returnWindowDays: number | null
+  trustBadgeText: string
+}
+
+export async function getStoreSettingsAction(): Promise<StoreSettings> {
+  const { tenantId } = await requireOwnerTenant()
+  const t = await withTenant(tenantId, (db) =>
+    db.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: {
+        name: true,
+        tagline: true,
+        slug: true,
+        logoUrl: true,
+        brandColor: true,
+        whatsappNumber: true,
+        showWhatsappButton: true,
+        freeDeliveryAbove: true,
+        shippingFee: true,
+        deliveryEstimateText: true,
+        returnWindowDays: true,
+        trustBadgeText: true,
+      },
+    })
+  )
+  return {
+    name: t.name,
+    tagline: t.tagline ?? '',
+    slug: t.slug,
+    logoUrl: t.logoUrl,
+    brandColor: t.brandColor,
+    whatsappNumber: t.whatsappNumber ?? '',
+    showWhatsappButton: t.showWhatsappButton,
+    freeDeliveryAbove: t.freeDeliveryAbove ? Number(t.freeDeliveryAbove) : null,
+    shippingFee: Number(t.shippingFee),
+    deliveryEstimateText: t.deliveryEstimateText ?? '',
+    returnWindowDays: t.returnWindowDays,
+    trustBadgeText: t.trustBadgeText ?? '',
+  }
+}
+
+export type StoreSettingsInput = Partial<{
+  name: string
+  tagline: string
+  brandColor: string
+  whatsappNumber: string
+  showWhatsappButton: boolean
+  freeDeliveryAbove: number | null
+  shippingFee: number
+  deliveryEstimateText: string
+  returnWindowDays: number | null
+  trustBadgeText: string
+  logo: File
+}>
+
+export async function updateStoreSettingsAction(input: StoreSettingsInput): Promise<{ error?: string; logoUrl?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const { logo, ...rest } = input
+
+  if (rest.name !== undefined && !rest.name.trim()) return { error: 'Store name cannot be empty.' }
+  if (rest.shippingFee !== undefined && rest.shippingFee < 0) return { error: 'Shipping fee cannot be negative.' }
+  if (rest.freeDeliveryAbove != null && rest.freeDeliveryAbove < 0) return { error: 'Free delivery threshold cannot be negative.' }
+  if (rest.returnWindowDays != null && rest.returnWindowDays < 0) return { error: 'Return window cannot be negative.' }
+
+  let logoUrl: string | undefined
+  if (logo && logo.size > 0) {
+    try {
+      logoUrl = await uploadImage(logo, `talam/${tenantId}/brand`)
+    } catch {
+      return { error: 'Logo upload failed — try again.' }
+    }
+  }
+
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({ where: { id: tenantId }, data: { ...rest, ...(logoUrl ? { logoUrl } : {}) } })
+  )
+
+  revalidatePath('/admin/settings')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/store')
+  return { logoUrl }
+}
+
+// ── Categories ──
+export type CategoryItem = { id: string; name: string; department: string | null }
+
+function slugifyCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'category'
+}
+
+export async function getCategoriesAction(): Promise<CategoryItem[]> {
+  const { tenantId } = await requireOwnerTenant()
+  return withTenant(tenantId, (db) =>
+    db.productCategory.findMany({ where: { tenantId }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, department: true } })
+  )
+}
+
+export async function addCategoryAction(name: string, department: Department): Promise<{ error?: string; category?: CategoryItem }> {
+  const { tenantId } = await requireOwnerTenant()
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Category name is required.' }
+  if (!DEPARTMENTS.some((d) => d.value === department)) return { error: 'Choose a department for this category.' }
+
+  try {
+    const category = await withTenant(tenantId, async (db) => {
+      const count = await db.productCategory.count({ where: { tenantId } })
+      return db.productCategory.create({
+        data: { tenantId, name: trimmed, slug: slugifyCategory(trimmed), department, sortOrder: count },
+        select: { id: true, name: true, department: true },
+      })
+    })
+    revalidatePath('/admin/settings')
+    return { category }
+  } catch (err) {
+    if (isUniqueConstraintError(err)) return { error: 'A category with that name already exists.' }
+    throw err
+  }
+}
+
+export async function deleteCategoryAction(id: string): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const productCount = await withTenant(tenantId, (db) => db.product.count({ where: { tenantId, categoryId: id, deletedAt: null } }))
+  if (productCount > 0) return { error: 'Move or delete the products in this category first.' }
+
+  await withTenant(tenantId, (db) => db.productCategory.deleteMany({ where: { id, tenantId } }))
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+// ── Alerts Tab ──
+export type NotificationPreferences = {
+  newOrder: boolean
+  orderStatusUpdated: boolean
+  orderCancelled: boolean
+  lowStock: boolean
+  paymentReceived: boolean
+  paymentFailed: boolean
+  refundInitiated: boolean
+  newCustomer: boolean
+  wishlistAbandoned: boolean
+  newReview: boolean
+  reviewReported: boolean
+  trialExpiry: boolean
+  monthlySummary: boolean
+}
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  newOrder: true,
+  orderStatusUpdated: true,
+  orderCancelled: true,
+  lowStock: true,
+  paymentReceived: true,
+  paymentFailed: true,
+  refundInitiated: true,
+  newCustomer: false,
+  wishlistAbandoned: false,
+  newReview: false,
+  reviewReported: true,
+  trialExpiry: true,
+  monthlySummary: false,
+}
+
+export async function getAlertsAction(): Promise<NotificationPreferences> {
+  const { tenantId } = await requireOwnerTenant()
+  const tenant = await withTenant(tenantId, (db) =>
+    db.tenant.findUnique({ where: { id: tenantId }, select: { notificationPreferences: true } })
+  )
+  return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...((tenant?.notificationPreferences as Partial<NotificationPreferences> | null) ?? {}) }
+}
+
+export async function updateAlertsAction(patch: Partial<NotificationPreferences>): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, async (db) => {
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { notificationPreferences: true } })
+    const current = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...((tenant?.notificationPreferences as Partial<NotificationPreferences> | null) ?? {}) }
+    await db.tenant.update({ where: { id: tenantId }, data: { notificationPreferences: { ...current, ...patch } } })
+  })
+  revalidatePath('/admin/settings')
+}
+
+// ── Promotions Tab ──
+export type PromotionItem = {
+  id: string
+  code: string
+  type: DiscountType
+  value: number
+  minOrder: number | null
+  usesLimit: number | null
+  usesCount: number
+  expiresAt: string | null
+  isActive: boolean
+}
+
+export async function getPromotionsAction(): Promise<PromotionItem[]> {
+  const { tenantId } = await requireOwnerTenant()
+  const codes = await withTenant(tenantId, (db) => db.discountCode.findMany({ where: { tenantId }, orderBy: { code: 'asc' } }))
+  return codes.map((c) => ({
+    id: c.id,
+    code: c.code,
+    type: c.type,
+    value: Number(c.value),
+    minOrder: c.minOrder ? Number(c.minOrder) : null,
+    usesLimit: c.usesLimit,
+    usesCount: c.usesCount,
+    expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+    isActive: c.isActive,
+  }))
+}
+
+export type CreatePromotionInput = {
+  code: string
+  type: DiscountType
+  value: number
+  minOrder?: number
+  usesLimit?: number
+  expiresAt?: string
+}
+
+export async function createPromotionAction(input: CreatePromotionInput): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const code = input.code.trim().toUpperCase()
+  if (!code) return { error: 'Code is required.' }
+  if (!Number.isFinite(input.value) || input.value <= 0) return { error: 'Discount value must be greater than 0.' }
+  if (input.type === 'percent' && input.value > 100) return { error: 'Percentage discount cannot exceed 100.' }
+  if (input.minOrder != null && input.minOrder < 0) return { error: 'Minimum order cannot be negative.' }
+  if (input.usesLimit != null && input.usesLimit <= 0) return { error: 'Uses limit must be greater than 0.' }
+
+  try {
+    await withTenant(tenantId, (db) =>
+      db.discountCode.create({
+        data: {
+          tenantId,
+          code,
+          type: input.type,
+          value: input.value,
+          minOrder: input.minOrder ?? null,
+          usesLimit: input.usesLimit ?? null,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+        },
+      })
+    )
+  } catch (err) {
+    if (isUniqueConstraintError(err)) return { error: 'A promotion with that code already exists.' }
+    throw err
+  }
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+export async function togglePromotionAction(id: string, isActive: boolean): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, (db) => db.discountCode.updateMany({ where: { id, tenantId }, data: { isActive } }))
+  revalidatePath('/admin/settings')
+}
+
+export async function deletePromotionAction(id: string): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, (db) => db.discountCode.deleteMany({ where: { id, tenantId } }))
+  revalidatePath('/admin/settings')
+}
+
+// ── Subscription Tab (read-only — no billing provider wired up yet) ──
+export type SubscriptionInfo = { tier: Tier; trialEndsAt: string | null }
+
+export async function getSubscriptionAction(): Promise<SubscriptionInfo> {
+  const { tenantId } = await requireOwnerTenant()
+  const tenant = await withTenant(tenantId, (db) =>
+    db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { tier: true, trialEndsAt: true } })
+  )
+  return { tier: tenant.tier, trialEndsAt: tenant.trialEndsAt ? tenant.trialEndsAt.toISOString() : null }
+}
+
+// ── Payments Tab ──
+export type PaymentGatewayConfig = {
+  upi: { enabled: boolean; upiId: string }
+  instamojo: { enabled: boolean }
+  razorpay: { enabled: boolean }
+}
+
+const DEFAULT_PAYMENT_CONFIG: PaymentGatewayConfig = {
+  upi: { enabled: true, upiId: '' },
+  instamojo: { enabled: false },
+  razorpay: { enabled: false },
+}
+
+// Orders not yet in a terminal state block payment-config changes (mirrors the "3 pending orders" mock copy).
+const NON_TERMINAL_ORDER_STATUSES = ['pending', 'confirmed', 'shipped'] as const
+
+export async function getPaymentsSettingsAction(): Promise<{ config: PaymentGatewayConfig; locked: boolean; lockedCount: number }> {
+  const { tenantId } = await requireOwnerTenant()
+  const [tenant, lockedCount] = await withTenant(tenantId, (db) =>
+    Promise.all([
+      db.tenant.findUnique({ where: { id: tenantId }, select: { paymentConfig: true } }),
+      db.order.count({ where: { tenantId, status: { in: [...NON_TERMINAL_ORDER_STATUSES] } } }),
+    ])
+  )
+  const stored = (tenant?.paymentConfig as Partial<PaymentGatewayConfig> | null) ?? {}
+  return {
+    config: {
+      upi: { ...DEFAULT_PAYMENT_CONFIG.upi, ...stored.upi },
+      instamojo: { ...DEFAULT_PAYMENT_CONFIG.instamojo, ...stored.instamojo },
+      razorpay: { ...DEFAULT_PAYMENT_CONFIG.razorpay, ...stored.razorpay },
+    },
+    locked: lockedCount > 0,
+    lockedCount,
+  }
+}
+
+export async function updatePaymentsSettingsAction(config: PaymentGatewayConfig): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const upiId = config.upi.upiId.trim()
+  if (config.upi.enabled && !upiId) return { error: 'UPI ID is required when UPI is enabled.' }
+  if (upiId && !/^[\w.-]+@[\w.-]+$/.test(upiId)) return { error: 'Enter a valid UPI ID (e.g. name@bank).' }
+
+  const lockedCount = await withTenant(tenantId, (db) =>
+    db.order.count({ where: { tenantId, status: { in: [...NON_TERMINAL_ORDER_STATUSES] } } })
+  )
+  if (lockedCount > 0) return { error: 'Finish or cancel pending orders before changing payment settings.' }
+
+  await withTenant(tenantId, (db) =>
+    db.tenant.update({ where: { id: tenantId }, data: { paymentConfig: { ...config, upi: { ...config.upi, upiId } } } })
+  )
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+// ── Delete Store Tab ──
+export async function deleteStoreAction(confirmName: string): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  const tenant = await withTenant(tenantId, (db) => db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { name: true } }))
+  if (confirmName.trim().toLowerCase() !== tenant.name.trim().toLowerCase()) {
+    return { error: 'Store name does not match.' }
+  }
+
+  await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { deletedAt: new Date(), isLive: false } }))
+
+  const supabase = await createServerClient()
+  await supabase.auth.signOut()
+  return {}
 }

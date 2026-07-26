@@ -78,8 +78,13 @@ export async function listProductsForAdmin(tenantId: string): Promise<AdminProdu
 export async function createProduct(tenantId: string, input: ProductInput) {
   // ponytail: slug is name-derived + a time suffix for uniqueness, no collision-retry needed at this scale
   const slug = `${slugify(input.name)}-${Date.now().toString(36).slice(-4)}`
-  return withTenant(tenantId, (db) =>
-    db.product.create({
+  return withTenant(tenantId, async (db) => {
+    // Before go-live there's no live storefront to protect, so new products publish immediately —
+    // otherwise they'd sit as 'draft' forever, since the draft→publish flow only runs post go-live
+    // (PublishButton only renders once isLive is true), leaving the "3 products" go-live
+    // requirement impossible to satisfy.
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { isLive: true } })
+    return db.product.create({
       data: {
         tenantId,
         slug,
@@ -91,10 +96,10 @@ export async function createProduct(tenantId: string, input: ProductInput) {
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
-        status: 'draft',
+        status: tenant?.isLive ? 'draft' : 'published',
       },
     })
-  )
+  })
 }
 
 export async function updateProduct(tenantId: string, id: string, input: ProductInput) {

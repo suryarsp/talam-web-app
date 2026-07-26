@@ -1,5 +1,6 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { uploadImage } from '@/lib/cloudinary'
@@ -13,6 +14,7 @@ import {
   resetProductsToDefault,
   type ProductInput,
 } from '@/lib/data/products'
+import { notifyIfReadyToGoLive } from '@/lib/data/tenant'
 import { updateProductOccasions } from '@/lib/data/occasions'
 import { assignProductsToOccasionAction } from '@/app/admin/occasions/actions'
 
@@ -25,6 +27,10 @@ export async function createProductAction(input: ProductInput): Promise<string> 
   const { tenantId } = await requireOwnerTenant()
   const created = await createProduct(tenantId, input)
   revalidatePath('/admin/products')
+
+  const isLocalDev = (await headers()).get('host')?.includes('localhost') ?? false
+  await notifyIfReadyToGoLive(tenantId, isLocalDev)
+
   return created.id
 }
 

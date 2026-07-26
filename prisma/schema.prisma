@@ -62,6 +62,7 @@ model Tenant {
   isOnboarded          Boolean         @default(false) @map("is_onboarded")
   isLive               Boolean         @default(false) @map("is_live")
   hasSeenSetupTour     Boolean         @default(false) @map("has_seen_setup_tour")
+  readyToGoLiveNotifiedAt DateTime?    @map("ready_to_go_live_notified_at") @db.Timestamptz
   onboardingReminderCount Int          @default(0) @map("onboarding_reminder_count")
   slug                 String          @unique
   name                 String
@@ -77,6 +78,7 @@ model Tenant {
   notifyEmailOnOrder   Boolean         @default(true) @map("notify_email_on_order")
   paymentProvider      PaymentProvider @default(upi_manual) @map("payment_provider")
   paymentConfig        Json?           @map("payment_config")
+  notificationPreferences Json?        @map("notification_preferences")
   storeType            String?         @map("store_type")
   freeDeliveryAbove    Decimal?        @map("free_delivery_above") @db.Decimal(10, 2)
   shippingFee          Decimal         @default(0) @map("shipping_fee") @db.Decimal(10, 2)
@@ -266,11 +268,14 @@ model StoreAbout {
   storyTitle        String?       @map("story_title")
   description       String?
   ownerPhotoUrl     String?       @map("owner_photo_url")
+  ownerName         String?       @map("owner_name")
+  ownerTitle        String?       @map("owner_title")
   instagramUrl      String?       @map("instagram_url")
   facebookUrl       String?       @map("facebook_url")
   youtubeUrl        String?       @map("youtube_url")
   googleBusinessUrl String?       @map("google_business_url")
   socialLinks       Json          @default("[]") @map("social_links")
+  galleryUrls       String[]      @default([]) @map("gallery_urls")
   status            PublishStatus @default(published)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz

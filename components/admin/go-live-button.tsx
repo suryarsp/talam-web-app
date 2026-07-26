@@ -4,21 +4,22 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
-import { goLiveAction } from '@/app/admin/dashboard/actions'
+import { goLiveAction, getTenantLiveStateAction } from '@/app/admin/dashboard/actions'
 import { useTourStore } from '@/lib/store/tour'
 import { buildGoLiveSteps } from '@/lib/tours'
-import type { MissingConfigItem } from '@/lib/data/tenant'
 
-export function GoLiveButton({ missing }: { readonly missing: MissingConfigItem[] }) {
+export function GoLiveButton() {
   const router = useRouter()
   const startTour = useTourStore((s) => s.start)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
-  const ready = missing.length === 0
 
-  function handleClick() {
-    if (!ready) {
-      startTour(buildGoLiveSteps(missing))
+  async function handleClick() {
+    // `missing` is fetched once on mount by the parent nav shell, so it goes stale the moment the
+    // owner finishes a requirement elsewhere (settings, products) without a full remount — refetch here.
+    const state = await getTenantLiveStateAction()
+    if (state.missing.length > 0) {
+      startTour(buildGoLiveSteps(state.missing))
       return
     }
     setDialogOpen(true)

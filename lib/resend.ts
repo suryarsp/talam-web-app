@@ -64,6 +64,46 @@ export async function sendOnboardingReminderEmail(
   }
 }
 
+export async function sendStoreLiveEmail(to: string, params: { storeName: string; storeUrl: string }): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `${params.storeName} is live!`,
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: "You're live! 🎉",
+          paragraphs: [`<strong>${escapeHtml(params.storeName)}</strong> is now live on Talam — customers can browse and place orders right now.`],
+          ctas: [{ label: 'View your store', href: params.storeUrl }],
+          signature: 'Go get your first sale,<br/>The Talam Team',
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendStoreLiveEmail failed:', err)
+  }
+}
+
+export async function sendGoLiveReadyEmail(to: string, params: { storeName: string; adminUrl: string }): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: "You're ready to go live!",
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: 'All set — go live whenever you want',
+          paragraphs: [`<strong>${escapeHtml(params.storeName)}</strong> has everything it needs: payments, contact info, store details and products. Hit Go Live to open it up to customers.`],
+          ctas: [{ label: 'Go live →', href: params.adminUrl }],
+          signature: 'The Talam Team',
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendGoLiveReadyEmail failed:', err)
+  }
+}
+
 export async function sendOnboardingCompleteEmail(
   to: string,
   params: { storeName: string; storeUrl: string; adminUrl: string }

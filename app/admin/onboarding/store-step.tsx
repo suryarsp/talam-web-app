@@ -59,13 +59,17 @@ export function StoreStep({
           name="category"
           render={({ field, fieldState }) => (
             <Field label="Category" error={fieldState.error?.message}>
-              <SelectField value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)}>
-                <option value="">Select a category</option>
-                <option>Clothing</option>
-                {STORE_TYPES.map((type) => (
-                  <option key={type}>{type}</option>
-                ))}
-              </SelectField>
+              <SelectField
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                invalid={Boolean(fieldState.error)}
+                options={[
+                  { value: '', label: 'Select a category' },
+                  { value: 'Clothing', label: 'Clothing' },
+                  ...STORE_TYPES.map((type) => ({ value: type, label: type })),
+                ]}
+              />
             </Field>
           )}
         />

@@ -54,9 +54,17 @@ export function Tour() {
     let attempts = 0
     const id = setInterval(() => {
       attempts++
-      if (document.querySelector(step.target as string) || attempts >= MAX_POLL_ATTEMPTS) {
+      if (document.querySelector(step.target as string)) {
         clearInterval(id)
         setRun(true)
+        return
+      }
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        clearInterval(id)
+        // Target never showed up (e.g. slower layout/hydration) — skip the step instead of
+        // running Joyride against nothing, which renders as a blank full-page overlay.
+        if (stepIndex + 1 < steps.length) setStepIndex(stepIndex + 1)
+        else stop()
       }
     }, POLL_INTERVAL_MS)
     return () => clearInterval(id)

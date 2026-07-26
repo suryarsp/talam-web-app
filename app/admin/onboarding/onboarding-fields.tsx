@@ -1,6 +1,9 @@
-import { ChevronDown, ImagePlus } from 'lucide-react'
+import { ImagePlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { STEP_ACCENTS, STEPS } from './onboarding-data'
 
 export function StepTitle({
@@ -54,13 +57,13 @@ export function TextInput({
   invalid,
   className,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { readonly invalid?: boolean }) {
+}: React.ComponentProps<typeof Input> & { readonly invalid?: boolean }) {
   return (
-    <input
+    <Input
       {...props}
       className={[
-        'h-14 rounded-xl border bg-surface px-5 font-body text-base leading-5 text-[#1F2937] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-2 focus:shadow-[0_0_0_4px_#4F3FF014]',
-        invalid ? 'border-danger focus:border-danger' : 'border-[#E5E7EB] focus:border-brand-primary',
+        'h-14 rounded-xl border bg-surface px-5 font-body text-base leading-5 text-[#1F2937] outline-none transition-colors placeholder:text-[#9CA3AF] focus-visible:border-2 focus-visible:shadow-[0_0_0_4px_#4F3FF014] focus-visible:ring-0',
+        invalid ? 'border-danger focus-visible:border-danger' : 'border-[#E5E7EB] focus-visible:border-brand-primary',
         className ?? '',
       ].join(' ')}
     />
@@ -71,48 +74,60 @@ export function TextArea({
   invalid,
   className,
   ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { readonly invalid?: boolean }) {
+}: React.ComponentProps<typeof Textarea> & { readonly invalid?: boolean }) {
   return (
-    <textarea
+    <Textarea
       {...props}
       rows={5}
       className={[
-        'resize-none rounded-xl border bg-surface px-5 py-4 font-body text-base leading-6 text-[#1F2937] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-2 focus:shadow-[0_0_0_4px_#4F3FF014]',
-        invalid ? 'border-danger focus:border-danger' : 'border-[#E5E7EB] focus:border-brand-primary',
+        'resize-none rounded-xl border bg-surface px-5 py-4 font-body text-base leading-6 text-[#1F2937] outline-none transition-colors placeholder:text-[#9CA3AF] focus-visible:border-2 focus-visible:shadow-[0_0_0_4px_#4F3FF014] focus-visible:ring-0',
+        invalid ? 'border-danger focus-visible:border-danger' : 'border-[#E5E7EB] focus-visible:border-brand-primary',
         className ?? '',
       ].join(' ')}
     />
   )
 }
 
+// base-ui's Select rejects an empty-string item value (reserved for "nothing selected"), but the
+// onboarding form uses "" as a real, selectable value (e.g. "No category") — map it to this
+// sentinel at the boundary so callers can keep passing plain string values including "".
+const EMPTY_VALUE = '__none__'
+
 export function SelectField({
-  children,
+  options,
   value,
   onChange,
   onBlur,
   invalid,
 }: {
-  readonly children: React.ReactNode
+  readonly options: { value: string; label: string }[]
   readonly value?: string
-  readonly onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void
+  readonly onChange?: (value: string) => void
   readonly onBlur?: () => void
   readonly invalid?: boolean
 }) {
   return (
-    <span className="relative">
-      <select
+    <Select
+      value={value || EMPTY_VALUE}
+      onValueChange={(v) => onChange?.(!v || v === EMPTY_VALUE ? '' : String(v))}
+      onOpenChange={(open) => { if (!open) onBlur?.() }}
+    >
+      <SelectTrigger
         className={[
-          'h-[52px] w-full appearance-none rounded-xl border bg-surface px-5 pr-12 font-body text-base leading-5 text-[#1F2937] outline-none',
-          invalid ? 'border-danger' : 'border-[#E5E7EB] focus:border-brand-primary',
+          'h-[52px] w-full justify-between rounded-xl border bg-surface px-5 font-body text-base leading-5 text-[#1F2937] outline-none',
+          invalid ? 'border-danger' : 'border-[#E5E7EB] focus-visible:border-brand-primary',
         ].join(' ')}
-        value={value}
-        onChange={onChange}
-        onBlur={onBlur}
       >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-5 top-1/2 size-4 -translate-y-1/2 text-[#6B7280]" />
-    </span>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt.value || EMPTY_VALUE} value={opt.value || EMPTY_VALUE}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

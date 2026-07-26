@@ -35,14 +35,12 @@ export function ProductStep({
           name="categoryId"
           render={({ field }) => (
             <Field label="Category">
-              <SelectField value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur}>
-                <option value="">No category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </SelectField>
+              <SelectField
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                options={[{ value: '', label: 'No category' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+              />
             </Field>
           )}
         />
