@@ -277,6 +277,15 @@ export async function addCategoryAction(name: string, department: Department): P
   }
 }
 
+export async function reorderCategoriesAction(orderedIds: string[]): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, (db) =>
+    Promise.all(orderedIds.map((id, sortOrder) => db.productCategory.updateMany({ where: { id, tenantId }, data: { sortOrder } })))
+  )
+  revalidatePath('/admin/settings')
+  return {}
+}
+
 export async function deleteCategoryAction(id: string): Promise<{ error?: string }> {
   const { tenantId } = await requireOwnerTenant()
   const productCount = await withTenant(tenantId, (db) => db.product.count({ where: { tenantId, categoryId: id, deletedAt: null } }))

@@ -7,6 +7,7 @@ import { getOccasionTheme } from '@/lib/occasion-themes'
 import { parseListingParams } from '@/lib/parse-listing-params'
 import { ProductGrid } from '@/components/store/product-grid'
 import { ProductCarousel } from '@/components/store/product-carousel'
+import { OccasionHeroCarousel } from '@/components/store/occasion-hero-carousel'
 import { FilterBar } from '@/components/store/filter-bar'
 
 type Props = {
@@ -35,14 +36,12 @@ export default async function OccasionPage({ params, searchParams }: Props) {
 
   return (
     <main>
-      <div
-        className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center sm:py-20"
-        style={{ backgroundImage: theme.gradient }}
-      >
-        <span className="text-5xl leading-none">{occasion.emoji || '🎉'}</span>
-        <h1 className="font-heading text-2xl font-bold text-white sm:text-3xl">{occasion.name}</h1>
-        <p className="font-body text-sm text-white/80 sm:text-base">{theme.headline}</p>
-      </div>
+      <OccasionHeroCarousel
+        name={occasion.name}
+        emoji={occasion.emoji}
+        theme={theme}
+        featuredProducts={products as any}
+      />
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-16 sm:py-10">
         <p className="mb-4 font-body text-sm text-muted-warm">

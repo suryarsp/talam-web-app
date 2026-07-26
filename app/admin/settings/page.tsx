@@ -1,21 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, AlertTriangle, X, GripVertical } from 'lucide-react'
+import { ChevronLeft, AlertTriangle, X, GripVertical, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import {
   getAboutAction,
   updateAboutAction,
-  getContactSettingsAction,
-  updateContactSettingsAction,
-  addGalleryPhotoAction,
-  removeGalleryPhotoAction,
   getStoreSettingsAction,
   updateStoreSettingsAction,
   getCategoriesAction,
   addCategoryAction,
   deleteCategoryAction,
+  reorderCategoriesAction,
   getAlertsAction,
   updateAlertsAction,
   getPromotionsAction,
@@ -40,32 +37,13 @@ import { Dialog } from '@/components/ui/dialog'
 import { ROOT_DOMAIN } from '@/lib/tenant-url'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
+import { ContactInfoTab } from './contact-info-tab'
+import { Toggle, SectionLabel, useSavedFlash, isValidIndianMobile, isValidUpiId } from './settings-shared'
 
 const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Subscription', 'Payments', 'Contact Info'] as const
 type Tab = (typeof TABS)[number] | 'Delete Store'
 
 const COLOR_PRESETS = ['#C1502E', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#0EA5E9']
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`flex h-[26px] w-12 shrink-0 cursor-pointer items-center rounded-full px-[2px] transition-colors ${checked ? 'bg-brand-primary' : 'bg-[#D1D5DB]'}`}
-    >
-      <div className={`size-[22px] rounded-full bg-surface shadow-sm transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-0'}`} />
-    </button>
-  )
-}
-
-function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
-  return (
-    <div className="mb-3 flex items-center justify-between border-b border-border-light pb-2">
-      <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-warm">{children}</p>
-      {right}
-    </div>
-  )
-}
 
 function Input({ label, defaultValue, type = 'text', ...props }: { label: string; defaultValue?: string; type?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -97,7 +75,7 @@ function ImageUploadPreview({ initialLabel, imageUrl, onFile }: { initialLabel: 
   return (
     <label
       title="Click to change"
-      className="flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-brand-primary/10 transition-opacity hover:opacity-80"
+      className="group/logo relative flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-brand-primary/10"
     >
       <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
       {src ? (
@@ -106,27 +84,89 @@ function ImageUploadPreview({ initialLabel, imageUrl, onFile }: { initialLabel: 
       ) : (
         <span className="text-sm font-bold tracking-[0.04em] text-brand-primary">{initialLabel}</span>
       )}
+      <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover/logo:opacity-100">
+        <Pencil className="size-4 text-white" />
+      </span>
     </label>
   )
 }
 
-/** Small transient "✓ Saved" flash shown after a field autosaves — shared across tabs. */
-function useSavedFlash(): [boolean, () => void] {
-  const [saved, setSaved] = useState(false)
-  const flash = useCallback(() => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
-  }, [])
-  return [saved, flash]
+// ── About Tab ──
+const SOCIAL_PLATFORM_PRESETS = ['Instagram', 'Facebook', 'YouTube', 'WhatsApp for Business'] as const
+
+function AddSocialLinkDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (link: SocialLink) => void }) {
+  const [platform, setPlatform] = useState<string>('')
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setPlatform('')
+      setUrl('')
+    }
+  }, [open])
+
+  function handleAdd() {
+    if (!platform || !url.trim()) return
+    onAdd({ platform, url: url.trim() })
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} position="center">
+      <div className="p-6">
+        <h2 className="font-marketing text-lg font-semibold text-fg">Add social link</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-fg">Platform</span>
+            <div className="grid grid-cols-2 gap-2">
+              {SOCIAL_PLATFORM_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPlatform(p)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                    platform === p ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-border text-fg hover:border-brand-primary/50'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Input
+            label="Profile / Page URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="https://instagram.com/yourstore"
+            autoFocus
+          />
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 font-body text-sm font-semibold text-muted-warm hover:bg-bg">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!platform || !url.trim()}
+            onClick={handleAdd}
+            className="rounded-lg bg-brand-primary px-4 py-2 font-body text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            Add link
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )
 }
 
-// ── About Tab ──
 function AboutTab() {
   const [loaded, setLoaded] = useState(false)
   const [description, setDescription] = useState('')
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
 
   useEffect(() => {
     getAboutAction().then((about) => {
@@ -160,7 +200,7 @@ function AboutTab() {
         </label>
       </div>
       <div>
-        <SectionLabel right={<button type="button" onClick={() => setSocialLinks((prev) => [...prev, { platform: '', url: '' }])} className="cursor-pointer text-xs font-semibold text-brand-primary">+ Add link</button>}>
+        <SectionLabel right={<button type="button" onClick={() => setLinkDialogOpen(true)} className="cursor-pointer text-xs font-semibold text-brand-primary">+ Add link</button>}>
           Social Links
         </SectionLabel>
         <div className="flex flex-col gap-3">
@@ -170,12 +210,7 @@ function AboutTab() {
               <span className="flex size-7 shrink-0 items-center justify-center rounded bg-bg text-[10px] font-bold uppercase text-muted-warm">
                 {link.platform.slice(0, 2) || '—'}
               </span>
-              <input
-                value={link.platform}
-                onChange={(e) => updateLink(i, { platform: e.target.value })}
-                placeholder="Platform (e.g., Instagram)"
-                className="w-[120px] shrink-0 border-r border-border bg-transparent pr-2 text-sm font-semibold text-fg outline-none"
-              />
+              <span className="w-[140px] shrink-0 border-r border-border pr-2 text-sm font-semibold text-fg">{link.platform}</span>
               <input
                 value={link.url}
                 onChange={(e) => updateLink(i, { url: e.target.value })}
@@ -188,6 +223,7 @@ function AboutTab() {
             </div>
           ))}
         </div>
+        <AddSocialLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} onAdd={(link) => setSocialLinks((prev) => [...prev, link])} />
       </div>
       <button
         type="button"
@@ -198,6 +234,47 @@ function AboutTab() {
         {saving ? 'Saving…' : 'Save About Page'}
       </button>
     </div>
+  )
+}
+
+/** Shared destructive-action confirm dialog, styled to match the other dialogs in this file. */
+function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel?: string
+  busy?: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} position="center">
+      <div className="p-6">
+        <h2 className="font-marketing text-lg font-semibold text-fg">{title}</h2>
+        <p className="mt-2 text-sm text-muted-warm">{description}</p>
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 font-body text-sm font-semibold text-muted-warm hover:bg-bg">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="rounded-lg bg-danger px-4 py-2 font-body text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {busy ? 'Please wait…' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 
@@ -282,6 +359,11 @@ function CategoriesEditor() {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<CategoryItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const dragIndex = useRef<number | null>(null)
 
   useEffect(() => {
     getCategoriesAction().then((cats) => {
@@ -290,14 +372,34 @@ function CategoriesEditor() {
     })
   }, [])
 
-  async function handleDelete(id: string) {
+  async function handleDelete() {
+    if (!pendingDelete) return
     setError('')
-    const result = await deleteCategoryAction(id)
+    setDeleting(true)
+    const result = await deleteCategoryAction(pendingDelete.id)
+    setDeleting(false)
     if (result.error) {
       setError(result.error)
+      setPendingDelete(null)
       return
     }
-    setCategories((prev) => prev.filter((c) => c.id !== id))
+    setCategories((prev) => prev.filter((c) => c.id !== pendingDelete.id))
+    setPendingDelete(null)
+  }
+
+  function handleDrop(dropIndex: number) {
+    const from = dragIndex.current
+    dragIndex.current = null
+    setDraggingIndex(null)
+    setDragOverIndex(null)
+    if (from === null || from === dropIndex) return
+    setCategories((prev) => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(dropIndex, 0, moved)
+      reorderCategoriesAction(next.map((c) => c.id))
+      return next
+    })
   }
 
   if (!loaded) return <p className="py-6 text-center text-sm text-muted-warm">Loading…</p>
@@ -307,14 +409,34 @@ function CategoriesEditor() {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
       {categories.length === 0 && <p className="px-1 py-2 text-sm text-muted-warm">No categories yet — add one below.</p>}
-      {categories.map((cat) => (
-        <div key={cat.id} className="flex items-center gap-2 border-b border-border-light py-2 last:border-0">
-          <GripVertical className="size-4 text-muted-warm" />
+      {categories.map((cat, i) => (
+        <div
+          key={cat.id}
+          draggable
+          onDragStart={() => {
+            dragIndex.current = i
+            setDraggingIndex(i)
+          }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (dragOverIndex !== i) setDragOverIndex(i)
+          }}
+          onDragEnd={() => {
+            dragIndex.current = null
+            setDraggingIndex(null)
+            setDragOverIndex(null)
+          }}
+          onDrop={() => handleDrop(i)}
+          className={`flex items-center gap-2 rounded-lg border-b border-t-2 border-border-light py-2 pl-1 transition-colors last:border-b-0 ${
+            draggingIndex === i ? 'opacity-40' : ''
+          } ${dragOverIndex === i && draggingIndex !== i ? 'border-t-brand-primary' : 'border-t-transparent'}`}
+        >
+          <GripVertical className="size-4 shrink-0 cursor-grab text-muted-warm active:cursor-grabbing" />
           <span className="flex-1 text-md text-fg">{cat.name}</span>
           {departmentLabel(cat.department) && (
             <span className="rounded-full bg-bg px-2 py-0.5 text-2xs font-semibold text-muted-warm">{departmentLabel(cat.department)}</span>
           )}
-          <button type="button" onClick={() => handleDelete(cat.id)} className="text-muted-warm hover:text-danger">
+          <button type="button" onClick={() => setPendingDelete(cat)} className="text-muted-warm hover:text-danger">
             <X className="size-4" />
           </button>
         </div>
@@ -328,6 +450,15 @@ function CategoriesEditor() {
       </button>
       {error && <p className="px-1 text-xs text-danger">{error}</p>}
       <AddCategoryDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdded={(cat) => setCategories((prev) => [...prev, cat])} />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`Delete "${pendingDelete?.name}"?`}
+        description="Products in this category must be moved or deleted first. This can't be undone."
+        confirmLabel="Delete category"
+        busy={deleting}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }
@@ -337,6 +468,7 @@ function StoreTab() {
   const [settings, setSettings] = useState<StoreSettings | null>(null)
   const [saved, flash] = useSavedFlash()
   const [error, setError] = useState('')
+  const [whatsappError, setWhatsappError] = useState('')
 
   useEffect(() => {
     getStoreSettingsAction().then((s) => {
@@ -408,11 +540,21 @@ function StoreTab() {
                 style={{ backgroundColor: color }}
               />
             ))}
-            <input
-              defaultValue={settings.brandColor ?? ''}
-              onBlur={(e) => e.target.value !== settings.brandColor && save({ brandColor: e.target.value })}
-              className="min-w-[100px] grow rounded-lg border border-border bg-surface px-[10px] py-2 font-mono text-md text-fg"
-            />
+            <label
+              title="Custom colour"
+              className={`relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-border text-muted-warm transition-transform active:scale-90 ${
+                settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor) ? 'border-solid ring-[3px] ring-fg ring-offset-2' : ''
+              }`}
+              style={settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor) ? { backgroundColor: settings.brandColor, borderColor: settings.brandColor } : undefined}
+            >
+              {!(settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor)) && <span className="text-lg leading-none">+</span>}
+              <input
+                type="color"
+                value={settings.brandColor ?? '#000000'}
+                onChange={(e) => save({ brandColor: e.target.value })}
+                className="absolute inset-0 size-full cursor-pointer opacity-0"
+              />
+            </label>
           </div>
         </div>
       </div>
@@ -484,10 +626,19 @@ function StoreTab() {
               <span className="rounded-lg border border-border bg-bg px-3 py-[9px] text-sm text-muted-warm">+91</span>
               <input
                 defaultValue={settings.whatsappNumber}
-                onBlur={(e) => e.target.value !== settings.whatsappNumber && save({ whatsappNumber: e.target.value })}
-                className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary"
+                onBlur={(e) => {
+                  const value = e.target.value.trim()
+                  if (value && !isValidIndianMobile(value)) {
+                    setWhatsappError('Enter a valid 10-digit mobile number.')
+                    return
+                  }
+                  setWhatsappError('')
+                  if (value !== settings.whatsappNumber) save({ whatsappNumber: value })
+                }}
+                className={`min-w-0 flex-1 rounded-lg border bg-bg px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary ${whatsappError ? 'border-danger' : 'border-border'}`}
               />
             </div>
+            {whatsappError && <span className="text-xs text-danger">{whatsappError}</span>}
           </label>
           <div className="flex items-center justify-between">
             <div>
@@ -503,22 +654,52 @@ function StoreTab() {
 }
 
 // ── Alerts Tab ──
-const ALERT_SECTIONS: { label: string; items: { key: keyof NotificationPreferences; name: string; sub: string }[] }[] = [
+const ALERT_SECTIONS: { label: string; items: { key: keyof NotificationPreferences; name: string; sub: string; critical?: boolean; offWarning?: string }[] }[] = [
   {
     label: 'Order Alerts',
     items: [
       { key: 'newOrder', name: 'New order placed', sub: 'Email you when a customer places an order' },
       { key: 'orderStatusUpdated', name: 'Order status updated', sub: "Confirmation when you update an order's status" },
-      { key: 'orderCancelled', name: 'Order cancelled', sub: 'Alert when an order is cancelled by customer or you' },
-      { key: 'lowStock', name: 'Low stock warning', sub: 'When a product drops below 5 units' },
+      {
+        key: 'orderCancelled',
+        name: 'Order cancelled',
+        sub: 'Alert when an order is cancelled by customer or you',
+        critical: true,
+        offWarning: "Cancellations won't reach you — a customer-cancelled order could sit unnoticed until you check the orders list yourself.",
+      },
+      {
+        key: 'lowStock',
+        name: 'Low stock warning',
+        sub: 'When a product drops below 5 units',
+        critical: true,
+        offWarning: "You won't be warned before a product sells out — it can go out of stock without you knowing to restock it.",
+      },
     ],
   },
   {
     label: 'Payment Alerts',
     items: [
-      { key: 'paymentReceived', name: 'Payment received', sub: "Confirm when a customer's payment is verified" },
-      { key: 'paymentFailed', name: 'Payment failed / UTR pending', sub: "When UPI customer hasn't submitted UTR after 2 hours" },
-      { key: 'refundInitiated', name: 'Refund initiated', sub: 'Alert when a refund is triggered via gateway' },
+      {
+        key: 'paymentReceived',
+        name: 'Payment received',
+        sub: "Confirm when a customer's payment is verified",
+        critical: true,
+        offWarning: "You won't get confirmation that a payment cleared — you could end up shipping an order before verifying it was actually paid for.",
+      },
+      {
+        key: 'paymentFailed',
+        name: 'Payment failed / UTR pending',
+        sub: "When UPI customer hasn't submitted UTR after 2 hours",
+        critical: true,
+        offWarning: "Stuck UPI payments won't be flagged — an order can sit unpaid for hours with no nudge to follow up with the customer.",
+      },
+      {
+        key: 'refundInitiated',
+        name: 'Refund initiated',
+        sub: 'Alert when a refund is triggered via gateway',
+        critical: true,
+        offWarning: "You won't be told when money goes back to a customer — refunds could happen without your knowledge.",
+      },
     ],
   },
   {
@@ -546,14 +727,23 @@ const ALERT_SECTIONS: { label: string; items: { key: keyof NotificationPreferenc
 
 function AlertsTab() {
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null)
+  const [pendingOff, setPendingOff] = useState<{ key: keyof NotificationPreferences; name: string; offWarning: string } | null>(null)
 
   useEffect(() => {
     getAlertsAction().then(setPrefs)
   }, [])
 
-  function handleToggle(key: keyof NotificationPreferences, checked: boolean) {
+  function commitToggle(key: keyof NotificationPreferences, checked: boolean) {
     setPrefs((prev) => (prev ? { ...prev, [key]: checked } : prev))
     updateAlertsAction({ [key]: checked })
+  }
+
+  function handleToggle(key: keyof NotificationPreferences, checked: boolean, name: string, critical?: boolean, offWarning?: string) {
+    if (!checked && critical) {
+      setPendingOff({ key, name, offWarning: offWarning ?? '' })
+      return
+    }
+    commitToggle(key, checked)
   }
 
   if (!prefs) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
@@ -565,11 +755,28 @@ function AlertsTab() {
           <SectionLabel>{section.label}</SectionLabel>
           <div className="flex flex-col divide-y divide-border-light rounded-lg border border-border">
             {section.items.map((item) => (
-              <AlertRow key={item.key} name={item.name} sub={item.sub} checked={prefs[item.key]} onChange={(v) => handleToggle(item.key, v)} />
+              <AlertRow
+                key={item.key}
+                name={item.name}
+                sub={item.sub}
+                checked={prefs[item.key]}
+                onChange={(v) => handleToggle(item.key, v, item.name, item.critical, item.offWarning)}
+              />
             ))}
           </div>
         </div>
       ))}
+      <ConfirmDialog
+        open={pendingOff !== null}
+        title={`Turn off "${pendingOff?.name}"?`}
+        description={pendingOff?.offWarning ?? ''}
+        confirmLabel="Turn off"
+        onClose={() => setPendingOff(null)}
+        onConfirm={() => {
+          if (pendingOff) commitToggle(pendingOff.key, false)
+          setPendingOff(null)
+        }}
+      />
     </div>
   )
 }
@@ -907,23 +1114,36 @@ function PaymentsTab() {
             </div>
             <div className="flex items-center gap-3">
               {config.upi.enabled && <span className="rounded-full bg-success-bg px-2 py-0.5 text-2xs font-semibold text-success">Enabled</span>}
-              <Toggle checked={config.upi.enabled} onChange={(v) => !locked && save({ ...config, upi: { ...config.upi, enabled: v } })} />
+              <Toggle
+                checked={config.upi.enabled}
+                disabled={locked || (!config.upi.enabled && !isValidUpiId(config.upi.upiId))}
+                onChange={(v) => {
+                  if (locked) return
+                  if (v && !isValidUpiId(config.upi.upiId)) return
+                  save({ ...config, upi: { ...config.upi, enabled: v } })
+                }}
+              />
             </div>
           </div>
-          {config.upi.enabled && (
-            <div>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm font-semibold text-fg">UPI ID</span>
-                <input
-                  defaultValue={config.upi.upiId}
-                  disabled={locked}
-                  onBlur={(e) => e.target.value !== config.upi.upiId && save({ ...config, upi: { ...config.upi, upiId: e.target.value } })}
-                  className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg outline-none focus:border-brand-primary disabled:opacity-60"
-                />
-              </label>
+          <div>
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-fg">UPI ID</span>
+              <input
+                defaultValue={config.upi.upiId}
+                disabled={locked}
+                onBlur={(e) => e.target.value !== config.upi.upiId && save({ ...config, upi: { ...config.upi, upiId: e.target.value } })}
+                placeholder="name@bank"
+                className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg outline-none focus:border-brand-primary disabled:opacity-60"
+              />
+            </label>
+            {config.upi.enabled ? (
               <p className="mt-1 text-xs text-muted-warm">Customers scan your QR and share UTR manually to confirm payment</p>
-            </div>
-          )}
+            ) : (
+              <p className="mt-1 text-xs text-muted-warm">
+                {isValidUpiId(config.upi.upiId) ? 'Looks good — flip the toggle to enable UPI.' : 'Enter a valid UPI ID (e.g. name@bank) to enable this gateway.'}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border border-border p-5">
@@ -955,175 +1175,6 @@ function PaymentsTab() {
 
       {saved && <p className="text-center text-xs font-medium text-success">✓ Saved</p>}
       {locked && <p className="text-center text-xs text-muted-warm">🔒 Settings are locked while you have pending orders.</p>}
-    </div>
-  )
-}
-
-// ── Contact Info Tab ──
-function ContactInfoTab() {
-  const [loaded, setLoaded] = useState(false)
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [address, setAddress] = useState('')
-  const [city, setCity] = useState('')
-  const [ownerName, setOwnerName] = useState('')
-  const [ownerTitle, setOwnerTitle] = useState('')
-  const [whatsappNumber, setWhatsappNumber] = useState('')
-  const [showWhatsApp, setShowWhatsApp] = useState(true)
-  const [hours, setHours] = useState('')
-  const [sameAsContact, setSameAsContact] = useState(false)
-  const [gallery, setGallery] = useState<string[]>([])
-  const [galleryError, setGalleryError] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    getContactSettingsAction().then((data) => {
-      setContactPhone(data.contactPhone)
-      setContactEmail(data.contactEmail)
-      setAddress(data.address)
-      setCity(data.city)
-      setOwnerName(data.ownerName)
-      setOwnerTitle(data.ownerTitle)
-      setWhatsappNumber(data.whatsappNumber)
-      setShowWhatsApp(data.showWhatsappButton)
-      setHours(data.hours)
-      setGallery(data.galleryUrls)
-      setSameAsContact(Boolean(data.whatsappNumber) && data.whatsappNumber === data.contactPhone)
-      setLoaded(true)
-    })
-  }, [])
-
-  async function handleSave() {
-    setSaving(true)
-    await updateContactSettingsAction({
-      contactPhone,
-      contactEmail,
-      address,
-      city,
-      ownerName,
-      ownerTitle,
-      whatsappNumber: sameAsContact ? contactPhone : whatsappNumber,
-      showWhatsappButton: showWhatsApp,
-      hours,
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  async function handleAddPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setGalleryError('')
-    const result = await addGalleryPhotoAction(file)
-    if (result.error) {
-      setGalleryError(result.error)
-      return
-    }
-    if (result.url) setGallery((prev) => [...prev, result.url!])
-  }
-
-  async function handleRemovePhoto(url: string) {
-    setGallery((prev) => prev.filter((u) => u !== url))
-    await removeGalleryPhotoAction(url)
-  }
-
-  if (!loaded) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
-
-  return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <SectionLabel>Owner</SectionLabel>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Input label="Owner Name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-          <Input label="Title / Role" value={ownerTitle} onChange={(e) => setOwnerTitle(e.target.value)} />
-        </div>
-      </div>
-
-      <div>
-        <SectionLabel right={saved ? <span className="text-xs font-medium text-success">✓ Saved</span> : undefined}>Contact Details</SectionLabel>
-        <div className="flex flex-col gap-4">
-          <div data-tour="contact-info" className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input label="Contact Phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-            <Input label="Contact Email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-          </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-fg">WhatsApp Number</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg border border-border bg-surface px-3 py-[9px] text-sm text-muted-warm">+91</span>
-              <input
-                value={sameAsContact ? contactPhone : whatsappNumber}
-                disabled={sameAsContact}
-                onChange={(e) => setWhatsappNumber(e.target.value)}
-                className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary disabled:opacity-60"
-              />
-              <label className="flex shrink-0 items-center gap-1.5 text-sm text-muted-warm">
-                <input type="checkbox" checked={sameAsContact} onChange={(e) => setSameAsContact(e.target.checked)} className="size-4 accent-brand-primary" />
-                Same as contact phone
-              </label>
-            </div>
-          </label>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-md font-semibold text-fg">Show WhatsApp Button on Store</p>
-              <p className="text-xs text-muted-warm">Floating button visible to all visitors</p>
-            </div>
-            <Toggle checked={showWhatsApp} onChange={setShowWhatsApp} />
-          </div>
-        </div>
-      </div>
-
-      <div data-tour="store-address">
-        <SectionLabel>Store Address</SectionLabel>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
-          <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} />
-        </div>
-        <p className="mt-1.5 text-xs text-muted-warm">Shown on your About page and used for delivery estimates.</p>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
-        className="self-start rounded-lg bg-brand-primary px-5 py-[9px] text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-60"
-      >
-        {saving ? 'Saving…' : 'Save Contact Info'}
-      </button>
-
-      <div>
-        <SectionLabel>Store Photos</SectionLabel>
-        <div className="flex gap-3 overflow-x-auto">
-          {gallery.map((url) => (
-            <div key={url} className="group relative size-24 shrink-0 overflow-hidden rounded-lg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="size-full object-cover" />
-              <button
-                type="button"
-                onClick={() => handleRemovePhoto(url)}
-                className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          ))}
-          {gallery.length < 8 && (
-            <label className="flex size-24 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border text-muted-warm hover:opacity-80">
-              <input type="file" accept="image/*" className="hidden" onChange={handleAddPhoto} />
-              <span className="text-2xl">+</span>
-            </label>
-          )}
-        </div>
-        {galleryError && <p className="mt-1.5 text-xs text-danger">{galleryError}</p>}
-        <p className="mt-1.5 text-xs text-muted-warm">Max 8 photos. These appear on your About page and social share previews.</p>
-      </div>
-
-      <div>
-        <SectionLabel>Store Hours</SectionLabel>
-        <Input label="Hours" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="Mon – Sat: 10 AM – 7 PM · Sunday: Closed" />
-      </div>
     </div>
   )
 }

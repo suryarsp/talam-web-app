@@ -1,11 +1,19 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Bold, Italic, Underline, List } from 'lucide-react'
 
 /** ponytail: contentEditable + execCommand — no rich-text lib installed, this is the few-lines version. Upgrade to tiptap if we need paste-sanitization or collab editing. */
 export function RichTextEditor({ defaultValue, onChange }: { defaultValue: string; onChange: (html: string) => void }) {
   const ref = useRef<HTMLDivElement>(null)
+
+  // Set initial HTML once on mount only — writing it via dangerouslySetInnerHTML on every
+  // render reset the DOM (and caret to position 0) on each keystroke, since the parent
+  // re-renders with a new defaultValue after every onChange, making typed text appear reversed.
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = defaultValue
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function exec(command: string) {
     ref.current?.focus()
@@ -34,7 +42,6 @@ export function RichTextEditor({ defaultValue, onChange }: { defaultValue: strin
         contentEditable
         suppressContentEditableWarning
         onInput={(e) => onChange(e.currentTarget.innerHTML)}
-        dangerouslySetInnerHTML={{ __html: defaultValue }}
         className="min-h-[120px] px-3 py-3 text-md text-fg outline-none [&_ul]:list-disc [&_ul]:pl-5"
       />
     </div>

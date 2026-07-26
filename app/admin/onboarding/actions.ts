@@ -59,7 +59,16 @@ export async function saveStoreStep(input: { storeName: string; slug: string; ca
   try {
     const tenant = await prisma.tenant.upsert({
       where: { ownerId: userId },
-      create: { ownerId: userId, name: input.storeName, slug: input.slug, storeType: input.category, onboardingStep: 1 },
+      create: {
+        ownerId: userId,
+        name: input.storeName,
+        slug: input.slug,
+        storeType: input.category,
+        onboardingStep: 1,
+        deliveryEstimateText: '5-7 business days',
+        returnWindowDays: 7,
+        trustBadgeText: 'Secure Payments · Easy Returns',
+      },
       update: { name: input.storeName, slug: input.slug, storeType: input.category, onboardingStep: 1 },
       select: { id: true },
     })

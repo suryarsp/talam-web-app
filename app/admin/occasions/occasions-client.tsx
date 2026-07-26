@@ -214,7 +214,7 @@ export function OccasionsClient({ initialOccasions }: { initialOccasions: Occasi
 
       {error && <p className="mb-3 rounded-lg bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {occasions.map((o) => {
           const theme = o.themeKey ? OCCASION_THEMES[o.themeKey] : undefined
           const live = o.status === 'published'

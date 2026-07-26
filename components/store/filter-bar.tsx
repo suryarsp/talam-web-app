@@ -20,6 +20,7 @@ const SORTS = [
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'popular', label: 'Most Popular' },
+  { value: 'discount-desc', label: 'Offers: High to Low' },
 ]
 
 export function FilterBar({ basePath, categories, activeCategory, activeSize, minPrice, maxPrice, activeSort }: Props) {

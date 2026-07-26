@@ -1,6 +1,6 @@
 import { withTenant } from '@/lib/prisma'
 
-export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular'
+export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular' | 'discount-desc'
 
 export type ProductFilters = {
   categoryId?: string
@@ -188,6 +188,12 @@ export async function getProducts(tenantId: string, filters?: ProductFilters) {
 
   if (filters?.sort === 'popular') {
     mapped.sort((a, b) => b.reviewCount - a.reviewCount)
+  } else if (filters?.sort === 'discount-desc') {
+    const discountPct = (p: (typeof mapped)[number]) =>
+      p.comparePrice && Number(p.comparePrice) > Number(p.price)
+        ? 1 - Number(p.price) / Number(p.comparePrice)
+        : 0
+    mapped.sort((a, b) => discountPct(b) - discountPct(a))
   } else if (filters?.tagId && !filters.sort) {
     // Occasion pages default to the owner's manually curated order, not createdAt.
     mapped.sort((a, b) => a._occasionSortOrder - b._occasionSortOrder)
