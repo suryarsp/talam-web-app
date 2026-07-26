@@ -8,7 +8,7 @@ import { goLiveAction, getTenantLiveStateAction } from '@/app/admin/dashboard/ac
 import { useTourStore } from '@/lib/store/tour'
 import { buildGoLiveSteps } from '@/lib/tours'
 
-export function GoLiveButton() {
+export function GoLiveButton({ onGoLive }: { onGoLive?: () => void }) {
   const router = useRouter()
   const startTour = useTourStore((s) => s.start)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -31,6 +31,7 @@ export function GoLiveButton() {
     setLaunching(false)
     if (!result.error) {
       setDialogOpen(false)
+      onGoLive?.()
       router.refresh()
     }
   }

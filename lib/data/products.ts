@@ -103,8 +103,13 @@ export async function createProduct(tenantId: string, input: ProductInput) {
 }
 
 export async function updateProduct(tenantId: string, id: string, input: ProductInput) {
-  return withTenant(tenantId, (db) =>
-    db.product.update({
+  return withTenant(tenantId, async (db) => {
+    // Same reasoning as createProduct: pre-launch there's no live storefront to protect,
+    // so edits shouldn't demote a product to 'draft' — that silently drops it from the
+    // "published" count getMissingStoreConfig uses to gate Go Live, making the 3-product
+    // requirement look unmet even after the merchant has added and edited their products.
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { isLive: true } })
+    return db.product.update({
       where: { id, tenantId },
       data: {
         name: input.name,
@@ -115,10 +120,10 @@ export async function updateProduct(tenantId: string, id: string, input: Product
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
-        status: 'draft',
+        status: tenant?.isLive ? 'draft' : 'published',
       },
     })
-  )
+  })
 }
 
 export async function setProductActive(tenantId: string, id: string, isActive: boolean) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { History, Package, PartyPopper, Store } from 'lucide-react'
+import { EmptyState } from '@/components/admin/empty-state'
 import { getPublishLogsAction } from './actions'
 import type { PublishLogEntry, PublishLogItem } from '@/lib/data/publish-logs'
 
@@ -50,7 +51,7 @@ export default function AdminVersionsPage() {
   const filteredLogs = cutoff ? logs.filter((log) => log.publishedAt >= cutoff) : logs
 
   return (
-    <div className="px-4 pb-8 md:px-0">
+    <div className="px-4 pb-24 md:px-0 md:pb-0">
       <div className="pb-5 pt-1 md:pt-0">
         <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-warm">Publish History</p>
         <h1 className="font-marketing mt-0.5 text-[24px] font-semibold leading-tight text-fg md:text-[28px]">Versions</h1>
@@ -72,18 +73,11 @@ export default function AdminVersionsPage() {
       </div>
 
       {!loading && filteredLogs.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-bg">
-            <History className="size-5 text-muted-warm" strokeWidth={2} />
-          </span>
-          <p className="text-sm text-muted-warm">
-            {logs.length === 0 ? 'No versions published yet.' : 'No publishes in this range.'}
-          </p>
-        </div>
+        <EmptyState icon={History} message={logs.length === 0 ? 'No versions published yet.' : 'No publishes in this range.'} />
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden overflow-hidden rounded-lg bg-surface sm:block">
+          <div className="hidden overflow-hidden rounded-lg bg-surface md:block">
             <div className="grid grid-cols-[20px_1fr_2fr_auto] items-center gap-x-4 border-b border-border px-4 pb-2 pt-3 text-xs font-bold uppercase tracking-[0.06em] text-muted-warm">
               <span />
               <span>Published</span>
@@ -117,7 +111,7 @@ export default function AdminVersionsPage() {
           </div>
 
           {/* Mobile cards */}
-          <div className="flex flex-col gap-2 sm:hidden">
+          <div className="flex flex-col gap-2 md:hidden">
             {filteredLogs.map((log) => {
               const Icon = iconForItems(log.items)
               const expanded = expandedId === log.id

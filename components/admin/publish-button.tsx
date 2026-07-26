@@ -11,6 +11,13 @@ export function PublishButton() {
 
   useEffect(() => {
     getPendingChangeCountAction().then(setCount)
+    // ponytail: draft writes happen from same-route dialogs across products/settings/occasions,
+    // so nothing signals this header button to refetch — poll instead of threading a callback
+    // through every write path.
+    const interval = setInterval(() => {
+      getPendingChangeCountAction().then(setCount)
+    }, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   async function handlePublish(force: boolean) {

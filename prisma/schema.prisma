@@ -104,6 +104,7 @@ model Tenant {
   tags          ProductTag[]
   addresses     Address[]
   publishLogs   PublishLog[]
+  notifications Notification[]
 
   @@map("tenants")
 }
@@ -432,4 +433,22 @@ model PublishLog {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@map("publish_logs")
+}
+
+// ponytail: `type` is a plain string, not an enum — only "go_live_ready" exists today, and new
+// notification types (order events, payment alerts) will just be new string values, no migration.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("notifications")
 }

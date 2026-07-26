@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { prisma, withTenant } from '@/lib/prisma'
 import { sendGoLiveReadyEmail } from '@/lib/resend'
 import { getAdminUrl } from '@/lib/tenant-url'
+import { createNotification } from '@/lib/data/notifications'
 
 export type SocialLink = { platform: string; url: string }
 
@@ -122,6 +123,12 @@ export async function notifyIfReadyToGoLive(tenantId: string, isLocalDev: boolea
   if (missing.length > 0) return
 
   await prisma.tenant.update({ where: { id: tenantId }, data: { readyToGoLiveNotifiedAt: new Date() } })
+  await createNotification(tenantId, {
+    type: 'go_live_ready',
+    title: "You're ready to go live",
+    body: 'All setup steps are complete — head to your dashboard to launch your store.',
+    link: '/admin/dashboard',
+  })
   await sendGoLiveReadyEmail(tenant.contactEmail, { storeName: tenant.name, adminUrl: getAdminUrl(tenant.slug, isLocalDev) })
 }
 

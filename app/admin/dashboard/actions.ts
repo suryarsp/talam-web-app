@@ -7,6 +7,12 @@ import { prisma } from '@/lib/prisma'
 import { getStoreUrl } from '@/lib/tenant-url'
 import { getMissingStoreConfig, type MissingConfigItem } from '@/lib/data/tenant'
 import { sendStoreLiveEmail } from '@/lib/resend'
+import { getDashboardData, type DashboardData } from '@/lib/data/dashboard'
+
+export async function getDashboardDataAction(): Promise<DashboardData> {
+  const { tenantId } = await requireOwnerTenant()
+  return getDashboardData(tenantId)
+}
 
 export async function getLiveStoreUrl(): Promise<string | null> {
   const { userId } = await requireOwnerSession()

@@ -9,6 +9,7 @@ import { ProfileMenu } from '@/components/marketing/profile-menu'
 import { Dialog } from '@/components/ui/dialog'
 import { PublishButton } from './publish-button'
 import { GoLiveButton } from './go-live-button'
+import { NotificationsBell } from './notifications-bell'
 import { getLiveStoreUrl, getTenantLiveStateAction } from '@/app/admin/dashboard/actions'
 import { useTourStore } from '@/lib/store/tour'
 
@@ -64,6 +65,10 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
     getLiveStoreUrl().then(setLiveStoreUrl)
     getTenantLiveStateAction().then((state) => setIsLive(state.isLive))
   }, [])
+
+  function handleGoLive() {
+    setIsLive(true)
+  }
 
   // The orientation tour targets nav items by their `data-tour` id — if the current step points
   // at one tucked inside the mobile "More" sheet, open it so the tour can find and spotlight it.
@@ -123,14 +128,8 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
           <header className="flex h-[64px] items-center justify-between border-b border-border bg-surface px-8">
             <span className="font-marketing text-xl italic text-fg">talam.</span>
             <div className="flex items-center gap-4">
-              {isLive ? <PublishButton /> : <GoLiveButton />}
-              <button className="relative">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <div className="absolute -right-1 -top-1 size-2 rounded-full bg-danger" />
-              </button>
+              {isLive ? <PublishButton /> : <GoLiveButton onGoLive={handleGoLive} />}
+              <NotificationsBell />
               {user && (
                 <ProfileMenu
                   user={user}
@@ -148,14 +147,8 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
         <header className="flex h-[56px] items-center justify-between border-b border-border bg-surface px-4">
           <span className="font-marketing text-lg italic text-fg">talam.</span>
           <div className="flex items-center gap-3">
-            {isLive ? <PublishButton /> : <GoLiveButton />}
-            <button className="relative">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <div className="absolute -right-0.5 -top-0.5 size-[6px] rounded-full bg-danger" />
-            </button>
+            {isLive ? <PublishButton /> : <GoLiveButton onGoLive={handleGoLive} />}
+            <NotificationsBell />
             {user && (
               <ProfileMenu
                 user={user}
