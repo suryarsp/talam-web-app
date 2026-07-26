@@ -1,55 +1,150 @@
-import { requireOwnerTenant } from '@/lib/admin-guard'
-import { listPublishLogs } from '@/lib/data/publish-logs'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { History, Package, PartyPopper, Store } from 'lucide-react'
+import { getPublishLogsAction } from './actions'
+import type { PublishLogEntry, PublishLogItem } from '@/lib/data/publish-logs'
 
 function formatPublishedAt(date: Date) {
   return date.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-export default async function AdminVersionsPage() {
-  const { tenantId } = await requireOwnerTenant()
-  const logs = await listPublishLogs(tenantId)
+const FILTERS = ['All', 'This Week', 'This Month', 'Last 3 Months'] as const
+type Filter = (typeof FILTERS)[number]
+
+function cutoffFor(filter: Filter): Date | null {
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+  if (filter === 'This Week') return new Date(now - 7 * DAY)
+  if (filter === 'This Month') return new Date(now - 30 * DAY)
+  if (filter === 'Last 3 Months') return new Date(now - 90 * DAY)
+  return null
+}
+
+function iconForItems(items: PublishLogItem[]) {
+  const firstType = items[0]?.type
+  if (firstType === 'product') return Package
+  if (firstType === 'occasion') return PartyPopper
+  if (firstType === 'store_info') return Store
+  return History
+}
+
+function itemLabel(item: PublishLogItem) {
+  if (item.type === 'store_info') return 'Store info'
+  return `${item.name} (${item.type})`
+}
+
+export default function AdminVersionsPage() {
+  const [logs, setLogs] = useState<PublishLogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<Filter>('All')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    getPublishLogsAction()
+      .then(setLogs)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const cutoff = cutoffFor(activeFilter)
+  const filteredLogs = cutoff ? logs.filter((log) => log.publishedAt >= cutoff) : logs
 
   return (
     <div className="px-4 pb-8 md:px-0">
       <div className="pb-5 pt-1 md:pt-0">
-        <h1 className="font-marketing text-[24px] font-semibold leading-tight text-fg md:text-[28px]">Versions</h1>
+        <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-warm">Publish History</p>
+        <h1 className="font-marketing mt-0.5 text-[24px] font-semibold leading-tight text-fg md:text-[28px]">Versions</h1>
         <p className="mt-1 text-sm text-muted-warm">Every publish is saved here — what changed, and when.</p>
       </div>
 
-      {logs.length === 0 ? (
-        <p className="py-12 text-center text-sm text-muted-warm">No versions published yet.</p>
+      <div className="mb-5 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={`shrink-0 cursor-pointer rounded-full px-3 py-[5px] text-2xs font-semibold transition-colors ${
+              filter === activeFilter ? 'bg-fg text-surface' : 'text-muted-warm hover:text-fg'
+            }`}
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      {!loading && filteredLogs.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-bg">
+            <History className="size-5 text-muted-warm" strokeWidth={2} />
+          </span>
+          <p className="text-sm text-muted-warm">
+            {logs.length === 0 ? 'No versions published yet.' : 'No publishes in this range.'}
+          </p>
+        </div>
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden overflow-x-auto rounded-lg bg-surface sm:block">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs font-bold uppercase tracking-[0.06em] text-muted-warm">
-                  <th className="px-4 pb-2 pt-3">Published</th>
-                  <th className="px-4 pb-2 pt-3">What changed</th>
-                  <th className="px-4 pb-2 pt-3">Items</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="border-b border-border-light last:border-0">
-                    <td className="px-4 py-3 text-fg">{formatPublishedAt(log.publishedAt)}</td>
-                    <td className="px-4 py-3 text-fg">{log.summary}</td>
-                    <td className="px-4 py-3 text-muted-warm">{log.itemCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="hidden overflow-hidden rounded-lg bg-surface sm:block">
+            <div className="grid grid-cols-[20px_1fr_2fr_auto] items-center gap-x-4 border-b border-border px-4 pb-2 pt-3 text-xs font-bold uppercase tracking-[0.06em] text-muted-warm">
+              <span />
+              <span>Published</span>
+              <span>What changed</span>
+              <span>Items</span>
+            </div>
+            {filteredLogs.map((log, i) => {
+              const Icon = iconForItems(log.items)
+              const expanded = expandedId === log.id
+              return (
+                <div key={log.id} className={i > 0 ? 'border-t border-border-light' : ''}>
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : log.id)}
+                    className="grid w-full cursor-pointer grid-cols-[20px_1fr_2fr_auto] items-center gap-x-4 px-4 py-3 text-left text-sm transition-colors hover:bg-bg"
+                  >
+                    <Icon className="size-4 shrink-0 text-muted-warm" strokeWidth={2} />
+                    <span className="text-fg">{formatPublishedAt(log.publishedAt)}</span>
+                    <span className="text-fg">{log.summary}</span>
+                    <span className="text-muted-warm">{log.itemCount}</span>
+                  </button>
+                  {expanded && log.items.length > 0 ? (
+                    <ul className="flex flex-col gap-1 px-4 pb-3 pl-11 text-xs text-muted-warm">
+                      {log.items.map((item, idx) => (
+                        <li key={idx}>• {itemLabel(item)}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
 
           {/* Mobile cards */}
           <div className="flex flex-col gap-2 sm:hidden">
-            {logs.map((log) => (
-              <div key={log.id} className="rounded-lg border border-border-light bg-surface p-3">
-                <p className="text-sm font-semibold text-fg">{log.summary}</p>
-                <p className="mt-1 text-xs text-muted-warm">{formatPublishedAt(log.publishedAt)} · {log.itemCount} item{log.itemCount === 1 ? '' : 's'}</p>
-              </div>
-            ))}
+            {filteredLogs.map((log) => {
+              const Icon = iconForItems(log.items)
+              const expanded = expandedId === log.id
+              return (
+                <div key={log.id} className="rounded-lg border border-border-light bg-surface p-3">
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : log.id)}
+                    className="flex w-full cursor-pointer items-start gap-3 text-left"
+                  >
+                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-warm" strokeWidth={2} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-fg">{log.summary}</p>
+                      <p className="mt-1 text-xs text-muted-warm">
+                        {formatPublishedAt(log.publishedAt)} · {log.itemCount} item{log.itemCount === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </button>
+                  {expanded && log.items.length > 0 ? (
+                    <ul className="mt-2 flex flex-col gap-1 pl-7 text-xs text-muted-warm">
+                      {log.items.map((item, idx) => (
+                        <li key={idx}>• {itemLabel(item)}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
