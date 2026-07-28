@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { StoreLink } from '@/components/store/store-context'
+import { WishlistHeart } from '@/components/store/wishlist-heart'
 import type { Product, ProductCategory } from '@prisma/client'
 
 type Props = {
@@ -10,9 +11,11 @@ type Props = {
     isNew: boolean
   }
   priority?: boolean
+  /** Whether this product is already on the signed-in customer's wishlist. */
+  saved?: boolean
 }
 
-export function ProductCard({ product, priority }: Props) {
+export function ProductCard({ product, priority, saved = false }: Props) {
   const discount =
     product.comparePrice && Number(product.comparePrice) > Number(product.price)
       ? Math.round((1 - Number(product.price) / Number(product.comparePrice)) * 100)
@@ -50,16 +53,7 @@ export function ProductCard({ product, priority }: Props) {
             <span />
           )}
 
-          {/* ponytail: decorative only — wishlist toggle needs a signed-in customer session, wire up once storefront auth exists */}
-          <span className="z-10 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface shadow-sm sm:size-8">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                stroke="#E8577E"
-                strokeWidth="2"
-              />
-            </svg>
-          </span>
+          <WishlistHeart productId={product.id} initialSaved={saved} />
         </div>
       </div>
 

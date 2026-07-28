@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookieDomain } from './cookie-domain'
 
 export async function updateSession(request: NextRequest) {
+  if (process.env.E2E_MOCK === '1') return NextResponse.next({ request })
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

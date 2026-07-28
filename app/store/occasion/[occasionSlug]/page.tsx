@@ -4,6 +4,7 @@ import { getRequestTenantId } from '@/lib/data/tenant'
 import { getOccasionBySlug } from '@/lib/data/occasions'
 import { getProducts, getCategories } from '@/lib/data/products'
 import { getOccasionTheme } from '@/lib/occasion-themes'
+import { cacheForTenant } from '@/lib/storefront-cache'
 import { parseListingParams } from '@/lib/parse-listing-params'
 import { ProductGrid } from '@/components/store/product-grid'
 import { ProductCarousel } from '@/components/store/product-carousel'
@@ -31,7 +32,12 @@ export default async function OccasionPage({ params, searchParams }: Props) {
   const categories = await getCategories(tenantId)
   const sp = await searchParams
   const filters = parseListingParams(sp, categories)
-  const products = await getProducts(tenantId, { ...filters, tagId: occasion.id })
+  const products = await cacheForTenant(
+    () => getProducts(tenantId, { ...filters, tagId: occasion.id }),
+    ['occasion-products', tenantId, occasionSlug, JSON.stringify(filters)],
+    tenantId,
+    1800
+  )
   const theme = getOccasionTheme(occasion.themeKey)
 
   return (
@@ -40,7 +46,7 @@ export default async function OccasionPage({ params, searchParams }: Props) {
         name={occasion.name}
         emoji={occasion.emoji}
         theme={theme}
-        featuredProducts={products as any}
+        featuredProducts={products}
       />
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-16 sm:py-10">
@@ -59,9 +65,9 @@ export default async function OccasionPage({ params, searchParams }: Props) {
           />
           <div className="flex-1">
             {occasion.layout === 'carousel' ? (
-              <ProductCarousel products={products as any} />
+              <ProductCarousel products={products} />
             ) : (
-              <ProductGrid products={products as any} />
+              <ProductGrid products={products} />
             )}
           </div>
         </div>

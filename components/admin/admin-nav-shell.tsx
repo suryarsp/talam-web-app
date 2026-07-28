@@ -72,9 +72,11 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
 
   // The orientation tour targets nav items by their `data-tour` id — if the current step points
   // at one tucked inside the mobile "More" sheet, open it so the tour can find and spotlight it.
-  useEffect(() => {
+  const [prevTourState, setPrevTourState] = useState({ tourActive, tourStepKey })
+  if (tourActive !== prevTourState.tourActive || tourStepKey !== prevTourState.tourStepKey) {
+    setPrevTourState({ tourActive, tourStepKey })
     if (tourActive && tourStepKey && MOBILE_OVERFLOW_TOUR_IDS.has(tourStepKey)) setMoreOpen(true)
-  }, [tourActive, tourStepKey])
+  }
 
   // The desktop content pane scrolls independently of the window (`overflow-auto`
   // below), so Next's default scroll-to-top-on-navigate never touches it — reset it here.

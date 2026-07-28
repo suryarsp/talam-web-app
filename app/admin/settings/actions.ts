@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import type { Tier, DiscountType } from '@prisma/client'
 import { requireOwnerTenant } from '@/lib/admin-guard'
@@ -8,6 +8,7 @@ import { withTenant } from '@/lib/prisma'
 import { uploadImage } from '@/lib/cloudinary'
 import { createServerClient } from '@/lib/supabase/server'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
+import { storefrontTag } from '@/lib/storefront-cache'
 import type { SocialLink } from '@/lib/data/tenant'
 
 function isUniqueConstraintError(err: unknown): boolean {
@@ -37,6 +38,7 @@ export async function updateAboutAction(input: { description: string; socialLink
     })
   )
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
 }
 
 export type ContactSettings = {
@@ -109,6 +111,7 @@ export async function updateContactSettingsAction(input: Omit<ContactSettings, '
 
   revalidatePath('/admin/settings')
   revalidatePath('/admin/dashboard')
+  updateTag(storefrontTag(tenantId))
 }
 
 const MAX_GALLERY_PHOTOS = 8
@@ -133,6 +136,7 @@ export async function addGalleryPhotoAction(file: File): Promise<{ error?: strin
     })
   )
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
   return { url }
 }
 
@@ -144,6 +148,7 @@ export async function removeGalleryPhotoAction(url: string): Promise<void> {
     await db.storeAbout.update({ where: { tenantId }, data: { galleryUrls: about.galleryUrls.filter((u) => u !== url) } })
   })
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
 }
 
 // ── Store Tab ──
@@ -238,6 +243,7 @@ export async function updateStoreSettingsAction(input: StoreSettingsInput): Prom
   revalidatePath('/admin/settings')
   revalidatePath('/admin/dashboard')
   revalidatePath('/store')
+  updateTag(storefrontTag(tenantId))
   return { logoUrl }
 }
 
@@ -270,6 +276,7 @@ export async function addCategoryAction(name: string, department: Department): P
       })
     })
     revalidatePath('/admin/settings')
+    updateTag(storefrontTag(tenantId))
     return { category }
   } catch (err) {
     if (isUniqueConstraintError(err)) return { error: 'A category with that name already exists.' }
@@ -283,6 +290,7 @@ export async function reorderCategoriesAction(orderedIds: string[]): Promise<{ e
     Promise.all(orderedIds.map((id, sortOrder) => db.productCategory.updateMany({ where: { id, tenantId }, data: { sortOrder } })))
   )
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -293,6 +301,7 @@ export async function deleteCategoryAction(id: string): Promise<{ error?: string
 
   await withTenant(tenantId, (db) => db.productCategory.deleteMany({ where: { id, tenantId } }))
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -413,6 +422,7 @@ export async function createPromotionAction(input: CreatePromotionInput): Promis
     throw err
   }
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -420,12 +430,14 @@ export async function togglePromotionAction(id: string, isActive: boolean): Prom
   const { tenantId } = await requireOwnerTenant()
   await withTenant(tenantId, (db) => db.discountCode.updateMany({ where: { id, tenantId }, data: { isActive } }))
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function deletePromotionAction(id: string): Promise<void> {
   const { tenantId } = await requireOwnerTenant()
   await withTenant(tenantId, (db) => db.discountCode.deleteMany({ where: { id, tenantId } }))
   revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
 }
 
 // ── Subscription Tab (read-only — no billing provider wired up yet) ──
@@ -502,6 +514,7 @@ export async function deleteStoreAction(confirmName: string): Promise<{ error?: 
   }
 
   await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { deletedAt: new Date(), isLive: false } }))
+  updateTag(storefrontTag(tenantId))
 
   const supabase = await createServerClient()
   await supabase.auth.signOut()

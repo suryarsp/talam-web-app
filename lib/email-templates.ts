@@ -41,6 +41,8 @@ export function renderEmailBody(params: {
   list?: string[]
   ctas: { label: string; href: string }[]
   signature?: string
+  /** Raw HTML placed above the CTA buttons — for block content a <p> can't hold, e.g. an order-items table. */
+  beforeCtasHtml?: string
   extraHtml?: string
 }): string {
   const greetingHtml = params.greeting
@@ -70,7 +72,7 @@ export function renderEmailBody(params: {
     ? `<p style="margin: 24px 0 0 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; line-height: 22px; color: ${EMAIL_BRAND.muted};">${params.signature}</p>`
     : ''
 
-  return `${greetingHtml}${headingHtml}${paragraphsHtml}${listHtml}${ctasHtml}${signatureHtml}${params.extraHtml ?? ''}`
+  return `${greetingHtml}${headingHtml}${paragraphsHtml}${listHtml}${params.beforeCtasHtml ?? ''}${ctasHtml}${signatureHtml}${params.extraHtml ?? ''}`
 }
 
 function renderLogoLockup(iconSize: number, fontSize: number, textColor: string): string {

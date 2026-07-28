@@ -11,7 +11,13 @@ vi.mock('resend', () => ({
 }))
 
 import { escapeHtml } from './email-templates'
-import { sendOnboardingCompleteEmail, sendOnboardingReminderEmail, sendOnboardingWelcomeEmail } from './resend'
+import {
+  sendNewOrderEmail,
+  sendOnboardingCompleteEmail,
+  sendOnboardingReminderEmail,
+  sendOnboardingWelcomeEmail,
+  sendOrderPlacedEmail,
+} from './resend'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -93,5 +99,91 @@ describe('sendOnboardingCompleteEmail', () => {
     expect(html).not.toContain("Priya's <Boutique>") // raw, unescaped value must not appear
     expect(html).toContain('https://priya-boutique.talam4shop.com')
     expect(html).toContain('https://priya-boutique.talam4shop.com/admin/dashboard')
+  })
+})
+
+describe('order emails', () => {
+  const items = [
+    { name: 'Kanjivaram Saree', size: 'M', quantity: 2, unitPrice: 1000 },
+    { name: 'Zari Dupatta', size: null, quantity: 1, unitPrice: 699 },
+  ]
+
+  describe('sendOrderPlacedEmail', () => {
+    const params = {
+      storeName: 'Meena Silks',
+      orderCode: '#A1B2C3D4',
+      items,
+      total: 2699,
+      addressLines: ['Priya Rajan', '42 Bharathi Nagar', 'Madurai, Tamil Nadu 625001'],
+      trackUrl: 'https://silk.talam4shop.com/orders/o1',
+      invoiceUrl: 'https://silk.talam4shop.com/orders/o1/invoice',
+    }
+
+    it('sends to the customer with the order code in the subject', async () => {
+      await sendOrderPlacedEmail('priya@example.com', params)
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'priya@example.com', subject: expect.stringContaining('#A1B2C3D4') })
+      )
+    })
+
+    it('carries both the track and invoice links', async () => {
+      await sendOrderPlacedEmail('priya@example.com', params)
+      const html = sendMock.mock.calls[0][0].html
+      expect(html).toContain('https://silk.talam4shop.com/orders/o1')
+      expect(html).toContain('https://silk.talam4shop.com/orders/o1/invoice')
+      expect(html).toContain('Track your order')
+    })
+
+    it('lists every line item and the total', async () => {
+      await sendOrderPlacedEmail('priya@example.com', params)
+      const html = sendMock.mock.calls[0][0].html
+      expect(html).toContain('Kanjivaram Saree')
+      expect(html).toContain('Zari Dupatta')
+      expect(html).toContain('2,699')
+    })
+
+    it('escapes product names rather than injecting them raw', async () => {
+      await sendOrderPlacedEmail('priya@example.com', {
+        ...params,
+        items: [{ name: '<script>x</script>', size: null, quantity: 1, unitPrice: 10 }],
+      })
+      const html = sendMock.mock.calls[0][0].html
+      expect(html).not.toContain('<script>x</script>')
+      expect(html).toContain(escapeHtml('<script>x</script>'))
+    })
+
+    it('does not throw when Resend fails', async () => {
+      sendMock.mockRejectedValueOnce(new Error('Resend down'))
+      await expect(sendOrderPlacedEmail('priya@example.com', params)).resolves.not.toThrow()
+    })
+  })
+
+  describe('sendNewOrderEmail', () => {
+    const params = {
+      storeName: 'Meena Silks',
+      orderCode: '#A1B2C3D4',
+      customerName: 'Priya Rajan',
+      items,
+      total: 2699,
+      adminOrdersUrl: 'https://silk.talam4shop.com/admin/orders',
+    }
+
+    it('points the owner at their orders page', async () => {
+      await sendNewOrderEmail('owner@example.com', params)
+      const call = sendMock.mock.calls[0][0]
+      expect(call.to).toBe('owner@example.com')
+      expect(call.html).toContain('https://silk.talam4shop.com/admin/orders')
+      expect(call.html).toContain('View order')
+    })
+
+    it('puts the order value in the subject so it reads at a glance', async () => {
+      await sendNewOrderEmail('owner@example.com', params)
+      expect(sendMock.mock.calls[0][0].subject).toContain('2,699')
+    })
+
+    it('does not throw when Resend fails', async () => {
+      sendMock.mockRejectedValueOnce(new Error('Resend down'))
+      await expect(sendNewOrderEmail('owner@example.com', params)).resolves.not.toThrow()
+    })
   })
 })

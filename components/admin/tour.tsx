@@ -37,7 +37,7 @@ export function Tour() {
     // Orientation steps have no route — their target lives in the always-mounted nav shell,
     // so there's nothing to navigate to or wait for.
     if (!step.route) {
-      setRun(true)
+      requestAnimationFrame(() => setRun(true))
       return
     }
 
@@ -46,7 +46,7 @@ export function Tour() {
     const onRightPage = pathname === stepPath && searchParams.get('tab') === stepTab
 
     if (!onRightPage) {
-      setRun(false)
+      queueMicrotask(() => setRun(false))
       router.push(step.route)
       return
     }

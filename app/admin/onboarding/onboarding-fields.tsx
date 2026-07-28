@@ -1,5 +1,5 @@
 import { ImagePlus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -152,17 +152,11 @@ export function FileDropzone({
   readonly existingUrl?: string | null
 }) {
   const [isDragging, setIsDragging] = useState(false)
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+  const objectUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
 
   useEffect(() => {
-    if (!file) {
-      setObjectUrl(null)
-      return
-    }
-    const url = URL.createObjectURL(file)
-    setObjectUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [objectUrl])
 
   const previewUrl = objectUrl ?? existingUrl ?? null
 

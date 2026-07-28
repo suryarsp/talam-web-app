@@ -25,13 +25,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const [searched, setSearched] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       setQuery('')
       setResults([])
       setSearched(false)
-      requestAnimationFrame(() => inputRef.current?.focus())
     }
+  }
+
+  useEffect(() => {
+    if (open) requestAnimationFrame(() => inputRef.current?.focus())
   }, [open])
 
   useEffect(() => {

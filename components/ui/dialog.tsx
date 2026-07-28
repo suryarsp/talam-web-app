@@ -21,7 +21,7 @@ export function Dialog({
 
   useEffect(() => {
     if (open) requestAnimationFrame(() => setVisible(true))
-    else setVisible(false)
+    else queueMicrotask(() => setVisible(false))
   }, [open])
 
   if (!open) return null

@@ -28,6 +28,11 @@ vi.mock('@/app/admin/occasions/actions', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}))
+
+vi.mock('@/lib/data/tenant', () => ({
+  notifyIfReadyToGoLive: vi.fn(),
 }))
 
 import { requireOwnerTenant } from '@/lib/admin-guard'

@@ -1,8 +1,9 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
+import { storefrontTag } from '@/lib/storefront-cache'
 import { uploadImage } from '@/lib/cloudinary'
 import {
   createProduct,
@@ -27,6 +28,7 @@ export async function createProductAction(input: ProductInput): Promise<string> 
   const { tenantId } = await requireOwnerTenant()
   const created = await createProduct(tenantId, input)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 
   const isLocalDev = (await headers()).get('host')?.includes('localhost') ?? false
   await notifyIfReadyToGoLive(tenantId, isLocalDev)
@@ -38,18 +40,21 @@ export async function updateProductAction(id: string, input: ProductInput) {
   const { tenantId } = await requireOwnerTenant()
   await updateProduct(tenantId, id, input)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function setProductActiveAction(id: string, isActive: boolean) {
   const { tenantId } = await requireOwnerTenant()
   await setProductActive(tenantId, id, isActive)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function updateProductOccasionsAction(productId: string, occasionIds: string[]) {
   const { tenantId } = await requireOwnerTenant()
   await updateProductOccasions(tenantId, productId, occasionIds)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function bulkAssignToOccasionAction(occasionId: string, productIds: string[]): Promise<{ error?: string }> {
@@ -63,22 +68,26 @@ export async function bulkSetCategoryAction(productIds: string[], categoryId: st
   const { tenantId } = await requireOwnerTenant()
   await bulkSetProductsCategory(tenantId, productIds, categoryId)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function bulkSetActiveAction(productIds: string[], isActive: boolean) {
   const { tenantId } = await requireOwnerTenant()
   await bulkSetProductsActive(tenantId, productIds, isActive)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function bulkDeleteAction(productIds: string[]) {
   const { tenantId } = await requireOwnerTenant()
   await softDeleteProducts(tenantId, productIds)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }
 
 export async function bulkResetToDefaultAction(productIds: string[]) {
   const { tenantId } = await requireOwnerTenant()
   await resetProductsToDefault(tenantId, productIds)
   revalidatePath('/admin/products')
+  updateTag(storefrontTag(tenantId))
 }

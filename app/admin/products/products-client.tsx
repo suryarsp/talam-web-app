@@ -257,10 +257,27 @@ function ProductEditor({
 }: {
   open: boolean; onClose: () => void; editProduct: AdminProduct | null; categories: CategoryMeta[]; occasions: OccasionOption[]
 }) {
+  if (!open) return null
+  return (
+    <ProductEditorForm
+      key={editProduct?.id ?? 'new'}
+      onClose={onClose}
+      editProduct={editProduct}
+      categories={categories}
+      occasions={occasions}
+    />
+  )
+}
+
+function ProductEditorForm({
+  onClose, editProduct, categories, occasions,
+}: {
+  onClose: () => void; editProduct: AdminProduct | null; categories: CategoryMeta[]; occasions: OccasionOption[]
+}) {
   const router = useRouter()
-  const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-  const [images, setImages] = useState<string[]>([])
-  const [selectedOccasions, setSelectedOccasions] = useState<string[]>([])
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(editProduct?.sizes ?? [])
+  const [images, setImages] = useState<string[]>(editProduct?.images ?? [])
+  const [selectedOccasions, setSelectedOccasions] = useState<string[]>(editProduct?.occasionIds ?? [])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -275,17 +292,6 @@ function ProductEditor({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [sizesOpen])
-
-  useEffect(() => {
-    if (open) {
-      setSelectedSizes(editProduct?.sizes ?? [])
-      setImages(editProduct?.images ?? [])
-      setSelectedOccasions(editProduct?.occasionIds ?? [])
-      setError(null)
-    }
-  }, [open, editProduct])
-
-  if (!open) return null
 
   const isEdit = editProduct !== null
   const title = isEdit ? 'Edit Product' : 'Add New Product'
@@ -341,7 +347,7 @@ function ProductEditor({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} className="md:max-w-[560px]">
+    <Dialog open onClose={onClose} className="md:max-w-[560px]">
       <div className="flex max-h-[80vh] flex-col md:max-h-[85vh]">
         <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
           <span className="text-base font-bold text-fg">{title}</span>

@@ -113,7 +113,6 @@ function useCountdown(targetIso: string | null) {
   const [now, setNow] = useState<number | null>(null)
   useEffect(() => {
     if (!targetIso) return
-    setNow(Date.now())
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [targetIso])
@@ -211,14 +210,17 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
   const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set())
   const [priceMin, setPriceMin] = useState('500')
   const [priceMax, setPriceMax] = useState('5000')
+  const sortParam = searchParams.get('sort')
   const [sortBy, setSortBy] = useState<string>('Newest First')
   const [showSortMenu, setShowSortMenu] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PRODUCTS_PER_PAGE)
 
-  useEffect(() => {
-    if (searchParams.get('sort') === 'newest') setSortBy('Newest First')
-  }, [searchParams])
+  const [prevSortParam, setPrevSortParam] = useState(sortParam)
+  if (sortParam !== prevSortParam) {
+    setPrevSortParam(sortParam)
+    if (sortParam === 'newest') setSortBy('Newest First')
+  }
 
   const activeFilterCount = (selectedCategories.size > 0 ? 1 : 0) + (selectedSizes.size > 0 ? 1 : 0)
 
@@ -679,7 +681,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                     <ChevronDown className="w-4 h-4" />
                   </button>
                 ) : visibleCount > PRODUCTS_PER_PAGE && (
-                  <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); window.scrollTo({ top: document.querySelector('#product-grid-top')?.getBoundingClientRect().top! + window.scrollY - 80, behavior: 'smooth' }) }} className="inline-flex items-center gap-2 px-10 py-3 border-[1.5px] border-store-primary text-store-primary text-[14px] font-semibold font-body rounded-full hover:bg-store-primary/5 transition-colors">
+                  <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); window.scrollTo({ top: (document.querySelector('#product-grid-top')?.getBoundingClientRect().top ?? 0) + window.scrollY - 80, behavior: 'smooth' }) }} className="inline-flex items-center gap-2 px-10 py-3 border-[1.5px] border-store-primary text-store-primary text-[14px] font-semibold font-body rounded-full hover:bg-store-primary/5 transition-colors">
                     Show less
                   </button>
                 )}

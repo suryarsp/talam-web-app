@@ -9,7 +9,12 @@ import { Label } from '@/components/ui/label'
 
 type Step = 'phone' | 'otp'
 
-export function OtpForm() {
+/**
+ * `onVerified` lets a caller that is already on the page it wants to stay on (checkout)
+ * react in place instead of navigating away. Without it the form keeps its original
+ * redirect behaviour.
+ */
+export function OtpForm({ onVerified }: { onVerified?: () => void } = {}) {
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
@@ -65,7 +70,8 @@ export function OtpForm() {
     // is currently empty). Falls back to /auth — that page already redirects a signed-in
     // visitor to the right destination, so no destination logic is duplicated here.
     if (process.env.NEXT_PUBLIC_OTP_SIGNIN_ENABLED === 'true') {
-      window.location.href = next ?? '/auth'
+      if (onVerified) onVerified()
+      else window.location.href = next ?? '/auth'
     }
   }
 

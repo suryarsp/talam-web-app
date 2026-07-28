@@ -95,15 +95,16 @@ function ImageUploadPreview({ initialLabel, imageUrl, onFile }: { initialLabel: 
 const SOCIAL_PLATFORM_PRESETS = ['Instagram', 'Facebook', 'YouTube', 'WhatsApp for Business'] as const
 
 function AddSocialLinkDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (link: SocialLink) => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} position="center">
+      <AddSocialLinkForm key={open ? 'open' : 'closed'} onClose={onClose} onAdd={onAdd} />
+    </Dialog>
+  )
+}
+
+function AddSocialLinkForm({ onClose, onAdd }: { onClose: () => void; onAdd: (link: SocialLink) => void }) {
   const [platform, setPlatform] = useState<string>('')
   const [url, setUrl] = useState('')
-
-  useEffect(() => {
-    if (open) {
-      setPlatform('')
-      setUrl('')
-    }
-  }, [open])
 
   function handleAdd() {
     if (!platform || !url.trim()) return
@@ -112,7 +113,6 @@ function AddSocialLinkDialog({ open, onClose, onAdd }: { open: boolean; onClose:
   }
 
   return (
-    <Dialog open={open} onClose={onClose} position="center">
       <div className="p-6">
         <h2 className="font-marketing text-lg font-semibold text-fg">Add social link</h2>
         <div className="mt-4 flex flex-col gap-4">
@@ -156,7 +156,6 @@ function AddSocialLinkDialog({ open, onClose, onAdd }: { open: boolean; onClose:
           </button>
         </div>
       </div>
-    </Dialog>
   )
 }
 
@@ -280,18 +279,18 @@ function ConfirmDialog({
 
 // ── Store Tab ──
 function AddCategoryDialog({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (category: CategoryItem) => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} position="center">
+      <AddCategoryForm key={open ? 'open' : 'closed'} onClose={onClose} onAdded={onAdded} />
+    </Dialog>
+  )
+}
+
+function AddCategoryForm({ onClose, onAdded }: { onClose: () => void; onAdded: (category: CategoryItem) => void }) {
   const [name, setName] = useState('')
   const [department, setDepartment] = useState<Department | ''>('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (open) {
-      setName('')
-      setDepartment('')
-      setError('')
-    }
-  }, [open])
 
   async function handleAdd() {
     const trimmed = name.trim()
@@ -309,7 +308,6 @@ function AddCategoryDialog({ open, onClose, onAdded }: { open: boolean; onClose:
   }
 
   return (
-    <Dialog open={open} onClose={onClose} position="center">
       <div className="p-6">
         <h2 className="font-marketing text-lg font-semibold text-fg">Add category</h2>
         <div className="mt-4 flex flex-col gap-4">
@@ -350,7 +348,6 @@ function AddCategoryDialog({ open, onClose, onAdded }: { open: boolean; onClose:
           </button>
         </div>
       </div>
-    </Dialog>
   )
 }
 
@@ -1248,13 +1245,15 @@ function DeleteStoreTab() {
 
 // ── Main Page ──
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('Store')
   const searchParams = useSearchParams()
+  const urlTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<Tab>('Store')
+  const [syncedUrlTab, setSyncedUrlTab] = useState(urlTab)
 
-  useEffect(() => {
-    const tab = searchParams.get('tab')
-    if (tab && ([...TABS, 'Delete Store'] as readonly string[]).includes(tab)) setActiveTab(tab as Tab)
-  }, [searchParams])
+  if (urlTab !== syncedUrlTab) {
+    setSyncedUrlTab(urlTab)
+    if (urlTab && ([...TABS, 'Delete Store'] as readonly string[]).includes(urlTab)) setActiveTab(urlTab as Tab)
+  }
 
   return (
     <div className="mx-auto max-w-3xl">

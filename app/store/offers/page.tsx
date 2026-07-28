@@ -38,7 +38,7 @@ export default async function OffersPage({ searchParams }: Props) {
           activeSort={typeof sp.sort === 'string' ? sp.sort : undefined}
         />
         <div className="flex-1">
-          <ProductGrid products={products as any} />
+          <ProductGrid products={products} />
         </div>
       </div>
     </main>

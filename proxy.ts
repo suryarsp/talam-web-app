@@ -124,7 +124,10 @@ async function createTenantResponse(
       ? rewriteWithSession(request, sessionResponse, `/store${decision.pathname === '/' ? '' : decision.pathname}`)
       : decision.surface === 'admin'
         ? createAdminResponse(request, sessionResponse, decision.pathname)
-        : sessionResponse
+        : // Checkout lives at /checkout, not /store/checkout. On a real subdomain the path
+          // already matches; under the dev /dev/store/<slug> prefix it has to be rewritten,
+          // or the tenant-prefixed URL falls through to not-found.
+          rewriteWithSession(request, sessionResponse, decision.pathname)
 
   response.headers.set('x-subdomain', decision.slug)
   response.headers.set('x-tenant-id', tenant.id)

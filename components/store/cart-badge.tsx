@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useSyncExternalStore } from 'react'
 import { useCartStore } from '@/lib/store/cart'
 import { StoreLink } from '@/components/store/store-context'
 
+const noopSubscribe = () => () => {}
+
 export function CartBadge() {
   const items = useCartStore(s => s.items)
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
   const c = mounted ? items.reduce((sum, i) => sum + i.quantity, 0) : 0
 
   return (

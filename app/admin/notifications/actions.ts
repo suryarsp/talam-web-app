@@ -4,7 +4,10 @@ import { requireOwnerTenant } from '@/lib/admin-guard'
 import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead } from '@/lib/data/notifications'
 import type { NotificationItem } from '@/lib/data/notifications'
 
-export type { NotificationItem }
+// Deliberately not re-exported: a 'use server' module may only export async functions,
+// and the bundler turns `export type { … }` into a runtime re-export that throws
+// ReferenceError at module load, taking every admin server action down with it.
+// Consumers import the type straight from @/lib/data/notifications.
 
 export async function getNotificationsAction(): Promise<{ items: NotificationItem[]; unreadCount: number }> {
   const { tenantId } = await requireOwnerTenant()

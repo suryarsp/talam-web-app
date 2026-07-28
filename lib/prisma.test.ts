@@ -6,6 +6,7 @@ vi.mock('@prisma/client', () => {
     $executeRaw = mockExecuteRaw
     $connect = vi.fn()
     $disconnect = vi.fn()
+    $transaction = vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(this))
   }
   return { PrismaClient: MockPrismaClient }
 })

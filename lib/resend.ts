@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { escapeHtml, renderEmailBody, renderEmailShell } from './email-templates'
+import { EMAIL_BRAND, escapeHtml, renderEmailBody, renderEmailShell } from './email-templates'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'hello@mailer.talam4shop.com'
@@ -101,6 +101,110 @@ export async function sendGoLiveReadyEmail(to: string, params: { storeName: stri
     })
   } catch (err) {
     console.error('[Resend] sendGoLiveReadyEmail failed:', err)
+  }
+}
+
+export type OrderEmailItem = { name: string; size?: string | null; quantity: number; unitPrice: number }
+
+const inr = (value: number) => `₹${value.toLocaleString('en-IN')}`
+
+/** Plain table — Gmail/Outlook strip most CSS, so line items stay as a bordered table with inline styles. */
+function renderOrderItemsTable(items: OrderEmailItem[], total: number): string {
+  const rows = items
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding: 8px 0; border-bottom: 1px solid ${EMAIL_BRAND.border}; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; color: ${EMAIL_BRAND.mutedBody};">
+          ${escapeHtml(item.name)}${item.size ? ` <span style="color: ${EMAIL_BRAND.muted};">(${escapeHtml(item.size)})</span>` : ''} &times; ${item.quantity}
+        </td>
+        <td align="right" style="padding: 8px 0; border-bottom: 1px solid ${EMAIL_BRAND.border}; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; color: ${EMAIL_BRAND.ink};">
+          ${inr(item.unitPrice * item.quantity)}
+        </td>
+      </tr>`
+    )
+    .join('')
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px 0;">
+      ${rows}
+      <tr>
+        <td style="padding: 12px 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 15px; font-weight: 700; color: ${EMAIL_BRAND.ink};">Total</td>
+        <td align="right" style="padding: 12px 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 15px; font-weight: 700; color: ${EMAIL_BRAND.ink};">${inr(total)}</td>
+      </tr>
+    </table>`
+}
+
+export async function sendOrderPlacedEmail(
+  to: string,
+  params: {
+    storeName: string
+    orderCode: string
+    items: OrderEmailItem[]
+    total: number
+    addressLines: string[]
+    trackUrl: string
+    invoiceUrl: string
+  }
+): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `Order ${params.orderCode} confirmed — ${params.storeName}`,
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: 'Order confirmed 🎉',
+          paragraphs: [
+            `Thanks for shopping with <strong>${escapeHtml(params.storeName)}</strong>. Your order <strong>${escapeHtml(params.orderCode)}</strong> is confirmed and being prepared.`,
+          ],
+          beforeCtasHtml: `${renderOrderItemsTable(params.items, params.total)}
+            <p style="margin: 0 0 24px 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; line-height: 22px; color: ${EMAIL_BRAND.muted};">
+              <strong style="color: ${EMAIL_BRAND.ink};">Delivering to</strong><br/>${params.addressLines.map(escapeHtml).join('<br/>')}
+            </p>`,
+          ctas: [{ label: 'Track your order →', href: params.trackUrl }],
+          extraHtml: `<p style="margin: 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px;">
+              <a href="${params.invoiceUrl}" style="color: ${EMAIL_BRAND.primary}; text-decoration: none; font-weight: 600;">View invoice</a>
+            </p>`,
+          signature: `Questions? Just reply to this email.<br/>${escapeHtml(params.storeName)}`,
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendOrderPlacedEmail failed:', err)
+  }
+}
+
+export async function sendNewOrderEmail(
+  to: string,
+  params: {
+    storeName: string
+    orderCode: string
+    customerName: string
+    items: OrderEmailItem[]
+    total: number
+    adminOrdersUrl: string
+  }
+): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `New order ${params.orderCode} — ${inr(params.total)}`,
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: 'You have a new order',
+          paragraphs: [
+            `<strong>${escapeHtml(params.customerName)}</strong> just placed order <strong>${escapeHtml(params.orderCode)}</strong> on ${escapeHtml(params.storeName)}.`,
+            'Confirm the payment and add a tracking ID from your orders page.',
+          ],
+          beforeCtasHtml: renderOrderItemsTable(params.items, params.total),
+          ctas: [{ label: 'View order →', href: params.adminOrdersUrl }],
+          signature: 'The Talam Team',
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendNewOrderEmail failed:', err)
   }
 }
 

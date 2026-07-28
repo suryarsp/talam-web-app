@@ -2,23 +2,34 @@ import { notFound } from 'next/navigation'
 import { getRequestTenantId, getTenantStorefront } from '@/lib/data/tenant'
 import { getStoreBanners, getStorePromotions, getProductTags } from '@/lib/data/storefront'
 import { getCategories, getProducts, getOfferProducts } from '@/lib/data/products'
+import { cacheForTenant } from '@/lib/storefront-cache'
 import { StorePageClient } from './store-page-client'
 
 export default async function StorePage() {
   const tenantId = await getRequestTenantId()
   if (!tenantId) return notFound()
 
-  const [tenant, banners, promotions, tags, categories, products, offerProducts] = await Promise.all([
-    getTenantStorefront(tenantId),
-    getStoreBanners(tenantId),
-    getStorePromotions(tenantId),
-    getProductTags(tenantId),
-    getCategories(tenantId),
-    getProducts(tenantId),
-    getOfferProducts(tenantId),
-  ])
+  const [tenant, banners, promotions, tags, categories, products, offerProducts] = await cacheForTenant(
+    () =>
+      Promise.all([
+        getTenantStorefront(tenantId),
+        getStoreBanners(tenantId),
+        getStorePromotions(tenantId),
+        getProductTags(tenantId),
+        getCategories(tenantId),
+        getProducts(tenantId),
+        getOfferProducts(tenantId),
+      ]),
+    ['store-home', tenantId],
+    tenantId,
+    1800
+  )
 
   if (!tenant) return notFound()
+
+  // Next's data cache round-trips through JSON on a cache hit, turning Date fields into
+  // strings — revive endsAt so the comparisons/formatting below work the same on a hit or a miss.
+  const promotionsWithDates = promotions.map((p) => ({ ...p, endsAt: p.endsAt ? new Date(p.endsAt) : null }))
 
   const bannersWithReviews = banners
     .filter((b) => b.product)
@@ -38,14 +49,14 @@ export default async function StorePage() {
       }
     })
 
-  const promotionData = promotions.map((p) => ({
+  const promotionData = promotionsWithDates.map((p) => ({
     offerText: p.offerText,
     subtitle: p.subtitle,
     endsAt: p.endsAt ? p.endsAt.toISOString() : null,
   }))
 
   const soonestEnd =
-    promotions
+    promotionsWithDates
       .filter((p) => p.endsAt && p.endsAt > new Date())
       .sort((a, b) => a.endsAt!.getTime() - b.endsAt!.getTime())[0]?.endsAt?.toISOString() ?? null
 

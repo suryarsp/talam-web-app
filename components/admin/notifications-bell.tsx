@@ -8,8 +8,8 @@ import {
   getNotificationsAction,
   getUnreadNotificationCountAction,
   markAllNotificationsReadAction,
-  type NotificationItem,
 } from '@/app/admin/notifications/actions'
+import type { NotificationItem } from '@/lib/data/notifications'
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
