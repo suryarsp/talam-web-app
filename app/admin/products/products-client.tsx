@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation'
 import { Search, SlidersHorizontal, MoreHorizontal, Plus, X, Image as ImageIcon, CheckSquare, Square, Pencil, Trash2, Power, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/dialog'
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentDescription,
+  AttachmentActions,
+  AttachmentAction,
+  AttachmentTrigger,
+} from '@/components/ui/attachment'
 import type { AdminProduct, CategoryMeta, ProductInput } from '@/lib/data/products'
 import {
   createProductAction,
@@ -414,27 +425,38 @@ function ProductEditorForm({
 
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-bold text-fg">Product Pictures * (Min 1, Max 5)</span>
-              {images.length > 0 && (
-                <div className="mb-1 flex flex-wrap gap-2">
-                  {images.map((src, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <div key={i} className="relative size-16 overflow-hidden rounded-lg bg-store-primary/10">
-                      <img src={src} alt="" className="size-full object-cover" />
-                      <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-fg text-surface">
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {images.length < 5 && (
-                <label className={`flex flex-col items-center rounded-lg border-2 border-dashed border-border bg-bg px-4 py-6 transition-colors ${uploading ? 'cursor-wait opacity-60' : 'cursor-pointer hover:border-brand-primary'}`}>
-                  <input type="file" accept="image/*" multiple disabled={uploading} className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-                  <ImageIcon className="mb-1.5 size-7 text-muted-warm" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-fg">{uploading ? 'Uploading…' : 'Click to upload or drag and drop'}</span>
-                  <span className="text-2xs text-muted-warm">PNG, JPG, GIF up to 5MB each</span>
-                </label>
-              )}
+              <AttachmentGroup>
+                {images.map((src, i) => (
+                  <Attachment key={i} orientation="vertical" size="sm">
+                    <AttachmentMedia variant="image">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt="" />
+                    </AttachmentMedia>
+                    <AttachmentActions>
+                      <AttachmentAction type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}>
+                        <X />
+                      </AttachmentAction>
+                    </AttachmentActions>
+                  </Attachment>
+                ))}
+                {images.length < 5 && (
+                  <Attachment orientation="vertical" size="sm" state={uploading ? 'uploading' : 'idle'}>
+                    <AttachmentTrigger
+                      render={<label />}
+                      aria-disabled={uploading}
+                    >
+                      <input type="file" accept="image/*" multiple disabled={uploading} className="sr-only" onChange={(e) => handleFiles(e.target.files)} />
+                    </AttachmentTrigger>
+                    <AttachmentMedia>
+                      <ImageIcon />
+                    </AttachmentMedia>
+                    <AttachmentContent>
+                      <AttachmentTitle>{uploading ? 'Uploading…' : 'Add photo'}</AttachmentTitle>
+                      <AttachmentDescription>PNG, JPG up to 5MB</AttachmentDescription>
+                    </AttachmentContent>
+                  </Attachment>
+                )}
+              </AttachmentGroup>
             </div>
 
             <div className="relative flex flex-col gap-1.5" ref={sizesRef}>

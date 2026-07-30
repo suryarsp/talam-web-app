@@ -34,6 +34,7 @@ import {
 } from './actions'
 import { RichTextEditor } from '@/components/admin/rich-text-editor'
 import { Dialog } from '@/components/ui/dialog'
+import { Attachment, AttachmentMedia, AttachmentTrigger } from '@/components/ui/attachment'
 import { ROOT_DOMAIN } from '@/lib/tenant-url'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
@@ -73,21 +74,22 @@ function ImageUploadPreview({ initialLabel, imageUrl, onFile }: { initialLabel: 
   const src = preview ?? imageUrl
 
   return (
-    <label
-      title="Click to change"
-      className="group/logo relative flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-brand-primary/10"
-    >
-      <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="size-full object-cover" />
-      ) : (
-        <span className="text-sm font-bold tracking-[0.04em] text-brand-primary">{initialLabel}</span>
-      )}
-      <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover/logo:opacity-100">
+    <Attachment title="Click to change" orientation="vertical" className="group/logo size-12 rounded-xl border-none bg-brand-primary/10 p-0" state={src ? 'done' : 'idle'}>
+      <AttachmentTrigger render={<label />}>
+        <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
+      </AttachmentTrigger>
+      <AttachmentMedia variant={src ? 'image' : 'icon'} className="size-full rounded-xl bg-transparent">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" />
+        ) : (
+          <span className="text-sm font-bold tracking-[0.04em] text-brand-primary">{initialLabel}</span>
+        )}
+      </AttachmentMedia>
+      <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/50 opacity-0 transition-opacity group-hover/logo:opacity-100">
         <Pencil className="size-4 text-white" />
       </span>
-    </label>
+    </Attachment>
   )
 }
 
