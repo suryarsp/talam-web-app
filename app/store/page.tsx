@@ -83,18 +83,25 @@ export default async function StorePage() {
 
   const categoryData = categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))
 
-  const offerData = offerProducts.map((p) => ({
-    name: p.name,
-    slug: p.slug,
-    price: Number(p.price),
-    comparePrice: p.comparePrice ? Number(p.comparePrice) : null,
-    category: p.category?.name ?? '',
-    sizes: p.sizes,
-    images: p.images,
-    reviewCount: p.reviewCount,
-    averageRating: p.averageRating ?? 0,
-    isNew: p.isNew,
-  }))
+  const offerData = offerProducts
+    .map((p) => {
+      const price = Number(p.price)
+      const comparePrice = p.comparePrice ? Number(p.comparePrice) : null
+      return {
+        name: p.name,
+        slug: p.slug,
+        price,
+        comparePrice,
+        category: p.category?.name ?? '',
+        sizes: p.sizes,
+        images: p.images,
+        reviewCount: p.reviewCount,
+        averageRating: p.averageRating ?? 0,
+        isNew: p.isNew,
+        discountPct: comparePrice && comparePrice > price ? Math.round((1 - price / comparePrice) * 100) : 0,
+      }
+    })
+    .sort((a, b) => b.discountPct - a.discountPct)
 
   return (
     <StorePageClient

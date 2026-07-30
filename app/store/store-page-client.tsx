@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal, X } from 'lu
 import { StoreLink, useStoreBase } from '@/components/store/store-context'
 import Image from 'next/image'
 import { hapticError } from '@/lib/haptics'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 
 type BannerData = {
   headline: string
@@ -47,6 +48,8 @@ type ProductData = {
   isNew: boolean
 }
 
+type OfferProductData = ProductData & { discountPct: number }
+
 type StorePageClientProps = {
   banners: BannerData[]
   promotions: PromotionData[]
@@ -54,7 +57,7 @@ type StorePageClientProps = {
   tags: TagData[]
   categories: CategoryData[]
   products: ProductData[]
-  offers: ProductData[]
+  offers: OfferProductData[]
 }
 
 // ponytail: fixed palette cycled by index for category card backgrounds — no per-category color field in schema.
@@ -68,6 +71,13 @@ const CATEGORY_GRADIENTS = [
 ]
 
 const SORT_OPTIONS = ['Newest First', 'Price: Low to High', 'Price: High to Low', 'Rating'] as const
+
+const OFFER_FILTERS = [
+  { label: 'All', min: 0 },
+  { label: '50%+ Off', min: 50 },
+  { label: '30%+ Off', min: 30 },
+  { label: '10%+ Off', min: 10 },
+]
 
 const PRODUCTS_PER_PAGE = 6
 
@@ -165,6 +175,10 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
   const SIZE_OPTIONS = useMemo(() => Array.from(new Set(products.flatMap((p) => p.sizes))).sort(), [products])
 
   const newThisWeek = useMemo(() => allProductsData.filter((p) => p.isNew).slice(0, 5), [allProductsData])
+
+  // ── Shop by Offers filter (single-select, minimum discount %) ──
+  const [offerFilterMin, setOfferFilterMin] = useState(0)
+  const filteredOffers = useMemo(() => offers.filter((o) => o.discountPct >= offerFilterMin), [offers, offerFilterMin])
 
   // ── Carousel ──
   const [heroIndex, setHeroIndex] = useState(0)
@@ -340,6 +354,9 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
     <div className="flex flex-col min-h-screen bg-white font-body overflow-x-hidden scroll-smooth">
       <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
       {/* ─── Hero Carousel (fixed height, no layout shift) ─── */}
+      {banners.length === 0 && (
+        <div className="h-[440px] md:h-[420px] animate-pulse bg-bg" />
+      )}
       {banners.length > 0 && hero && (
         <section
           className="relative overflow-hidden h-[440px] md:h-[420px] touch-pan-y -mx-0"
@@ -362,7 +379,6 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                 {banners.map((_, i) => (
                   <button key={i} onClick={() => goTo(i)} className={`w-[52px] h-[52px] rounded-lg shrink-0 transition-all ${i === heroIndex ? 'border-2 border-white bg-white/15' : 'border border-white/30 bg-white/8'}`} />
                 ))}
-                <div className="w-[52px] h-[52px] rounded-lg border border-white/30 bg-white/8 shrink-0" />
               </div>
             </div>
 
@@ -502,8 +518,19 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               <h2 className="text-[18px] font-bold text-fg font-body leading-[22px]">Shop by Offers</h2>
               <StoreLink href="/offers" className="text-store-primary text-[13px] font-semibold font-body hover:underline">See all offers →</StoreLink>
             </div>
+            <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+              {OFFER_FILTERS.map((f) => (
+                <button
+                  key={f.label}
+                  onClick={() => setOfferFilterMin(f.min)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full border-[1.5px] text-[12px] font-semibold font-body transition-colors ${offerFilterMin === f.min ? 'bg-store-primary border-store-primary text-white' : 'border-border text-[#8B7D7A]'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {offers.slice(0, 5).map((p, i) => {
+              {filteredOffers.slice(0, 5).map((p, i) => {
                 const label = discountLabel(p.price, p.comparePrice)
                 return (
                   <StoreLink key={i} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
@@ -692,18 +719,16 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
         </div>
       </div>
 
-      {/* ─── Mobile Filter Bottom Sheet ─── */}
-      {showMobileFilters && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileFilters(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto p-6 animate-[slideUp_0.3s_ease-out] transition-transform duration-300 ease-out">
-            <div className="w-10 h-1.5 bg-[#E5E0D5] rounded-full mx-auto mb-4" />
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-fg text-[16px] font-bold font-body">Filters</span>
-              <button onClick={() => setShowMobileFilters(false)} className="w-8 h-8 rounded-full bg-[#F9F9F9] flex items-center justify-center">
-                <X className="w-4 h-4 text-fg" />
-              </button>
-            </div>
+      {/* ─── Mobile Filter Drawer ─── */}
+      <Drawer open={showMobileFilters} onOpenChange={setShowMobileFilters}>
+        <DrawerContent className="lg:hidden max-h-[85vh]">
+          <DrawerHeader className="flex-row items-center justify-between text-left">
+            <DrawerTitle>Filters</DrawerTitle>
+            <button onClick={() => setShowMobileFilters(false)} className="w-8 h-8 rounded-full bg-[#F9F9F9] flex items-center justify-center">
+              <X className="w-4 h-4 text-fg" />
+            </button>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6 pt-4">
             {/* Sort (mobile only) */}
             <div className="border-b border-[#F0E8D8] mb-5 pb-5">
               <p className="text-[#8B7D7A] text-[11px] font-bold font-body uppercase tracking-[0.08em] leading-[14px] mb-3">Sort By</p>
@@ -717,8 +742,8 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
             </div>
             {filterPanel}
           </div>
-        </div>
-      )}
+        </DrawerContent>
+      </Drawer>
     </div>
   )
 }
