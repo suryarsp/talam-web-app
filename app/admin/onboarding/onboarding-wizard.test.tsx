@@ -10,22 +10,20 @@ const saveStoreStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: str
 const saveBrandStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string; logoUrl?: string })
 const saveContactStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
 const saveStoryStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
-const saveProductStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string; photoUrl?: string })
+const saveSubscriptionStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
 const savePaymentStep = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
 const completeOnboarding = vi.fn(async (..._args: unknown[]) => ({ adminUrl: '/admin/dashboard' }) as { error?: string; adminUrl?: string })
 const checkSlugAvailability = vi.fn(async (..._args: unknown[]) => ({ available: true }))
-const getOnboardingCategories = vi.fn(async (..._args: unknown[]) => [] as { id: string; name: string }[])
 
 vi.mock('./actions', () => ({
   saveStoreStep: (...args: unknown[]) => saveStoreStep(...args),
   saveBrandStep: (...args: unknown[]) => saveBrandStep(...args),
   saveContactStep: (...args: unknown[]) => saveContactStep(...args),
   saveStoryStep: (...args: unknown[]) => saveStoryStep(...args),
-  saveProductStep: (...args: unknown[]) => saveProductStep(...args),
+  saveSubscriptionStep: (...args: unknown[]) => saveSubscriptionStep(...args),
   savePaymentStep: (...args: unknown[]) => savePaymentStep(...args),
   completeOnboarding: (...args: unknown[]) => completeOnboarding(...args),
   checkSlugAvailability: (...args: unknown[]) => checkSlugAvailability(...args),
-  getOnboardingCategories: (...args: unknown[]) => getOnboardingCategories(...args),
 }))
 
 // Every field defaults to an already-valid value so each step can advance with a
@@ -46,12 +44,9 @@ const initialTenant = {
 }
 
 const initialBranch = { name: 'Main Store', address: '123 Market Street, Mumbai', city: 'Mumbai' }
-const initialProduct = { name: 'Silk Saree', price: 1999, stockBySize: { M: 5 }, images: ['https://cdn.example.com/product.png'] }
 
 function renderWizard() {
-  return render(
-    <OnboardingWizard initialTenant={initialTenant} initialBranch={initialBranch} initialProduct={initialProduct} />
-  )
+  return render(<OnboardingWizard initialTenant={initialTenant} initialBranch={initialBranch} />)
 }
 
 // Both the desktop and mobile footers render their own Next/Finish button; only one is visible per breakpoint.
@@ -68,9 +63,8 @@ describe('OnboardingWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     checkSlugAvailability.mockResolvedValue({ available: true })
-    getOnboardingCategories.mockResolvedValue([])
     completeOnboarding.mockResolvedValue({ adminUrl: '/admin/dashboard' })
-    ;[saveStoreStep, saveBrandStep, saveContactStep, saveStoryStep, saveProductStep, savePaymentStep].forEach((fn) =>
+    ;[saveStoreStep, saveBrandStep, saveContactStep, saveStoryStep, saveSubscriptionStep, savePaymentStep].forEach((fn) =>
       fn.mockResolvedValue({})
     )
   })
@@ -102,14 +96,17 @@ describe('OnboardingWizard', () => {
 
     await clickNext(user)
     await waitFor(() => expect(saveStoryStep).toHaveBeenCalled())
-    await screen.findByRole('heading', { name: 'Add your first product' })
+    await screen.findByRole('heading', { name: 'Choose your plan' })
 
     await clickNext(user)
-    await waitFor(() => expect(saveProductStep).toHaveBeenCalled())
+    await waitFor(() => expect(saveSubscriptionStep).toHaveBeenCalledWith({ subscriptionTier: 'starter' }))
     await screen.findByRole('heading', { name: 'Connect payments' })
 
+    const upiInput = screen.getByLabelText(/UPI address/i)
+    await user.type(upiInput, 'owner@upi')
+
     await clickFinish(user)
-    await waitFor(() => expect(savePaymentStep).toHaveBeenCalledWith({ paymentId: 'upi' }))
+    await waitFor(() => expect(savePaymentStep).toHaveBeenCalledWith({ paymentId: 'upi', upiAddress: 'owner@upi' }))
     // completeOnboarding is deliberately held behind a 1.2s "launching" delay in the wizard.
     await waitFor(() => expect(completeOnboarding).toHaveBeenCalled(), { timeout: 3000 })
     await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/dashboard'), { timeout: 3000 })
@@ -131,11 +128,15 @@ describe('OnboardingWizard', () => {
     const user = userEvent.setup()
     renderWizard()
 
-    const stepHeadings = ['Brand your store', 'Contact & address', 'Your story', 'Add your first product', 'Connect payments']
+    const stepHeadings = ['Brand your store', 'Contact & address', 'Your story', 'Choose your plan', 'Connect payments']
     for (const heading of stepHeadings) {
       await clickNext(user)
       await screen.findByRole('heading', { name: heading })
     }
+
+    const upiInput = screen.getByLabelText(/UPI address/i)
+    await user.type(upiInput, 'owner@upi')
+
     await clickFinish(user)
 
     await waitFor(() => expect(screen.getByText('Something broke.')).toBeInTheDocument(), { timeout: 3000 })

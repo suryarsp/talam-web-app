@@ -26,16 +26,6 @@ function isSlugCollision(err: unknown): boolean {
   return Array.isArray(adapterFields) && adapterFields.includes('slug')
 }
 
-function slugify(value: string): string {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '') || 'product'
-  )
-}
-
 async function seedDefaultCategories(tenantId: string): Promise<void> {
   const categoryCount = await prisma.productCategory.count({ where: { tenantId } })
   if (categoryCount > 0) return
@@ -87,13 +77,6 @@ export async function checkSlugAvailability(slug: string): Promise<{ available: 
   const { userId } = await requireOwnerSession()
   const existing = await prisma.tenant.findUnique({ where: { slug }, select: { ownerId: true } })
   return { available: !existing || existing.ownerId === userId }
-}
-
-export async function getOnboardingCategories(): Promise<{ id: string; name: string }[]> {
-  const { userId } = await requireOwnerSession()
-  const tenant = await prisma.tenant.findUnique({ where: { ownerId: userId }, select: { id: true } })
-  if (!tenant) return []
-  return prisma.productCategory.findMany({ where: { tenantId: tenant.id }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } })
 }
 
 export async function saveBrandStep(input: { brandColor: string; logo?: File }): Promise<ActionResult & { logoUrl?: string }> {
@@ -157,52 +140,13 @@ export async function saveStoryStep(input: { tagline: string; aboutDescription: 
   return {}
 }
 
-export async function saveProductStep(input: {
-  productName: string
-  productPrice: string
-  productStock: string
-  categoryId?: string
-  photo?: File
-}): Promise<ActionResult & { photoUrl?: string }> {
+export async function saveSubscriptionStep(input: { subscriptionTier: 'starter' | 'growth' | 'pro' }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
-  const tenant = await prisma.tenant.update({
+  await prisma.tenant.update({
     where: { ownerId: userId },
-    data: { onboardingStep: 5 },
-    select: { id: true },
+    data: { tier: input.subscriptionTier, onboardingStep: 5 },
   })
-
-  let photoUrl: string | undefined
-  if (input.photo && input.photo.size > 0) {
-    try {
-      photoUrl = await uploadImage(input.photo, `talam/${tenant.id}/products`)
-    } catch {
-      return { error: 'Photo upload failed — try again.' }
-    }
-  }
-
-  const existingProduct = await prisma.product.findFirst({
-    where: { tenantId: tenant.id },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-
-  const productData = {
-    name: input.productName,
-    slug: slugify(input.productName),
-    price: Number(input.productPrice),
-    sizes: ['Free Size'],
-    stockBySize: { 'Free Size': Number(input.productStock) },
-    categoryId: input.categoryId ?? null,
-    ...(photoUrl ? { images: [photoUrl] } : {}),
-  }
-
-  if (existingProduct) {
-    await prisma.product.update({ where: { id: existingProduct.id }, data: productData })
-  } else {
-    await prisma.product.create({ data: { ...productData, tenantId: tenant.id } })
-  }
-
-  return { photoUrl }
+  return {}
 }
 
 const PAYMENT_PROVIDER_MAP: Record<PaymentId, 'upi_manual' | 'razorpay' | 'instamojo'> = {
@@ -211,11 +155,15 @@ const PAYMENT_PROVIDER_MAP: Record<PaymentId, 'upi_manual' | 'razorpay' | 'insta
   instamojo: 'instamojo',
 }
 
-export async function savePaymentStep(input: { paymentId: PaymentId }): Promise<ActionResult> {
+export async function savePaymentStep(input: { paymentId: PaymentId; upiAddress: string }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
   await prisma.tenant.update({
     where: { ownerId: userId },
-    data: { paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentId], onboardingStep: 6 },
+    data: {
+      paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentId],
+      paymentConfig: { upiAddress: input.upiAddress.trim() },
+      onboardingStep: 6,
+    },
   })
   return {}
 }

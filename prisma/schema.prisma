@@ -19,6 +19,7 @@ model User {
 enum Tier {
   trial
   starter
+  growth
   pro
 }
 

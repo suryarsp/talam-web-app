@@ -13,11 +13,9 @@ const validBase = {
   branchCity: 'Mumbai',
   tagline: 'Handmade with love',
   aboutDescription: 'We make beautiful things.',
-  productName: 'Silk Saree',
-  productPrice: '1999',
-  productStock: '5',
-  categoryId: '',
+  subscriptionTier: 'starter' as const,
   paymentId: 'upi' as const,
+  upiAddress: 'owner@upi',
 }
 
 describe('onboardingSchema', () => {
@@ -51,14 +49,14 @@ describe('onboardingSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects a zero or negative product price', () => {
-    expect(onboardingSchema.safeParse({ ...validBase, productPrice: '0' }).success).toBe(false)
-    expect(onboardingSchema.safeParse({ ...validBase, productPrice: '-5' }).success).toBe(false)
+  it('rejects an invalid UPI address', () => {
+    const result = onboardingSchema.safeParse({ ...validBase, upiAddress: 'not-a-upi-address' })
+    expect(result.success).toBe(false)
   })
 
-  it('rejects a negative product stock but accepts zero', () => {
-    expect(onboardingSchema.safeParse({ ...validBase, productStock: '-1' }).success).toBe(false)
-    expect(onboardingSchema.safeParse({ ...validBase, productStock: '0' }).success).toBe(true)
+  it('rejects a missing UPI address', () => {
+    const result = onboardingSchema.safeParse({ ...validBase, upiAddress: '' })
+    expect(result.success).toBe(false)
   })
 
   it('rejects a short branch address', () => {

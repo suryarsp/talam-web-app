@@ -985,9 +985,10 @@ function PromotionsTab() {
 }
 
 // ── Subscription Tab (read-only: no billing provider wired up yet) ──
-const PLAN_COPY: Record<'trial' | 'starter' | 'pro', { name: string; price: string; features: string[]; missing: string[]; note: string }> = {
+const PLAN_COPY: Record<'trial' | 'starter' | 'growth' | 'pro', { name: string; price: string; features: string[]; missing: string[]; note: string }> = {
   trial: { name: 'Trial', price: 'Free / 14 days', features: ['25 products', '100 OTP logins/mo'], missing: ['WhatsApp button', 'Discount codes', 'Wishlist'], note: 'Powered by badge shown' },
   starter: { name: 'Starter', price: '₹499 /mo', features: ['100 products', '500 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist'], missing: [], note: 'Badge hidden' },
+  growth: { name: 'Growth', price: '₹999 /mo', features: ['250 products', '1,000 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist', 'Advanced analytics'], missing: [], note: 'Badge hidden' },
   pro: { name: 'Pro', price: '₹1,499 /mo', features: ['Unlimited products', '2,000 OTP logins/mo', 'WhatsApp button', 'Advanced analytics', 'Priority support'], missing: [], note: 'Badge hidden' },
 }
 

@@ -29,14 +29,13 @@ export const onboardingSchema = z
     branchCity: z.string().trim().min(1, 'City is required'),
     tagline: z.string().trim().min(1, 'Tagline is required'),
     aboutDescription: z.string().trim().min(1, 'Tell customers your story'),
-    productName: z.string().trim().min(1, 'Product name is required'),
-    productPrice: z.string().refine((value) => value.trim() !== '' && Number(value) > 0, 'Enter a valid price'),
-    productStock: z.string().refine((value) => value.trim() !== '' && Number(value) >= 0, 'Enter a valid stock quantity'),
-    // Optional for the same reason as brandLogo — revisiting the step after a
-    // successful upload shouldn't force re-selecting a file.
-    productPhoto: imageFile('Upload a product photo').optional(),
-    categoryId: z.string().optional(),
+    subscriptionTier: z.enum(['starter', 'growth', 'pro'], { message: 'Choose a plan' }),
     paymentId: z.enum(['upi', 'razorpay', 'instamojo']),
+    upiAddress: z
+      .string()
+      .trim()
+      .min(1, 'UPI address is required')
+      .regex(/^[\w.-]+@[\w]+$/, 'Enter a valid UPI address (e.g. name@upi)'),
   })
   .superRefine((values, ctx) => {
     if (values.category === 'Other' && !values.customCategory?.trim()) {
@@ -51,6 +50,6 @@ export const STEP_FIELDS: Record<number, (keyof OnboardingValues)[]> = {
   1: ['brandLogo'],
   2: ['contactPhone', 'contactEmail', 'branchName', 'branchAddress', 'branchCity'],
   3: ['tagline', 'aboutDescription'],
-  4: ['productName', 'productPrice', 'productStock', 'productPhoto'],
-  5: [],
+  4: ['subscriptionTier'],
+  5: ['upiAddress'],
 }

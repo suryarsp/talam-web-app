@@ -3,7 +3,7 @@ export const STEPS = [
   { mobile: 'Brand', title: 'Brand your store', description: 'Logo, colors, and look' },
   { mobile: 'Contact', title: 'Contact & address', description: 'Phone, email, and location' },
   { mobile: 'Story', title: 'Your story', description: 'Tagline and about your store' },
-  { mobile: 'Prod', title: 'Add first product', description: 'Name, photo, price, and stock' },
+  { mobile: 'Plan', title: 'Choose your plan', description: 'Pick the subscription that fits your store' },
   { mobile: 'Pay', title: 'Connect payments', description: 'UPI, Razorpay, or Instamojo' },
 ] as const
 
@@ -15,6 +15,36 @@ export const STEP_ACCENTS = [
   { wash: '#0ea5e9', solid: 'bg-sky-500', text: 'text-sky-500' },
   { wash: '#14b8a6', solid: 'bg-teal-500', text: 'text-teal-500' },
 ] as const
+
+// ponytail: placeholder pricing/features — swap for real plan copy once pricing is finalized.
+export const SUBSCRIPTION_PLANS = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    price: '₹0',
+    period: '/mo',
+    description: 'Everything you need to launch',
+    features: ['Up to 25 products', 'Basic storefront themes', 'Email support'],
+  },
+  {
+    id: 'growth',
+    name: 'Growth',
+    price: '₹999',
+    period: '/mo',
+    description: 'For stores ready to scale',
+    features: ['Up to 250 products', 'Custom domain', 'Priority support', 'Advanced analytics'],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '₹2,499',
+    period: '/mo',
+    description: 'Full power for high-growth brands',
+    features: ['Unlimited products', 'Custom domain', 'Dedicated support', 'Advanced analytics', 'API access'],
+  },
+] as const
+
+export type SubscriptionTier = (typeof SUBSCRIPTION_PLANS)[number]['id']
 
 export const STORE_TYPES = ['Ethnic wear', 'Bakery', 'Handicrafts', 'Salon', 'Other'] as const
 

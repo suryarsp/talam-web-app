@@ -39,9 +39,9 @@ import {
   saveBrandStep,
   saveContactStep,
   savePaymentStep,
-  saveProductStep,
   saveStoreStep,
   saveStoryStep,
+  saveSubscriptionStep,
 } from './actions'
 
 beforeEach(() => {
@@ -68,7 +68,7 @@ describe('saveStoreStep', () => {
   })
 
   it('does not send the welcome email when the session has no email (phone OTP)', async () => {
-    vi.mocked(requireOwnerSession).mockResolvedValueOnce({ userId: 'user-1', email: null })
+    vi.mocked(requireOwnerSession).mockResolvedValueOnce({ userId: 'user-1', email: null, authProvider: null })
     vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.tenant.upsert).mockResolvedValue({ id: 'tenant-1' } as never)
     vi.mocked(prisma.productCategory.count).mockResolvedValue(0)
@@ -164,48 +164,24 @@ describe('saveStoryStep', () => {
   })
 })
 
-describe('saveProductStep', () => {
-  it('creates the first product when none exists', async () => {
-    vi.mocked(prisma.tenant.update).mockResolvedValue({ id: 'tenant-1' } as never)
-    vi.mocked(prisma.product.findFirst).mockResolvedValue(null)
-    vi.mocked(prisma.product.create).mockResolvedValue({} as never)
-    const result = await saveProductStep({ productName: 'Cotton Saree', productPrice: '1499', productStock: '10' })
+describe('saveSubscriptionStep', () => {
+  it('persists the chosen tier', async () => {
+    vi.mocked(prisma.tenant.update).mockResolvedValue({} as never)
+    const result = await saveSubscriptionStep({ subscriptionTier: 'growth' })
     expect(result).toEqual({})
-    expect(prisma.product.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ tenantId: 'tenant-1', name: 'Cotton Saree', sizes: ['Free Size'] }) })
+    expect(prisma.tenant.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tier: 'growth' }) })
     )
-  })
-
-  it('uploads a photo and saves it on the product when a file is provided', async () => {
-    vi.mocked(prisma.tenant.update).mockResolvedValue({ id: 'tenant-1' } as never)
-    vi.mocked(prisma.product.findFirst).mockResolvedValue(null)
-    vi.mocked(prisma.product.create).mockResolvedValue({} as never)
-    const photo = new File(['x'], 'saree.png', { type: 'image/png' })
-    const result = await saveProductStep({ productName: 'Cotton Saree', productPrice: '1499', productStock: '10', photo })
-    expect(result).toEqual({ photoUrl: 'https://res.cloudinary.com/test/logo.png' })
-    expect(uploadImage).toHaveBeenCalledWith(photo, 'talam/tenant-1/products')
-    expect(prisma.product.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ images: ['https://res.cloudinary.com/test/logo.png'] }) })
-    )
-  })
-
-  it('returns a friendly error when the photo upload fails', async () => {
-    vi.mocked(prisma.tenant.update).mockResolvedValue({ id: 'tenant-1' } as never)
-    vi.mocked(uploadImage).mockRejectedValueOnce(new Error('boom'))
-    const photo = new File(['x'], 'saree.png', { type: 'image/png' })
-    const result = await saveProductStep({ productName: 'Cotton Saree', productPrice: '1499', productStock: '10', photo })
-    expect(result).toEqual({ error: 'Photo upload failed — try again.' })
-    expect(prisma.product.create).not.toHaveBeenCalled()
   })
 })
 
 describe('savePaymentStep', () => {
   it('maps the payment id to a provider', async () => {
     vi.mocked(prisma.tenant.update).mockResolvedValue({} as never)
-    const result = await savePaymentStep({ paymentId: 'razorpay' })
+    const result = await savePaymentStep({ paymentId: 'razorpay', upiAddress: 'owner@upi' })
     expect(result).toEqual({})
     expect(prisma.tenant.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ paymentProvider: 'razorpay' }) })
+      expect.objectContaining({ data: expect.objectContaining({ paymentProvider: 'razorpay', paymentConfig: { upiAddress: 'owner@upi' } }) })
     )
   })
 })
