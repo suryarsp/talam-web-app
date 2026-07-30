@@ -1,7 +1,8 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getTenantStorefront, getRequestTenantId, getMissingStoreConfig } from '@/lib/data/tenant'
-import { getCategories } from '@/lib/data/products'
+import { getCategories, getActiveDepartments } from '@/lib/data/products'
+import { DEPARTMENTS } from '@/lib/departments'
 import { StoreBaseProvider } from '@/components/store/store-context'
 import { StoreHeader } from '@/components/store/store-header'
 import { StoreFooter } from '@/components/store/store-footer'
@@ -18,14 +19,17 @@ export default async function StoreLayout({
 
   if (!tenantId) notFound()
 
-  const [tenant, categories, hdrs, missingConfig] = await Promise.all([
+  const [tenant, categories, hdrs, missingConfig, activeDepartments] = await Promise.all([
     getTenantStorefront(tenantId),
     getCategories(tenantId),
     headers(),
     getMissingStoreConfig(tenantId),
+    getActiveDepartments(tenantId),
   ])
 
   if (!tenant) notFound()
+
+  const departments = DEPARTMENTS.filter((d) => activeDepartments.includes(d.value))
 
   // if (missingConfig.length > 0) {
   //   return (
@@ -43,7 +47,7 @@ export default async function StoreLayout({
   return (
     <StoreBaseProvider base={storeBase}>
       <div style={tenant.brandColor ? ({ '--color-store-primary': tenant.brandColor } as React.CSSProperties) : undefined}>
-        <StoreHeader tenant={tenant} />
+        <StoreHeader tenant={tenant} departments={departments} />
         <div className="pb-20 sm:pb-0">
           {children}
           <StoreFooter tenant={tenant} categories={categories} />
