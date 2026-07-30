@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, SlidersHorizontal, MoreHorizontal, Plus, X, Image as ImageIcon, CheckSquare, Square, Pencil, Trash2, Power, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/dialog'
 import type { AdminProduct, CategoryMeta, ProductInput } from '@/lib/data/products'
 import {
@@ -334,8 +335,17 @@ function ProductEditorForm({
     setSaving(true)
     setError(null)
     try {
-      const productId = isEdit ? editProduct.id : await createProductAction(input)
-      if (isEdit) await updateProductAction(editProduct.id, input)
+      let productId: string
+      if (isEdit) {
+        productId = editProduct.id
+        await updateProductAction(editProduct.id, input)
+      } else {
+        const created = await createProductAction(input)
+        productId = created.id
+        if (created.readyToGoLive) {
+          toast.success('You have 3+ products!', { description: 'Click Go Live in the header to enable your store.' })
+        }
+      }
       await updateProductOccasionsAction(productId, selectedOccasions)
       router.refresh()
       onClose()

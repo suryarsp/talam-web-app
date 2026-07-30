@@ -7,8 +7,11 @@ import type { AdminProduct } from '@/lib/data/products'
 const refresh = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 
+const toastSuccess = vi.fn()
+vi.mock('sonner', () => ({ toast: { success: (...args: unknown[]) => toastSuccess(...args) } }))
+
 const uploadProductImageAction = vi.fn(async (..._args: unknown[]) => 'https://cdn.example.com/upload.png')
-const createProductAction = vi.fn(async (..._args: unknown[]) => 'new-id')
+const createProductAction = vi.fn(async (..._args: unknown[]) => ({ id: 'new-id', readyToGoLive: false }))
 const updateProductAction = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
 const updateProductOccasionsAction = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
 const setProductActiveAction = vi.fn(async (..._args: unknown[]) => ({}) as { error?: string })
@@ -133,5 +136,50 @@ describe('AdminProductsClient', () => {
     await user.click(selectAllButton)
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     expect(bulkDeleteAction).not.toHaveBeenCalled()
+  })
+
+  it('shows a toast prompting go-live when the created product reaches the 3-product threshold', async () => {
+    createProductAction.mockResolvedValueOnce({ id: 'new-id', readyToGoLive: true })
+    const user = userEvent.setup()
+    render(<AdminProductsClient products={products} categories={[{ id: 'cat-1', name: 'Sarees', slug: 'sarees', department: null }]} occasions={[]} />)
+
+    await user.click(document.querySelector('[data-tour="add-product"]')!)
+    await user.type(screen.getByPlaceholderText('e.g., Premium Cotton Kurta Set'), 'Silk Dupatta')
+    await user.selectOptions(document.querySelector('select[name="categoryId"]')!, 'cat-1')
+    await user.type(screen.getByPlaceholderText('1,299'), '999')
+    await user.type(screen.getByPlaceholderText('e.g., 25'), '5')
+    const file = new File(['x'], 'photo.png', { type: 'image/png' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, file)
+    await waitFor(() => expect(uploadProductImageAction).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Add Product' }))
+
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled())
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith(
+      'You have 3+ products!',
+      expect.objectContaining({ description: expect.stringContaining('Go Live') })
+    ))
+  })
+
+  it('does not toast when the created product does not reach the threshold', async () => {
+    createProductAction.mockResolvedValueOnce({ id: 'new-id', readyToGoLive: false })
+    const user = userEvent.setup()
+    render(<AdminProductsClient products={products} categories={[{ id: 'cat-1', name: 'Sarees', slug: 'sarees', department: null }]} occasions={[]} />)
+
+    await user.click(document.querySelector('[data-tour="add-product"]')!)
+    await user.type(screen.getByPlaceholderText('e.g., Premium Cotton Kurta Set'), 'Silk Dupatta')
+    await user.selectOptions(document.querySelector('select[name="categoryId"]')!, 'cat-1')
+    await user.type(screen.getByPlaceholderText('1,299'), '999')
+    await user.type(screen.getByPlaceholderText('e.g., 25'), '5')
+    const file = new File(['x'], 'photo.png', { type: 'image/png' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, file)
+    await waitFor(() => expect(uploadProductImageAction).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Add Product' }))
+
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled())
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 })
