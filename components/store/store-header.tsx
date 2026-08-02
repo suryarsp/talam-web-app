@@ -1,4 +1,5 @@
 import type { TenantStorefront } from '@/lib/data/tenant'
+import type { Department } from '@/lib/departments'
 import { StoreLink, StoreIconButton } from './store-context'
 import { CartBadge } from './cart-badge'
 import { AccountMenu } from './account-menu'
@@ -6,9 +7,10 @@ import { SearchButton } from './search-button'
 
 type Props = {
   tenant: Pick<TenantStorefront, 'name' | 'logoUrl' | 'ownerId'>
+  departments: { value: Department; label: string }[]
 }
 
-export function StoreHeader({ tenant }: Props) {
+export function StoreHeader({ tenant, departments }: Props) {
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between bg-surface/80 px-4 py-2.5 backdrop-blur-xl sm:border-b sm:border-border sm:bg-surface sm:px-12 sm:py-4 sm:backdrop-blur-none border-b border-border/50">
       <StoreLink href="/" className="font-heading text-xl font-bold text-fg sm:text-2xl">
@@ -21,15 +23,11 @@ export function StoreHeader({ tenant }: Props) {
       </StoreLink>
 
       <nav className="hidden gap-5 lg:flex lg:gap-12">
-        <StoreLink href="/women" className="font-body font-medium text-fg text-md/snug">
-          Women
-        </StoreLink>
-        <StoreLink href="/men" className="font-body font-medium text-fg text-md/snug">
-          Men
-        </StoreLink>
-        <StoreLink href="/kids" className="font-body font-medium text-fg text-md/snug">
-          Kids
-        </StoreLink>
+        {departments.map((dept) => (
+          <StoreLink key={dept.value} href={`/${dept.value}`} className="font-body font-medium text-fg text-md/snug">
+            {dept.label}
+          </StoreLink>
+        ))}
         <StoreLink href="/offers" className="font-body font-medium text-fg text-md/snug">
           Offers
         </StoreLink>

@@ -19,6 +19,7 @@ model User {
 enum Tier {
   trial
   starter
+  growth
   pro
 }
 
@@ -61,6 +62,9 @@ model Tenant {
   onboardingStep       Int             @default(0) @map("onboarding_step")
   isOnboarded          Boolean         @default(false) @map("is_onboarded")
   isLive               Boolean         @default(false) @map("is_live")
+  hasSeenSetupTour     Boolean         @default(false) @map("has_seen_setup_tour")
+  readyToGoLiveNotifiedAt DateTime?    @map("ready_to_go_live_notified_at") @db.Timestamptz
+  onboardingReminderCount Int          @default(0) @map("onboarding_reminder_count")
   slug                 String          @unique
   name                 String
   tagline              String?
@@ -75,6 +79,7 @@ model Tenant {
   notifyEmailOnOrder   Boolean         @default(true) @map("notify_email_on_order")
   paymentProvider      PaymentProvider @default(upi_manual) @map("payment_provider")
   paymentConfig        Json?           @map("payment_config")
+  notificationPreferences Json?        @map("notification_preferences")
   storeType            String?         @map("store_type")
   freeDeliveryAbove    Decimal?        @map("free_delivery_above") @db.Decimal(10, 2)
   shippingFee          Decimal         @default(0) @map("shipping_fee") @db.Decimal(10, 2)
@@ -100,6 +105,7 @@ model Tenant {
   tags          ProductTag[]
   addresses     Address[]
   publishLogs   PublishLog[]
+  notifications Notification[]
 
   @@map("tenants")
 }
@@ -194,6 +200,12 @@ model Order {
   tenantId        String        @map("tenant_id") @db.Uuid
   customerId      String        @map("customer_id") @db.Uuid
   status          OrderStatus   @default(pending)
+  // Stored, not derived: an order has to be able to reproduce its own invoice years
+  // later, even after product prices, shipping fees or coupons have changed.
+  itemsTotal      Decimal       @default(0) @map("items_total") @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  shippingFee     Decimal       @default(0) @map("shipping_fee") @db.Decimal(10, 2)
+  discountCode    String?       @map("discount_code")
   total           Decimal       @db.Decimal(10, 2)
   paymentProvider String?       @map("payment_provider")
   paymentId       String?       @map("payment_id")
@@ -264,11 +276,14 @@ model StoreAbout {
   storyTitle        String?       @map("story_title")
   description       String?
   ownerPhotoUrl     String?       @map("owner_photo_url")
+  ownerName         String?       @map("owner_name")
+  ownerTitle        String?       @map("owner_title")
   instagramUrl      String?       @map("instagram_url")
   facebookUrl       String?       @map("facebook_url")
   youtubeUrl        String?       @map("youtube_url")
   googleBusinessUrl String?       @map("google_business_url")
   socialLinks       Json          @default("[]") @map("social_links")
+  galleryUrls       String[]      @default([]) @map("gallery_urls")
   status            PublishStatus @default(published)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz
@@ -420,8 +435,27 @@ model PublishLog {
   publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz
   itemCount   Int      @map("item_count")
   summary     String
+  items       Json     @default("[]") @map("items")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@map("publish_logs")
+}
+
+// ponytail: `type` is a plain string, not an enum — only "go_live_ready" exists today, and new
+// notification types (order events, payment alerts) will just be new string values, no migration.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("notifications")
 }

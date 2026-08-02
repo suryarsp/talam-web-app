@@ -1,17 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyRazorpaySignature, handleRazorpayAccountEvent } from '@/lib/razorpay-webhook'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { verifyRazorpayWebhook } from '@/lib/payments/razorpay'
 
+/**
+ * The client-side handler in checkout already verifies and marks orders paid. This
+ * exists for the case it can't cover: the customer closing the tab after paying but
+ * before the callback fires. Razorpay retries this endpoint, so it must be idempotent.
+ *
+ * Not tenant-scoped via withTenant — Razorpay has no idea what a tenant is, and the
+ * order id in the receipt is globally unique.
+ */
 export async function POST(request: NextRequest) {
-  const rawBody = await request.text()
   const signature = request.headers.get('x-razorpay-signature')
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET
+  // Signature is over the exact bytes sent, so read the raw body — never re-serialise.
+  const rawBody = await request.text()
 
-  if (!secret || !signature || !verifyRazorpaySignature(rawBody, signature, secret)) {
-    return NextResponse.json({ error: 'invalid signature' }, { status: 400 })
+  if (!signature || !verifyRazorpayWebhook(rawBody, signature)) {
+    return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
 
-  const payload = JSON.parse(rawBody) as { event: string; account_id: string }
-  await handleRazorpayAccountEvent(payload)
+  const event = JSON.parse(rawBody) as {
+    event?: string
+    payload?: { payment?: { entity?: { id?: string; order_id?: string; notes?: Record<string, string> } } }
+  }
+
+  if (event.event !== 'payment.captured') {
+    return NextResponse.json({ ok: true, ignored: event.event })
+  }
+
+  const payment = event.payload?.payment?.entity
+  if (!payment?.order_id || !payment.id) {
+    return NextResponse.json({ error: 'missing payment entity' }, { status: 400 })
+  }
+
+  // createRazorpayOrderAction stores the Razorpay order id on paymentId, and passes our
+  // own order id as the receipt — either identifies the row.
+  const result = await prisma.order.updateMany({
+    where: { paymentId: payment.order_id, paymentStatus: 'pending' },
+    data: { paymentStatus: 'paid', paymentId: payment.id, status: 'confirmed' },
+  })
+
+  if (result.count === 0) {
+    // Already handled by the client callback, or an order we don't know about. Either
+    // way a 200 stops Razorpay retrying forever.
+    console.info('[razorpay webhook] no pending order for', payment.order_id)
+  }
 
   return NextResponse.json({ ok: true })
 }

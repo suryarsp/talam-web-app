@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getRequestTenantId } from '@/lib/data/tenant'
 import { getProducts, getCategories } from '@/lib/data/products'
+import { cacheForTenant } from '@/lib/storefront-cache'
 import { parseListingParams } from '@/lib/parse-listing-params'
 import { ProductGrid } from '@/components/store/product-grid'
 import { FilterBar } from '@/components/store/filter-bar'
@@ -30,7 +31,12 @@ export default async function DepartmentPage({ params, searchParams }: Props) {
   const categories = await getCategories(tenantId, department)
   const sp = await searchParams
   const filters = parseListingParams(sp, categories)
-  const products = await getProducts(tenantId, { ...filters, department })
+  const products = await cacheForTenant(
+    () => getProducts(tenantId, { ...filters, department }),
+    ['department-products', tenantId, department, JSON.stringify(filters)],
+    tenantId,
+    1800
+  )
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-16 sm:py-10">
@@ -49,7 +55,7 @@ export default async function DepartmentPage({ params, searchParams }: Props) {
           activeSort={typeof sp.sort === 'string' ? sp.sort : undefined}
         />
         <div className="flex-1">
-          <ProductGrid products={products as any} />
+          <ProductGrid products={products} />
         </div>
       </div>
     </main>

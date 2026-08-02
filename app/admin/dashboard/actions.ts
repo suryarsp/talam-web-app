@@ -6,6 +6,13 @@ import { requireOwnerSession, requireOwnerTenant } from '@/lib/admin-guard'
 import { prisma } from '@/lib/prisma'
 import { getStoreUrl } from '@/lib/tenant-url'
 import { getMissingStoreConfig, type MissingConfigItem } from '@/lib/data/tenant'
+import { sendStoreLiveEmail } from '@/lib/resend'
+import { getDashboardData, type DashboardData } from '@/lib/data/dashboard'
+
+export async function getDashboardDataAction(): Promise<DashboardData> {
+  const { tenantId } = await requireOwnerTenant()
+  return getDashboardData(tenantId)
+}
 
 export async function getLiveStoreUrl(): Promise<string | null> {
   const { userId } = await requireOwnerSession()
@@ -31,8 +38,23 @@ export async function goLiveAction(): Promise<{ error?: string }> {
   const missing = await getMissingStoreConfig(tenantId)
   if (missing.length > 0) return { error: 'Finish the remaining setup steps before going live.' }
 
-  await prisma.tenant.update({ where: { id: tenantId }, data: { isLive: true } })
+  const tenant = await prisma.tenant.update({
+    where: { id: tenantId },
+    data: { isLive: true },
+    select: { name: true, slug: true, contactEmail: true },
+  })
   revalidatePath('/admin/dashboard')
   revalidatePath('/store')
+
+  if (tenant.contactEmail) {
+    const isLocalDev = (await headers()).get('host')?.includes('localhost') ?? false
+    await sendStoreLiveEmail(tenant.contactEmail, { storeName: tenant.name, storeUrl: getStoreUrl(tenant.slug, isLocalDev) })
+  }
+
   return {}
+}
+
+export async function markSetupTourSeenAction(): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await prisma.tenant.update({ where: { id: tenantId }, data: { hasSeenSetupTour: true } })
 }

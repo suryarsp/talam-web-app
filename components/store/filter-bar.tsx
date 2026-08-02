@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { CategoryMeta } from '@/lib/data/products'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
 
 type Props = {
   basePath: string
@@ -20,11 +22,13 @@ const SORTS = [
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'popular', label: 'Most Popular' },
+  { value: 'discount-desc', label: 'Offers: High to Low' },
 ]
 
 export function FilterBar({ basePath, categories, activeCategory, activeSize, minPrice, maxPrice, activeSort }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   function push(params: URLSearchParams) {
     const qs = params.toString()
@@ -149,10 +153,17 @@ export function FilterBar({ basePath, categories, activeCategory, activeSize, mi
 
   return (
     <>
-      <details className="mb-4 rounded-xl border border-border bg-surface sm:hidden">
-        <summary className="cursor-pointer px-4 py-3 font-body text-sm/tight font-semibold text-fg">Filters</summary>
-        <div className="border-t border-border px-4 py-4">{panel}</div>
-      </details>
+      <Drawer open={mobileOpen} onOpenChange={setMobileOpen}>
+        <DrawerTrigger className="mb-4 block w-full rounded-xl border border-border bg-surface px-4 py-3 text-left font-body text-sm/tight font-semibold text-fg sm:hidden">
+          Filters
+        </DrawerTrigger>
+        <DrawerContent className="sm:hidden max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>Filters</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6 pt-2">{panel}</div>
+        </DrawerContent>
+      </Drawer>
       <aside className="hidden w-60 shrink-0 sm:block">{panel}</aside>
     </>
   )

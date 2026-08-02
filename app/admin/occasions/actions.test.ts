@@ -21,6 +21,8 @@ vi.mock('@/lib/prisma', () => ({
   ),
 }))
 
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }))
+
 import { createOccasionAction, setOccasionStatusAction, deleteOccasion } from './actions'
 
 describe('createOccasionAction', () => {

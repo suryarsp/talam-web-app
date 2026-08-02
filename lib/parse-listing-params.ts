@@ -1,6 +1,6 @@
 import type { ProductFilters, ProductSort, CategoryMeta } from '@/lib/data/products'
 
-const VALID_SORTS = new Set<ProductSort>(['newest', 'price-asc', 'price-desc', 'popular'])
+const VALID_SORTS = new Set<ProductSort>(['newest', 'price-asc', 'price-desc', 'popular', 'discount-desc'])
 
 export function parseListingParams(
   searchParams: Record<string, string | string[] | undefined>,

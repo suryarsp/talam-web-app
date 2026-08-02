@@ -4,9 +4,11 @@ import { getRequestTenantId } from '@/lib/data/tenant'
 import { getOccasionBySlug } from '@/lib/data/occasions'
 import { getProducts, getCategories } from '@/lib/data/products'
 import { getOccasionTheme } from '@/lib/occasion-themes'
+import { cacheForTenant } from '@/lib/storefront-cache'
 import { parseListingParams } from '@/lib/parse-listing-params'
 import { ProductGrid } from '@/components/store/product-grid'
 import { ProductCarousel } from '@/components/store/product-carousel'
+import { OccasionHeroCarousel } from '@/components/store/occasion-hero-carousel'
 import { FilterBar } from '@/components/store/filter-bar'
 
 type Props = {
@@ -30,19 +32,22 @@ export default async function OccasionPage({ params, searchParams }: Props) {
   const categories = await getCategories(tenantId)
   const sp = await searchParams
   const filters = parseListingParams(sp, categories)
-  const products = await getProducts(tenantId, { ...filters, tagId: occasion.id })
+  const products = await cacheForTenant(
+    () => getProducts(tenantId, { ...filters, tagId: occasion.id }),
+    ['occasion-products', tenantId, occasionSlug, JSON.stringify(filters)],
+    tenantId,
+    1800
+  )
   const theme = getOccasionTheme(occasion.themeKey)
 
   return (
     <main>
-      <div
-        className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center sm:py-20"
-        style={{ backgroundImage: theme.gradient }}
-      >
-        <span className="text-5xl leading-none">{occasion.emoji || '🎉'}</span>
-        <h1 className="font-heading text-2xl font-bold text-white sm:text-3xl">{occasion.name}</h1>
-        <p className="font-body text-sm text-white/80 sm:text-base">{theme.headline}</p>
-      </div>
+      <OccasionHeroCarousel
+        name={occasion.name}
+        emoji={occasion.emoji}
+        theme={theme}
+        featuredProducts={products}
+      />
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-16 sm:py-10">
         <p className="mb-4 font-body text-sm text-muted-warm">
@@ -60,9 +65,9 @@ export default async function OccasionPage({ params, searchParams }: Props) {
           />
           <div className="flex-1">
             {occasion.layout === 'carousel' ? (
-              <ProductCarousel products={products as any} />
+              <ProductCarousel products={products} />
             ) : (
-              <ProductGrid products={products as any} />
+              <ProductGrid products={products} />
             )}
           </div>
         </div>

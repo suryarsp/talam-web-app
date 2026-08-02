@@ -1,5 +1,8 @@
 import { headers } from 'next/headers'
 import { prisma, withTenant } from '@/lib/prisma'
+import { sendGoLiveReadyEmail } from '@/lib/resend'
+import { getAdminUrl } from '@/lib/tenant-url'
+import { createNotification } from '@/lib/data/notifications'
 
 export type SocialLink = { platform: string; url: string }
 
@@ -46,6 +49,16 @@ export type MissingConfigItem = {
   label: string
   description: string
   href: string
+}
+
+function getProductGapItem(productCount: number): MissingConfigItem | null {
+  if (productCount >= MIN_LIVE_PRODUCTS) return null
+  return {
+    key: 'products',
+    label: 'Products',
+    description: `Add at least ${MIN_LIVE_PRODUCTS} products (${productCount}/${MIN_LIVE_PRODUCTS})`,
+    href: '/admin/products',
+  }
 }
 
 export async function getMissingStoreConfig(tenantId: string): Promise<MissingConfigItem[]> {
@@ -105,14 +118,30 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
       description: 'Add your store address',
       href: '/admin/settings?tab=Contact Info',
     })
-  if (productCount < MIN_LIVE_PRODUCTS)
-    missing.push({
-      key: 'products',
-      label: 'Products',
-      description: `Add at least ${MIN_LIVE_PRODUCTS} products (${productCount}/${MIN_LIVE_PRODUCTS})`,
-      href: '/admin/products',
-    })
+  const productGap = getProductGapItem(productCount)
+  if (productGap) missing.push(productGap)
   return missing
+}
+
+/** Fires once, the moment a tenant's last go-live requirement is satisfied (e.g. adding their 3rd product) — not on every recheck. */
+export async function notifyIfReadyToGoLive(tenantId: string, isLocalDev: boolean): Promise<void> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { name: true, slug: true, contactEmail: true, isLive: true, readyToGoLiveNotifiedAt: true },
+  })
+  if (!tenant || tenant.isLive || tenant.readyToGoLiveNotifiedAt || !tenant.contactEmail) return
+
+  const missing = await getMissingStoreConfig(tenantId)
+  if (missing.length > 0) return
+
+  await prisma.tenant.update({ where: { id: tenantId }, data: { readyToGoLiveNotifiedAt: new Date() } })
+  await createNotification(tenantId, {
+    type: 'go_live_ready',
+    title: "You're ready to go live",
+    body: 'All setup steps are complete — head to your dashboard to launch your store.',
+    link: '/admin/dashboard',
+  })
+  await sendGoLiveReadyEmail(tenant.contactEmail, { storeName: tenant.name, adminUrl: getAdminUrl(tenant.slug, isLocalDev) })
 }
 
 export async function getBranches(tenantId: string) {

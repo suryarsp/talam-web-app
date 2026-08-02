@@ -1,9 +1,11 @@
 'use server'
 
 import { Prisma } from '@prisma/client'
+import { updateTag } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
 import { listOccasions, updateOccasionSettings, assignProductsToOccasion } from '@/lib/data/occasions'
+import { storefrontTag } from '@/lib/storefront-cache'
 
 type ActionResult = { error?: string }
 
@@ -54,6 +56,7 @@ export async function createOccasionAction(input: {
         },
       })
     )
+    updateTag(storefrontTag(tenantId))
     return {}
   } catch (err) {
     if (isSlugCollision(err)) return { error: 'An occasion with that name already exists.' }
@@ -75,6 +78,7 @@ export async function deleteOccasion(occasionId: string): Promise<ActionResult> 
       db.productTag.delete({ where: { id: occasionId } }),
     ])
   )
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -89,6 +93,7 @@ export async function setOccasionSettings(
   if (!occasion) return { error: 'Occasion not found.' }
 
   await updateOccasionSettings(tenantId, occasionId, input)
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -105,6 +110,7 @@ export async function setOccasionStatusAction(occasionId: string, enabled: boole
   await withTenant(tenantId, (db) =>
     db.productTag.update({ where: { id: occasionId, tenantId }, data: { status: enabled ? 'published' : 'draft' } })
   )
+  updateTag(storefrontTag(tenantId))
   return {}
 }
 
@@ -117,5 +123,6 @@ export async function assignProductsToOccasionAction(occasionId: string, product
   if (!occasion) return { error: 'Occasion not found.' }
 
   await assignProductsToOccasion(tenantId, occasionId, productIds)
+  updateTag(storefrontTag(tenantId))
   return {}
 }

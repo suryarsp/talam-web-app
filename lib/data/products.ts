@@ -1,6 +1,6 @@
 import { withTenant } from '@/lib/prisma'
 
-export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular'
+export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular' | 'discount-desc'
 
 export type ProductFilters = {
   categoryId?: string
@@ -78,8 +78,13 @@ export async function listProductsForAdmin(tenantId: string): Promise<AdminProdu
 export async function createProduct(tenantId: string, input: ProductInput) {
   // ponytail: slug is name-derived + a time suffix for uniqueness, no collision-retry needed at this scale
   const slug = `${slugify(input.name)}-${Date.now().toString(36).slice(-4)}`
-  return withTenant(tenantId, (db) =>
-    db.product.create({
+  return withTenant(tenantId, async (db) => {
+    // Before go-live there's no live storefront to protect, so new products publish immediately —
+    // otherwise they'd sit as 'draft' forever, since the draft→publish flow only runs post go-live
+    // (PublishButton only renders once isLive is true), leaving the "3 products" go-live
+    // requirement impossible to satisfy.
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { isLive: true } })
+    return db.product.create({
       data: {
         tenantId,
         slug,
@@ -91,15 +96,20 @@ export async function createProduct(tenantId: string, input: ProductInput) {
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
-        status: 'draft',
+        status: tenant?.isLive ? 'draft' : 'published',
       },
     })
-  )
+  })
 }
 
 export async function updateProduct(tenantId: string, id: string, input: ProductInput) {
-  return withTenant(tenantId, (db) =>
-    db.product.update({
+  return withTenant(tenantId, async (db) => {
+    // Same reasoning as createProduct: pre-launch there's no live storefront to protect,
+    // so edits shouldn't demote a product to 'draft' — that silently drops it from the
+    // "published" count getMissingStoreConfig uses to gate Go Live, making the 3-product
+    // requirement look unmet even after the merchant has added and edited their products.
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { isLive: true } })
+    return db.product.update({
       where: { id, tenantId },
       data: {
         name: input.name,
@@ -110,10 +120,10 @@ export async function updateProduct(tenantId: string, id: string, input: Product
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
-        status: 'draft',
+        status: tenant?.isLive ? 'draft' : 'published',
       },
     })
-  )
+  })
 }
 
 export async function setProductActive(tenantId: string, id: string, isActive: boolean) {
@@ -183,6 +193,12 @@ export async function getProducts(tenantId: string, filters?: ProductFilters) {
 
   if (filters?.sort === 'popular') {
     mapped.sort((a, b) => b.reviewCount - a.reviewCount)
+  } else if (filters?.sort === 'discount-desc') {
+    const discountPct = (p: (typeof mapped)[number]) =>
+      p.comparePrice && Number(p.comparePrice) > Number(p.price)
+        ? 1 - Number(p.price) / Number(p.comparePrice)
+        : 0
+    mapped.sort((a, b) => discountPct(b) - discountPct(a))
   } else if (filters?.tagId && !filters.sort) {
     // Occasion pages default to the owner's manually curated order, not createdAt.
     mapped.sort((a, b) => a._occasionSortOrder - b._occasionSortOrder)
@@ -278,6 +294,19 @@ export async function getCategories(tenantId: string, department?: string): Prom
       select: { id: true, name: true, slug: true, department: true },
     })
   )
+}
+
+/** Departments that have at least one published product — drives which nav links the storefront header shows. */
+export async function getActiveDepartments(tenantId: string): Promise<string[]> {
+  const rows = await withTenant(tenantId, (db) =>
+    db.product.findMany({
+      where: { tenantId, status: 'published', deletedAt: null, category: { department: { not: null } } },
+      select: { category: { select: { department: true } } },
+      distinct: ['categoryId'],
+    })
+  )
+  const departments = rows.map((r) => r.category?.department).filter((d): d is string => Boolean(d))
+  return Array.from(new Set(departments))
 }
 
 export async function softDeleteProducts(tenantId: string, productIds: string[]): Promise<void> {

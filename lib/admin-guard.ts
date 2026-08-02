@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma'
 // re-hits Supabase Auth + Postgres over the network.
 export const requireOwnerSession = cache(async function requireOwnerSession(
   nextPath = '/admin/onboarding'
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; email: string | null; authProvider: string | null }> {
   const supabase = await createServerClient()
   const {
     data: { user },
@@ -18,7 +18,7 @@ export const requireOwnerSession = cache(async function requireOwnerSession(
     redirect(`/auth?next=${nextPath}`)
   }
 
-  return { userId: user.id }
+  return { userId: user.id, email: user.email ?? null, authProvider: user.app_metadata?.provider ?? null }
 })
 
 // Admin Server Actions operate on the signed-in owner's own tenant, never a client-supplied id.

@@ -3,13 +3,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, SlidersHorizontal, MoreHorizontal, Plus, X, Image as ImageIcon, CheckSquare, Square, Pencil, Trash2, Power, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/dialog'
 import { formatCurrency } from '@/lib/utils'
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentDescription,
+  AttachmentActions,
+  AttachmentAction,
+  AttachmentTrigger,
+} from '@/components/ui/attachment'
 import type { AdminProduct, CategoryMeta, ProductInput } from '@/lib/data/products'
 import {
   createProductAction,
   updateProductAction,
   updateProductOccasionsAction,
+  uploadProductImageAction,
   setProductActiveAction,
   bulkAssignToOccasionAction,
   bulkSetCategoryAction,
@@ -58,20 +71,6 @@ function stockInfo(stockBySize: Record<string, number>) {
   if (total === 0) return { filter: 'out' as StockFilter, label: 'Out of stock', color: 'text-danger' }
   if (total <= 5) return { filter: 'low' as StockFilter, label: `Low (${total})`, color: 'text-amber' }
   return { filter: 'in_stock' as StockFilter, label: 'In stock', color: 'text-success' }
-}
-
-function filesToDataUrls(files: FileList): Promise<string[]> {
-  return Promise.all(
-    Array.from(files).map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        })
-    )
-  )
 }
 
 /* ── Filter chips ── */
@@ -271,11 +270,29 @@ function ProductEditor({
 }: {
   open: boolean; onClose: () => void; editProduct: AdminProduct | null; categories: CategoryMeta[]; occasions: OccasionOption[]
 }) {
+  if (!open) return null
+  return (
+    <ProductEditorForm
+      key={editProduct?.id ?? 'new'}
+      onClose={onClose}
+      editProduct={editProduct}
+      categories={categories}
+      occasions={occasions}
+    />
+  )
+}
+
+function ProductEditorForm({
+  onClose, editProduct, categories, occasions,
+}: {
+  onClose: () => void; editProduct: AdminProduct | null; categories: CategoryMeta[]; occasions: OccasionOption[]
+}) {
   const router = useRouter()
-  const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-  const [images, setImages] = useState<string[]>([])
-  const [selectedOccasions, setSelectedOccasions] = useState<string[]>([])
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(editProduct?.sizes ?? [])
+  const [images, setImages] = useState<string[]>(editProduct?.images ?? [])
+  const [selectedOccasions, setSelectedOccasions] = useState<string[]>(editProduct?.occasionIds ?? [])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sizesOpen, setSizesOpen] = useState(false)
   const sizesRef = useRef<HTMLDivElement>(null)
@@ -289,25 +306,22 @@ function ProductEditor({
     return () => document.removeEventListener('mousedown', handler)
   }, [sizesOpen])
 
-  useEffect(() => {
-    if (open) {
-      setSelectedSizes(editProduct?.sizes ?? [])
-      setImages(editProduct?.images ?? [])
-      setSelectedOccasions(editProduct?.occasionIds ?? [])
-      setError(null)
-    }
-  }, [open, editProduct])
-
-  if (!open) return null
-
   const isEdit = editProduct !== null
   const title = isEdit ? 'Edit Product' : 'Add New Product'
   const submitLabel = isEdit ? 'Save Changes' : 'Add Product'
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
-    const urls = await filesToDataUrls(fileList)
-    setImages((prev) => [...prev, ...urls].slice(0, 5))
+    setUploading(true)
+    setError(null)
+    try {
+      const urls = await Promise.all(Array.from(fileList).map((file) => uploadProductImageAction(file)))
+      setImages((prev) => [...prev, ...urls].slice(0, 5))
+    } catch {
+      setError('Image upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -333,8 +347,17 @@ function ProductEditor({
     setSaving(true)
     setError(null)
     try {
-      const productId = isEdit ? editProduct.id : await createProductAction(input)
-      if (isEdit) await updateProductAction(editProduct.id, input)
+      let productId: string
+      if (isEdit) {
+        productId = editProduct.id
+        await updateProductAction(editProduct.id, input)
+      } else {
+        const created = await createProductAction(input)
+        productId = created.id
+        if (created.readyToGoLive) {
+          toast.success('You have 3+ products!', { description: 'Click Go Live in the header to enable your store.' })
+        }
+      }
       await updateProductOccasionsAction(productId, selectedOccasions)
       router.refresh()
       onClose()
@@ -346,7 +369,7 @@ function ProductEditor({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} className="md:max-w-[560px]">
+    <Dialog open onClose={onClose} className="md:max-w-[560px]">
       <div className="flex max-h-[80vh] flex-col md:max-h-[85vh]">
         <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
           <span className="text-base font-bold text-fg">{title}</span>
@@ -403,27 +426,38 @@ function ProductEditor({
 
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-bold text-fg">Product Pictures * (Min 1, Max 5)</span>
-              {images.length > 0 && (
-                <div className="mb-1 flex flex-wrap gap-2">
-                  {images.map((src, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <div key={i} className="relative size-16 overflow-hidden rounded-lg bg-store-primary/10">
-                      <img src={src} alt="" className="size-full object-cover" />
-                      <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-fg text-surface">
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {images.length < 5 && (
-                <label className="flex cursor-pointer flex-col items-center rounded-lg border-2 border-dashed border-border bg-bg px-4 py-6 transition-colors hover:border-brand-primary">
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-                  <ImageIcon className="mb-1.5 size-7 text-muted-warm" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-fg">Click to upload or drag and drop</span>
-                  <span className="text-2xs text-muted-warm">PNG, JPG, GIF up to 5MB each</span>
-                </label>
-              )}
+              <AttachmentGroup>
+                {images.map((src, i) => (
+                  <Attachment key={i} orientation="vertical" size="sm">
+                    <AttachmentMedia variant="image">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt="" />
+                    </AttachmentMedia>
+                    <AttachmentActions>
+                      <AttachmentAction type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}>
+                        <X />
+                      </AttachmentAction>
+                    </AttachmentActions>
+                  </Attachment>
+                ))}
+                {images.length < 5 && (
+                  <Attachment orientation="vertical" size="sm" state={uploading ? 'uploading' : 'idle'}>
+                    <AttachmentTrigger
+                      render={<label />}
+                      aria-disabled={uploading}
+                    >
+                      <input type="file" accept="image/*" multiple disabled={uploading} className="sr-only" onChange={(e) => handleFiles(e.target.files)} />
+                    </AttachmentTrigger>
+                    <AttachmentMedia>
+                      <ImageIcon />
+                    </AttachmentMedia>
+                    <AttachmentContent>
+                      <AttachmentTitle>{uploading ? 'Uploading…' : 'Add photo'}</AttachmentTitle>
+                      <AttachmentDescription>PNG, JPG up to 5MB</AttachmentDescription>
+                    </AttachmentContent>
+                  </Attachment>
+                )}
+              </AttachmentGroup>
             </div>
 
             <div className="relative flex flex-col gap-1.5" ref={sizesRef}>
@@ -477,7 +511,7 @@ function ProductEditor({
 
         <div className="flex shrink-0 gap-3 border-t border-border p-4">
           <button type="button" onClick={onClose} className="grow cursor-pointer rounded-lg border border-border py-3 text-md font-semibold text-fg transition-colors active:bg-bg">Cancel</button>
-          <button form="product-form" type="submit" disabled={saving} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
+          <button form="product-form" type="submit" disabled={saving || uploading} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
             {saving ? 'Saving…' : submitLabel}
           </button>
         </div>
@@ -722,7 +756,7 @@ export function AdminProductsClient({ products, categories, occasions }: { produ
       </div>
 
       {/* FAB */}
-      <button onClick={openAdd} className="fixed bottom-24 right-4 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-primary shadow-lg transition-transform active:scale-90 md:bottom-8 md:right-8">
+      <button data-tour="add-product" onClick={openAdd} className="fixed bottom-24 right-4 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-primary shadow-lg transition-transform active:scale-90 md:bottom-8 md:right-8">
         <Plus className="size-7 text-surface" />
       </button>
 

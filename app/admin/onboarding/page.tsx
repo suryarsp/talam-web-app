@@ -8,14 +8,13 @@ import { OnboardingWizard } from './onboarding-wizard'
 export const dynamic = 'force-dynamic'
 
 export default async function OnboardingPage() {
-  const { userId } = await requireOwnerSession()
+  const { userId, email, authProvider } = await requireOwnerSession()
 
   const tenant = await prisma.tenant.findUnique({
     where: { ownerId: userId },
     include: {
       about: { select: { description: true } },
       branches: { orderBy: { sortOrder: 'asc' }, take: 1 },
-      products: { orderBy: { createdAt: 'asc' }, take: 1 },
     },
   })
 
@@ -30,18 +29,13 @@ export default async function OnboardingPage() {
     freeDeliveryAbove: tenant.freeDeliveryAbove?.toNumber() ?? null,
     shippingFee: tenant.shippingFee.toNumber(),
   }
-  const initialProduct = tenant?.products[0]
-  const serializedProduct = initialProduct && {
-    ...initialProduct,
-    price: initialProduct.price.toNumber(),
-    comparePrice: initialProduct.comparePrice?.toNumber() ?? null,
-  }
 
   return (
     <OnboardingWizard
       initialTenant={initialTenant}
       initialBranch={tenant?.branches[0] ?? null}
-      initialProduct={serializedProduct ?? null}
+      userEmail={email}
+      authProvider={authProvider}
     />
   )
 }

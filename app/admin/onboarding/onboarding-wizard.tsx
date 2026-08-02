@@ -9,13 +9,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   checkSlugAvailability,
   completeOnboarding,
-  getOnboardingCategories,
   saveBrandStep,
   saveContactStep,
   savePaymentStep,
-  saveProductStep,
   saveStoreStep,
   saveStoryStep,
+  saveSubscriptionStep,
 } from './actions'
 import { BrandStep } from './brand-step'
 import { ContactStep } from './contact-step'
@@ -23,15 +22,16 @@ import { LaunchOverlay } from './launch-overlay'
 import { STEP_ACCENTS, STEPS, type BrandColor, type PaymentId } from './onboarding-data'
 import { onboardingSchema, STEP_FIELDS, type OnboardingValues } from './onboarding-schema'
 import { PaymentStep } from './payment-step'
-import { ProductStep } from './product-step'
 import { StoreStep } from './store-step'
 import { StoryStep } from './story-step'
+import { SubscriptionStep } from './subscription-step'
 
 type InitialTenant = {
   name: string
   slug: string
   storeType: string | null
   brandColor: string | null
+  logoUrl: string | null
   contactPhone: string | null
   contactEmail: string | null
   tagline: string | null
@@ -41,13 +41,6 @@ type InitialTenant = {
 } | null
 
 type InitialBranch = { name: string; address: string | null; city: string | null } | null
-type InitialProduct = { name: string; price: unknown; stockBySize: unknown } | null
-
-function firstStockValue(stockBySize: unknown): string {
-  if (!stockBySize || typeof stockBySize !== 'object') return ''
-  const values = Object.values(stockBySize as Record<string, number>)
-  return values.length > 0 ? String(values[0]) : ''
-}
 
 const PAYMENT_ID_BY_PROVIDER: Record<string, PaymentId> = {
   upi_manual: 'upi',
@@ -58,18 +51,20 @@ const PAYMENT_ID_BY_PROVIDER: Record<string, PaymentId> = {
 export function OnboardingWizard({
   initialTenant,
   initialBranch,
-  initialProduct,
+  userEmail,
+  authProvider,
 }: {
   readonly initialTenant: InitialTenant
   readonly initialBranch: InitialBranch
-  readonly initialProduct: InitialProduct
+  readonly userEmail?: string | null
+  readonly authProvider?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isLaunching, setIsLaunching] = useState(false)
   const [step, setStep] = useState(initialTenant?.onboardingStep ?? 0)
   const [serverError, setServerError] = useState<string | null>(null)
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [existingLogoUrl, setExistingLogoUrl] = useState(initialTenant?.logoUrl ?? null)
 
   const { control, trigger, getValues, setError, watch } = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
@@ -81,18 +76,15 @@ export function OnboardingWizard({
       brandColor: ((initialTenant?.brandColor as BrandColor) ?? '#4F3FF0') as string,
       brandLogo: undefined as unknown as File,
       contactPhone: initialTenant?.contactPhone ?? '',
-      contactEmail: initialTenant?.contactEmail ?? '',
+      contactEmail: initialTenant?.contactEmail ?? userEmail ?? '',
       branchName: initialBranch?.name ?? '',
       branchAddress: initialBranch?.address ?? '',
       branchCity: initialBranch?.city ?? '',
       tagline: initialTenant?.tagline ?? '',
       aboutDescription: initialTenant?.about?.description ?? '',
-      productName: initialProduct?.name ?? '',
-      productPrice: initialProduct ? String(initialProduct.price) : '',
-      productStock: firstStockValue(initialProduct?.stockBySize),
-      productPhoto: undefined as unknown as File,
-      categoryId: '',
+      subscriptionTier: 'starter',
       paymentId: PAYMENT_ID_BY_PROVIDER[initialTenant?.paymentProvider ?? 'upi_manual'] ?? 'upi',
+      upiAddress: '',
     },
   })
 
@@ -107,12 +99,6 @@ export function OnboardingWizard({
         .replace(/^-|-$/g, '') || 'your-store',
     [storeName]
   )
-
-  useEffect(() => {
-    if (step === 4 && categories.length === 0) {
-      getOnboardingCategories().then(setCategories)
-    }
-  }, [step, categories.length])
 
   const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
 
@@ -137,7 +123,11 @@ export function OnboardingWizard({
       const category = values.category === 'Other' ? (values.customCategory ?? '').trim() : values.category
       return saveStoreStep({ storeName: values.storeName, slug, category })
     }
-    if (current === 1) return saveBrandStep({ brandColor: values.brandColor })
+    if (current === 1) {
+      const result = await saveBrandStep({ brandColor: values.brandColor, logo: values.brandLogo })
+      if (result.logoUrl) setExistingLogoUrl(result.logoUrl)
+      return result
+    }
     if (current === 2)
       return saveContactStep({
         contactPhone: values.contactPhone,
@@ -147,14 +137,8 @@ export function OnboardingWizard({
         branchCity: values.branchCity,
       })
     if (current === 3) return saveStoryStep({ tagline: values.tagline, aboutDescription: values.aboutDescription })
-    if (current === 4)
-      return saveProductStep({
-        productName: values.productName,
-        productPrice: values.productPrice,
-        productStock: values.productStock,
-        categoryId: values.categoryId || undefined,
-      })
-    if (current === 5) return savePaymentStep({ paymentId: values.paymentId })
+    if (current === 4) return saveSubscriptionStep({ subscriptionTier: values.subscriptionTier })
+    if (current === 5) return savePaymentStep({ paymentId: values.paymentId, upiAddress: values.upiAddress })
     return {}
   }
 
@@ -163,6 +147,10 @@ export function OnboardingWizard({
       if (!valid) return
       if (step === 0 && slugStatus === 'taken') {
         setServerError('That store URL is taken — try another.')
+        return
+      }
+      if (step === 1 && !getValues('brandLogo') && !existingLogoUrl) {
+        setError('brandLogo', { type: 'manual', message: 'Upload a store logo' })
         return
       }
       setServerError(null)
@@ -211,14 +199,14 @@ export function OnboardingWizard({
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col px-6 pb-32 pt-9 md:pb-16 md:pt-14">
         <ProgressHeader step={step} />
         <section className="relative mt-7 flex max-h-[calc(100dvh-140px)] flex-1 flex-col rounded-3xl border border-white/70 bg-surface/90 shadow-[0_24px_70px_-20px_rgba(31,41,55,0.25)] backdrop-blur-sm">
-          <div className="flex-1 overflow-y-auto p-7 md:p-11">
+          <div className="no-scrollbar flex-1 scroll-smooth overflow-y-auto p-7 md:p-11">
             <BackNav step={step} goBack={goBack} />
             {serverError ? <p className="mb-4 font-body text-sm font-medium text-danger">{serverError}</p> : null}
             {step === 0 ? <StoreStep control={control} slug={slug} serverError={serverError} slugStatus={slugStatus} /> : null}
-            {step === 1 ? <BrandStep control={control} /> : null}
-            {step === 2 ? <ContactStep control={control} /> : null}
+            {step === 1 ? <BrandStep control={control} existingLogoUrl={existingLogoUrl} /> : null}
+            {step === 2 ? <ContactStep control={control} authProvider={authProvider} /> : null}
             {step === 3 ? <StoryStep control={control} /> : null}
-            {step === 4 ? <ProductStep control={control} categories={categories} /> : null}
+            {step === 4 ? <SubscriptionStep control={control} /> : null}
             {step === 5 ? <PaymentStep control={control} /> : null}
           </div>
           <DesktopFooter step={step} goNext={goNext} isPending={isPending} />

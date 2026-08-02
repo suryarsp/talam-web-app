@@ -24,10 +24,23 @@ describe('requireOwnerSession', () => {
 
   it('returns the userId when a session exists', async () => {
     vi.mocked(createServerClient).mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1', email: null } } }) },
     } as never)
 
     const result = await requireOwnerSession()
-    expect(result).toEqual({ userId: 'user-1' })
+    expect(result).toEqual({ userId: 'user-1', email: null, authProvider: null })
+  })
+
+  it('returns the auth provider from app_metadata', async () => {
+    vi.mocked(createServerClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: 'user-1', email: 'owner@example.com', app_metadata: { provider: 'google' } } },
+        }),
+      },
+    } as never)
+
+    const result = await requireOwnerSession()
+    expect(result.authProvider).toBe('google')
   })
 })

@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { Check, ArrowDown, Package, X as XIcon, Plus } from 'lucide-react'
-import type { MockOrder } from '@/app/admin/orders/page'
+import type { AdminOrder } from '@/lib/data/orders'
+import { updateOrderStatusAction } from '@/app/admin/orders/actions'
 
 type Props = {
-  order: MockOrder
+  order: AdminOrder
   onClose: () => void
-  onViewDetails: (order: MockOrder) => void
+  onViewDetails: (order: AdminOrder) => void
+  onUpdated: (order: AdminOrder) => void
 }
 
 const ACTIONS = [
@@ -18,9 +20,10 @@ const ACTIONS = [
   { key: 'details', label: 'View Full Details', sub: 'See order history & timeline', icon: Plus, color: 'bg-muted-warm' },
 ] as const
 
-export function OrderActionSheet({ order, onClose, onViewDetails }: Props) {
+export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: Props) {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -31,13 +34,25 @@ export function OrderActionSheet({ order, onClose, onViewDetails }: Props) {
     setTimeout(onClose, 250)
   }
 
+  async function applyStatus(status: 'confirmed' | 'shipped' | 'delivered' | 'cancelled', trackingId?: string) {
+    setSaving(true)
+    await updateOrderStatusAction(order.id, status, trackingId)
+    setSaving(false)
+    onUpdated({ ...order, status, trackingId: trackingId ?? order.trackingId })
+    handleClose()
+  }
+
   function handleAction(key: string) {
     if (key === 'details') {
       setVisible(false)
       setTimeout(() => onViewDetails(order), 250)
       return
     }
-    setPendingStatus(key)
+    if (key === 'shipped') {
+      setPendingStatus(key)
+      return
+    }
+    void applyStatus(key as 'confirmed' | 'delivered' | 'cancelled')
   }
 
   return (
@@ -73,9 +88,16 @@ export function OrderActionSheet({ order, onClose, onViewDetails }: Props) {
                 </span>
               </button>
               {pendingStatus === action.key && action.key === 'shipped' && (
-                <form className="flex gap-2 border-b border-border bg-bg px-5 py-3">
+                <form
+                  className="flex gap-2 border-b border-border bg-bg px-5 py-3"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const trackingId = new FormData(e.currentTarget).get('trackingId') as string
+                    void applyStatus('shipped', trackingId)
+                  }}
+                >
                   <input name="trackingId" required placeholder="Tracking number" className="grow rounded-md border border-border px-2 py-1 text-sm" />
-                  <button type="submit" className="rounded-md bg-brand-primary px-3 py-1 text-sm font-semibold text-surface transition-transform active:scale-95">Save</button>
+                  <button type="submit" disabled={saving} className="rounded-md bg-brand-primary px-3 py-1 text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-50">Save</button>
                 </form>
               )}
             </div>

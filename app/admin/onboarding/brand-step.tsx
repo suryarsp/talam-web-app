@@ -1,10 +1,19 @@
+import { useEffect, useMemo } from 'react'
 import { Controller, type Control, useWatch } from 'react-hook-form'
+import { ImagePlus } from 'lucide-react'
 
 import { BRAND_COLORS } from './onboarding-data'
-import { FileDropzone, StepTitle } from './onboarding-fields'
+import { StepTitle } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
+import { Attachment, AttachmentMedia, AttachmentContent, AttachmentTitle, AttachmentDescription, AttachmentTrigger } from '@/components/ui/attachment'
 
-export function BrandStep({ control }: { readonly control: Control<OnboardingValues> }) {
+export function BrandStep({
+  control,
+  existingLogoUrl,
+}: {
+  readonly control: Control<OnboardingValues>
+  readonly existingLogoUrl?: string | null
+}) {
   const brandColor = useWatch({ control, name: 'brandColor' })
 
   return (
@@ -17,16 +26,7 @@ export function BrandStep({ control }: { readonly control: Control<OnboardingVal
             control={control}
             name="brandLogo"
             render={({ field, fieldState }) => (
-              <>
-                <FileDropzone
-                  hint="Upload a square image (PNG, JPG, or SVG). Recommended: 512×512px or larger."
-                  file={field.value}
-                  onFileChange={field.onChange}
-                />
-                {fieldState.error ? (
-                  <span className="mt-1.5 block font-body text-xs font-medium text-danger">{fieldState.error.message}</span>
-                ) : null}
-              </>
+              <LogoAttachment file={field.value} onFileChange={field.onChange} existingUrl={existingLogoUrl} error={fieldState.error?.message} />
             )}
           />
         </div>
@@ -65,6 +65,52 @@ export function BrandStep({ control }: { readonly control: Control<OnboardingVal
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function LogoAttachment({
+  file,
+  onFileChange,
+  existingUrl,
+  error,
+}: {
+  readonly file: File | null | undefined
+  readonly onFileChange: (file: File | null) => void
+  readonly existingUrl?: string | null
+  readonly error?: string
+}) {
+  const objectUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
+  useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }, [objectUrl])
+  const previewUrl = objectUrl ?? existingUrl ?? null
+
+  return (
+    <div className="mt-2.5">
+      <Attachment orientation="vertical" className="size-[120px]" state={previewUrl ? 'done' : 'idle'}>
+        <AttachmentTrigger render={<label />}>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml"
+            className="sr-only"
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+          />
+        </AttachmentTrigger>
+        <AttachmentMedia variant={previewUrl ? 'image' : 'icon'} className="size-full">
+          {previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={previewUrl} alt="" />
+          ) : (
+            <ImagePlus className="size-7" strokeWidth={1.5} />
+          )}
+        </AttachmentMedia>
+        {!previewUrl && (
+          <AttachmentContent>
+            <AttachmentTitle>Upload</AttachmentTitle>
+            <AttachmentDescription>PNG, JPG, or SVG</AttachmentDescription>
+          </AttachmentContent>
+        )}
+      </Attachment>
+      {error ? <span className="mt-1.5 block font-body text-xs font-medium text-danger">{error}</span> : null}
     </div>
   )
 }

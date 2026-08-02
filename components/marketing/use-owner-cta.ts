@@ -29,7 +29,7 @@ export function useOwnerCta(): CtaCopy | null {
   useEffect(() => {
     if (user === undefined) return
     if (user === null) {
-      setState('signed-out')
+      queueMicrotask(() => setState('signed-out'))
       return
     }
     getOwnerCtaState().then(setState)

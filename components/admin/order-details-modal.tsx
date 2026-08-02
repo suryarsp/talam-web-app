@@ -3,27 +3,42 @@
 import { useState, useEffect } from 'react'
 import { X, Check, ArrowDown, Package, XCircle } from 'lucide-react'
 
-import type { MockOrder } from '@/app/admin/orders/page'
+import type { AdminOrder } from '@/lib/data/orders'
+import { updateOrderStatusAction } from '@/app/admin/orders/actions'
 
-type Order = MockOrder
+type Order = AdminOrder
 
 type Props = {
   order: Order
   onClose: () => void
+  onUpdated: (order: Order) => void
 }
 
 const STATUS_COLOR: Record<string, { border: string; bg: string; text: string }> = {
-  Pending:   { border: '#FB923C', bg: '#FB923C1A', text: '#9A3412' },
-  Confirmed: { border: '#6366F1', bg: '#6366F11A', text: '#4338CA' },
-  Shipped:   { border: '#3B82F6', bg: '#3B82F61A', text: '#1D4ED8' },
-  Delivered: { border: '#22C55E', bg: '#22C55E1A', text: '#166534' },
+  pending:   { border: '#FB923C', bg: '#FB923C1A', text: '#9A3412' },
+  confirmed: { border: '#6366F1', bg: '#6366F11A', text: '#4338CA' },
+  shipped:   { border: '#3B82F6', bg: '#3B82F61A', text: '#1D4ED8' },
+  delivered: { border: '#22C55E', bg: '#22C55E1A', text: '#166534' },
+  cancelled: { border: '#EF4444', bg: '#EF44441A', text: '#991B1B' },
+  returned:  { border: '#9CA3AF', bg: '#9CA3AF1A', text: '#374151' },
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  Pending: 'Pending Confirmation',
-  Confirmed: 'Confirmed',
-  Shipped: 'Shipped',
-  Delivered: 'Delivered',
+  pending: 'Pending Confirmation',
+  confirmed: 'Confirmed',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  returned: 'Returned',
+}
+
+const PROGRESS_WIDTH: Record<string, string> = {
+  pending: '20%',
+  confirmed: '40%',
+  shipped: '60%',
+  delivered: '100%',
+  cancelled: '100%',
+  returned: '100%',
 }
 
 const TIMELINE = [
@@ -36,7 +51,7 @@ const TIMELINE = [
 ]
 
 function getTimeline(status: string) {
-  const statusIdx: Record<string, number> = { Pending: 1, Confirmed: 2, Shipped: 3, Delivered: 5 }
+  const statusIdx: Record<string, number> = { pending: 1, confirmed: 2, shipped: 3, delivered: 5 }
   const currentIdx = statusIdx[status] ?? 1
   return TIMELINE.map((step, i) => ({
     ...step,
@@ -44,6 +59,10 @@ function getTimeline(status: string) {
     current: i === currentIdx,
     pending: i > currentIdx,
   }))
+}
+
+function formatDate(date: Date) {
+  return date.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 }
 
 const ACTIONS = [
@@ -55,10 +74,11 @@ const ACTIONS = [
 
 type ActionKey = (typeof ACTIONS)[number]['key']
 
-export function OrderDetailsModal({ order, onClose }: Props) {
+export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
   const [visible, setVisible] = useState(false)
   const [confirmKey, setConfirmKey] = useState<ActionKey | null>(null)
   const [trackingId, setTrackingId] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -69,9 +89,19 @@ export function OrderDetailsModal({ order, onClose }: Props) {
     setTimeout(onClose, 250)
   }
 
-  const sc = STATUS_COLOR[order.status] ?? STATUS_COLOR.Pending
+  async function confirm() {
+    if (!confirmAction) return
+    setSaving(true)
+    await updateOrderStatusAction(order.id, confirmAction.key, confirmAction.key === 'shipped' ? trackingId : undefined)
+    setSaving(false)
+    onUpdated({ ...order, status: confirmAction.key, trackingId: confirmAction.key === 'shipped' ? trackingId : order.trackingId })
+    setConfirmKey(null)
+    setTrackingId('')
+  }
+
+  const sc = STATUS_COLOR[order.status] ?? STATUS_COLOR.pending
   const timeline = getTimeline(order.status)
-  const itemName = order.items.split('·')[0].trim()
+  const address = order.address
   const confirmAction = ACTIONS.find((a) => a.key === confirmKey)
 
   return (
@@ -109,7 +139,7 @@ export function OrderDetailsModal({ order, onClose }: Props) {
             </div>
             <div className="text-right">
               <p className="mb-1 text-2xs font-bold uppercase tracking-wide text-muted-warm">Order Date</p>
-              <p className="text-sm font-semibold text-fg">{order.time}</p>
+              <p className="text-sm font-semibold text-fg">{formatDate(order.createdAt)}</p>
             </div>
           </div>
 
@@ -119,19 +149,19 @@ export function OrderDetailsModal({ order, onClose }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-2xs text-muted-warm">Customer Name</p>
-                <p className="text-sm font-semibold text-fg">{order.customer}</p>
+                <p className="text-sm font-semibold text-fg">{order.customerName}</p>
               </div>
               <div>
                 <p className="text-2xs text-muted-warm">Email Address</p>
-                <p className="text-sm font-semibold text-fg">{order.email}</p>
+                <p className="text-sm font-semibold text-fg">{order.email ?? '—'}</p>
               </div>
               <div>
                 <p className="text-2xs text-muted-warm">Mobile Number</p>
-                <p className="text-sm font-semibold text-fg">{order.mobile}</p>
+                <p className="text-sm font-semibold text-fg">{order.phone ?? '—'}</p>
               </div>
               <div>
                 <p className="text-2xs text-muted-warm">Order Total</p>
-                <p className="text-sm font-bold text-fg">{order.price}</p>
+                <p className="text-sm font-bold text-fg">₹{order.total.toLocaleString('en-IN')}</p>
               </div>
             </div>
           </div>
@@ -140,10 +170,12 @@ export function OrderDetailsModal({ order, onClose }: Props) {
           <div className="mb-6">
             <p className="mb-3 text-xs font-bold uppercase tracking-wide text-fg">Delivery Address</p>
             <div className="rounded-xl border border-border p-4">
-              <p className="mb-1 text-sm font-semibold text-fg">{order.customer}</p>
-              {order.address.split('\n').map((line, i) => (
-                <p key={i} className="text-xs text-muted-warm">{line}</p>
-              ))}
+              <p className="mb-1 text-sm font-semibold text-fg">{address.name ?? order.customerName}</p>
+              {[address.line1, address.line2, [address.city, address.state, address.pincode].filter(Boolean).join(', ')]
+                .filter(Boolean)
+                .map((line, i) => (
+                  <p key={i} className="text-xs text-muted-warm">{line}</p>
+                ))}
             </div>
           </div>
 
@@ -154,7 +186,6 @@ export function OrderDetailsModal({ order, onClose }: Props) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-bg">
-                    <th className="px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wide text-muted-warm">Image</th>
                     <th className="px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wide text-muted-warm">Product</th>
                     <th className="px-4 py-2 text-center text-2xs font-semibold uppercase tracking-wide text-muted-warm">Qty</th>
                     <th className="px-4 py-2 text-right text-2xs font-semibold uppercase tracking-wide text-muted-warm">Price</th>
@@ -163,16 +194,10 @@ export function OrderDetailsModal({ order, onClose }: Props) {
                 <tbody>
                   <tr>
                     <td className="px-4 py-3">
-                      <div className="flex size-12 items-center justify-center rounded-lg bg-store-primary/20">
-                        <div className="size-8 rounded bg-store-primary/40" />
-                      </div>
+                      <p className="font-semibold text-fg">{order.itemsSummary}</p>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-fg">{itemName}</p>
-                      <p className="text-xs text-muted-warm">Size: L | Color: Pink</p>
-                    </td>
-                    <td className="px-4 py-3 text-center text-fg">{order.count ?? 1}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-fg">{order.price}</td>
+                    <td className="px-4 py-3 text-center text-fg">{order.itemCount}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-fg">₹{order.total.toLocaleString('en-IN')}</td>
                   </tr>
                 </tbody>
               </table>
@@ -183,7 +208,7 @@ export function OrderDetailsModal({ order, onClose }: Props) {
           <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-border">
             <div
               className="h-full rounded-full bg-brand-primary transition-all"
-              style={{ width: order.status === 'Pending' ? '20%' : order.status === 'Confirmed' ? '40%' : order.status === 'Shipped' ? '60%' : '100%' }}
+              style={{ width: PROGRESS_WIDTH[order.status] ?? '20%' }}
             />
           </div>
 
@@ -214,7 +239,7 @@ export function OrderDetailsModal({ order, onClose }: Props) {
                   <div className="-mt-[2px] pb-4">
                     <p className={`text-sm font-semibold ${step.pending ? 'text-muted-warm/50' : 'text-fg'}`}>{step.label}</p>
                     <p className={`text-xs ${step.pending ? 'text-muted-warm/40' : 'text-muted-warm'}`}>
-                      {step.done ? order.time.split('·')[0].trim() + ', 08:14 AM' : step.current ? 'Waiting for merchant action' : 'Pending'}
+                      {step.done ? formatDate(order.createdAt) : step.current ? 'Waiting for merchant action' : 'Pending'}
                     </p>
                     {step.current && <span className="mt-1 inline-block text-2xs font-bold uppercase tracking-wide text-[#FB923C]">Current</span>}
                   </div>
@@ -250,8 +275,8 @@ export function OrderDetailsModal({ order, onClose }: Props) {
                     Cancel
                   </button>
                   <button
-                    disabled={confirmAction.key === 'shipped' && !trackingId.trim()}
-                    onClick={() => { setConfirmKey(null); setTrackingId('') }}
+                    disabled={saving || (confirmAction.key === 'shipped' && !trackingId.trim())}
+                    onClick={() => void confirm()}
                     className="grow cursor-pointer rounded-lg bg-brand-primary p-2.5 text-sm font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
                   >
                     Yes, {confirmAction.label}

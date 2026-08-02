@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, X } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
@@ -90,22 +90,30 @@ function OccasionEditor({
 }: {
   open: boolean; onClose: () => void; occasion: OccasionRow | null; onSaved: () => void
 }) {
+  return (
+    <Dialog open={open} onClose={onClose} className="md:max-w-[560px]">
+      <OccasionEditorForm
+        key={open ? (occasion?.id ?? 'new') : 'closed'}
+        onClose={onClose}
+        occasion={occasion}
+        onSaved={onSaved}
+      />
+    </Dialog>
+  )
+}
+
+function OccasionEditorForm({
+  onClose, occasion, onSaved,
+}: {
+  onClose: () => void; occasion: OccasionRow | null; onSaved: () => void
+}) {
   const isEdit = occasion !== null
-  const [name, setName] = useState('')
-  const [emoji, setEmoji] = useState('')
-  const [themeKey, setThemeKey] = useState<string>(SELECTABLE_OCCASION_THEMES[0])
-  const [layout, setLayout] = useState<'grid' | 'carousel'>('grid')
+  const [name, setName] = useState(occasion?.name ?? '')
+  const [emoji, setEmoji] = useState(occasion?.emoji ?? '')
+  const [themeKey, setThemeKey] = useState<string>(occasion?.themeKey ?? SELECTABLE_OCCASION_THEMES[0])
+  const [layout, setLayout] = useState<'grid' | 'carousel'>(occasion?.layout ?? 'grid')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setName(occasion?.name ?? '')
-    setEmoji(occasion?.emoji ?? '')
-    setThemeKey(occasion?.themeKey ?? SELECTABLE_OCCASION_THEMES[0])
-    setLayout(occasion?.layout ?? 'grid')
-  }, [open, occasion, isEdit])
 
   async function handleSave() {
     if (!name.trim()) { setError('Name is required.'); return }
@@ -123,54 +131,52 @@ function OccasionEditor({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} className="md:max-w-[560px]">
-      <div className="flex max-h-[95vh] flex-col md:max-h-[90vh]">
-        <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
-          <span className="text-base font-bold text-fg">{isEdit ? occasion.name : 'Add New Occasion'}</span>
-          <button onClick={onClose} className="cursor-pointer transition-transform active:scale-90"><X className="size-6 text-muted-warm" /></button>
-        </div>
+    <div className="flex max-h-[95vh] flex-col md:max-h-[90vh]">
+      <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
+        <span className="text-base font-bold text-fg">{isEdit ? occasion.name : 'Add New Occasion'}</span>
+        <button onClick={onClose} className="cursor-pointer transition-transform active:scale-90"><X className="size-6 text-muted-warm" /></button>
+      </div>
 
-        <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex flex-col gap-5 p-4">
-            {error && <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</div>}
+      <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-col gap-5 p-4">
+          {error && <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</div>}
 
-            {!isEdit && (
-              <div className="flex gap-3">
-                <label className="flex w-20 shrink-0 flex-col gap-1.5">
-                  <span className="text-sm font-bold text-fg">Emoji</span>
-                  <input value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={2} placeholder="🪔" className="rounded-lg border border-border bg-bg px-3 py-[11px] text-center text-xl outline-none focus:border-brand-primary focus:bg-surface" />
-                </label>
-                <label className="flex flex-1 flex-col gap-1.5">
-                  <span className="text-sm font-bold text-fg">Name *</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Wedding Season" className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none focus:border-brand-primary focus:bg-surface" />
-                </label>
-              </div>
-            )}
-
-            {isEdit && (
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-bold text-fg">Name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none focus:border-brand-primary focus:bg-surface" />
+          {!isEdit && (
+            <div className="flex gap-3">
+              <label className="flex w-20 shrink-0 flex-col gap-1.5">
+                <span className="text-sm font-bold text-fg">Emoji</span>
+                <input value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={2} placeholder="🪔" className="rounded-lg border border-border bg-bg px-3 py-[11px] text-center text-xl outline-none focus:border-brand-primary focus:bg-surface" />
               </label>
-            )}
+              <label className="flex flex-1 flex-col gap-1.5">
+                <span className="text-sm font-bold text-fg">Name *</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Wedding Season" className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none focus:border-brand-primary focus:bg-surface" />
+              </label>
+            </div>
+          )}
 
-            <ThemePicker value={themeKey} onChange={setThemeKey} />
-            <LayoutToggle value={layout} onChange={setLayout} />
+          {isEdit && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-bold text-fg">Name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none focus:border-brand-primary focus:bg-surface" />
+            </label>
+          )}
 
-            <p className="text-xs text-muted-warm">
-              Products aren&apos;t assigned here — use the Products page&apos;s &quot;Assign to Occasion&quot; batch action, or link products individually from each product&apos;s editor.
-            </p>
-          </div>
-        </div>
+          <ThemePicker value={themeKey} onChange={setThemeKey} />
+          <LayoutToggle value={layout} onChange={setLayout} />
 
-        <div className="flex shrink-0 gap-3 border-t border-border p-4">
-          <button type="button" onClick={onClose} className="grow cursor-pointer rounded-lg border border-border py-3 text-md font-semibold text-fg transition-colors active:bg-bg">Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Occasion'}
-          </button>
+          <p className="text-xs text-muted-warm">
+            Products aren&apos;t assigned here — use the Products page&apos;s &quot;Assign to Occasion&quot; batch action, or link products individually from each product&apos;s editor.
+          </p>
         </div>
       </div>
-    </Dialog>
+
+      <div className="flex shrink-0 gap-3 border-t border-border p-4">
+        <button type="button" onClick={onClose} className="grow cursor-pointer rounded-lg border border-border py-3 text-md font-semibold text-fg transition-colors active:bg-bg">Cancel</button>
+        <button type="button" onClick={handleSave} disabled={saving} className="grow cursor-pointer rounded-lg bg-brand-primary py-3 text-md font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-60">
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Occasion'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -214,7 +220,7 @@ export function OccasionsClient({ initialOccasions }: { initialOccasions: Occasi
 
       {error && <p className="mb-3 rounded-lg bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {occasions.map((o) => {
           const theme = o.themeKey ? OCCASION_THEMES[o.themeKey] : undefined
           const live = o.status === 'published'

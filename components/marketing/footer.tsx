@@ -7,7 +7,7 @@ export function MarketingFooter() {
       <div className="max-w-[1200px] mx-auto px-6 md:px-[60px] flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <Logo className="text-white text-[20px]" />
-          <span className="text-sm text-white/40 font-body">Made in India 🇮🇳</span>
+          <span className="text-sm text-white/40 font-body">Built for Indian textile shops</span>
         </div>
         <div className="flex items-center gap-8">
           <a href="#features" className="text-sm text-white/50 hover:text-white transition-colors font-body">Features</a>

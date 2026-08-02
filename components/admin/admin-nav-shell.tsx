@@ -2,30 +2,48 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, ClipboardList, Users, Settings, PartyPopper, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, Package, ClipboardList, Users, Settings, PartyPopper, History, ExternalLink, MoreHorizontal } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { StoreLink, useStoreBase } from '@/components/store/store-context'
 import { ProfileMenu } from '@/components/marketing/profile-menu'
+import { Dialog } from '@/components/ui/dialog'
 import { PublishButton } from './publish-button'
+import { GoLiveButton } from './go-live-button'
+import { NotificationsBell } from './notifications-bell'
 import { getLiveStoreUrl, getTenantLiveStateAction } from '@/app/admin/dashboard/actions'
+import { useTourStore } from '@/lib/store/tour'
 
 const NAV = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/occasions', label: 'Occasions', icon: PartyPopper },
+  { href: '/admin/versions', label: 'Versions', icon: History },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 
-const MOBILE_NAV = [
-  { href: '/admin/dashboard', label: 'DASHBOARD', icon: LayoutDashboard },
-  { href: '/admin/products', label: 'PRODUCTS', icon: Package },
-  { href: '/admin/orders', label: 'ORDERS', icon: ClipboardList },
-  { href: '/admin/occasions', label: 'OCCASIONS', icon: PartyPopper },
-  { href: '/admin/customers', label: 'CUSTOMERS', icon: Users },
-  { href: '/admin/settings', label: 'SETTINGS', icon: Settings },
+// Mobile bottom nav only has room for a handful of full-width labels before they truncate —
+// the rest live behind the "More" sheet so every item still reads at a glance.
+const MOBILE_PRIMARY = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
+
+const MOBILE_OVERFLOW = [
+  { href: '/admin/occasions', label: 'Occasions', icon: PartyPopper },
+  { href: '/admin/versions', label: 'Versions', icon: History },
+  { href: '/admin/customers', label: 'Customers', icon: Users },
+]
+
+/** Derives a stable `data-tour` id from the href so NAV/MOBILE_PRIMARY/MOBILE_OVERFLOW stay the single source of truth. */
+function navTourId(href: string) {
+  return `nav-${href.split('/').pop()}`
+}
+
+const MOBILE_OVERFLOW_TOUR_IDS = new Set(MOBILE_OVERFLOW.map((item) => navTourId(item.href)))
 
 function isActive(rel: string, href: string) {
   return rel === href || (href !== '/admin/dashboard' && rel.startsWith(href))
@@ -38,12 +56,27 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
   const rel = storeBase ? pathname.replace(storeBase, '') || '/' : pathname
   const [liveStoreUrl, setLiveStoreUrl] = useState<string | null>(null)
   const [isLive, setIsLive] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  const tourActive = useTourStore((s) => s.active)
+  const tourStepKey = useTourStore((s) => s.steps[s.stepIndex]?.key)
 
   useEffect(() => {
     getLiveStoreUrl().then(setLiveStoreUrl)
     getTenantLiveStateAction().then((state) => setIsLive(state.isLive))
   }, [])
+
+  function handleGoLive() {
+    setIsLive(true)
+  }
+
+  // The orientation tour targets nav items by their `data-tour` id — if the current step points
+  // at one tucked inside the mobile "More" sheet, open it so the tour can find and spotlight it.
+  const [prevTourState, setPrevTourState] = useState({ tourActive, tourStepKey })
+  if (tourActive !== prevTourState.tourActive || tourStepKey !== prevTourState.tourStepKey) {
+    setPrevTourState({ tourActive, tourStepKey })
+    if (tourActive && tourStepKey && MOBILE_OVERFLOW_TOUR_IDS.has(tourStepKey)) setMoreOpen(true)
+  }
 
   // The desktop content pane scrolls independently of the window (`overflow-auto`
   // below), so Next's default scroll-to-top-on-navigate never touches it — reset it here.
@@ -68,6 +101,7 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
                 <StoreLink
                   key={href}
                   href={href}
+                  data-tour={navTourId(href)}
                   className={`flex items-center gap-3 rounded-lg px-4 py-[10px] text-md font-medium transition-colors ${
                     active
                       ? 'bg-brand-primary/15 text-brand-primary'
@@ -79,29 +113,25 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
                 </StoreLink>
               )
             })}
-            <a
-              href={liveStoreUrl ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-lg px-4 py-[10px] text-md font-medium text-[#9CA3AF] transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <ExternalLink className="size-5" strokeWidth={1.8} />
-              <span>Live Store</span>
-            </a>
+            {isLive && (
+              <a
+                href={liveStoreUrl ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-lg px-4 py-[10px] text-md font-medium text-[#9CA3AF] transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <ExternalLink className="size-5" strokeWidth={1.8} />
+                <span>Live Store</span>
+              </a>
+            )}
           </nav>
         </aside>
         <div ref={contentRef} className="flex-1 overflow-auto">
           <header className="flex h-[64px] items-center justify-between border-b border-border bg-surface px-8">
             <span className="font-marketing text-xl italic text-fg">talam.</span>
             <div className="flex items-center gap-4">
-              {isLive ? <PublishButton /> : null}
-              <button className="relative">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <div className="absolute -right-1 -top-1 size-2 rounded-full bg-danger" />
-              </button>
+              {isLive ? <PublishButton /> : <GoLiveButton onGoLive={handleGoLive} />}
+              <NotificationsBell />
               {user && (
                 <ProfileMenu
                   user={user}
@@ -119,14 +149,8 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
         <header className="flex h-[56px] items-center justify-between border-b border-border bg-surface px-4">
           <span className="font-marketing text-lg italic text-fg">talam.</span>
           <div className="flex items-center gap-3">
-            <PublishButton />
-            <button className="relative">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <div className="absolute -right-0.5 -top-0.5 size-[6px] rounded-full bg-danger" />
-            </button>
+            {isLive ? <PublishButton /> : <GoLiveButton onGoLive={handleGoLive} />}
+            <NotificationsBell />
             {user && (
               <ProfileMenu
                 user={user}
@@ -136,17 +160,55 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
           </div>
         </header>
         <main className="pt-4 pb-20">{children}</main>
-        <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[72px] grid-cols-6 items-center border-t border-border bg-surface">
-          {MOBILE_NAV.map(({ href, label, icon: Icon }) => {
+        <nav
+          className="fixed inset-x-0 bottom-0 z-40 grid h-[72px] items-center border-t border-border bg-surface"
+          style={{ gridTemplateColumns: `repeat(${MOBILE_PRIMARY.length + 1}, minmax(0, 1fr))` }}
+        >
+          {MOBILE_PRIMARY.map(({ href, label, icon: Icon }) => {
             const active = isActive(rel, href)
             return (
-              <StoreLink key={href} href={href} className={`flex min-w-0 flex-col items-center gap-1 px-0.5 ${active ? 'text-brand-primary' : 'text-muted-warm'}`}>
+              <StoreLink
+                key={href}
+                href={href}
+                data-tour={navTourId(href)}
+                className={`flex min-w-0 flex-col items-center gap-1 px-0.5 ${active ? 'text-brand-primary' : 'text-muted-warm'}`}
+              >
                 <Icon className="size-5 shrink-0" strokeWidth={active ? 2 : 1.8} />
                 <span className={`w-full truncate text-center text-2xs tracking-[0.02em] ${active ? 'font-bold' : 'font-semibold'}`}>{label}</span>
               </StoreLink>
             )
           })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className={`flex min-w-0 flex-col items-center gap-1 px-0.5 ${MOBILE_OVERFLOW.some((item) => isActive(rel, item.href)) ? 'text-brand-primary' : 'text-muted-warm'}`}
+          >
+            <MoreHorizontal className="size-5 shrink-0" strokeWidth={1.8} />
+            <span className="w-full truncate text-center text-2xs font-semibold tracking-[0.02em]">More</span>
+          </button>
         </nav>
+
+        <Dialog open={moreOpen} onClose={() => setMoreOpen(false)}>
+          <div className="p-4 pb-6">
+            <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-warm">More</p>
+            <div className="flex flex-col gap-1">
+              {MOBILE_OVERFLOW.map(({ href, label, icon: Icon }) => {
+                const active = isActive(rel, href)
+                return (
+                  <StoreLink
+                    key={href}
+                    href={href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-md font-medium ${active ? 'bg-brand-primary/10 text-brand-primary' : 'text-fg'}`}
+                  >
+                    <Icon className="size-5" strokeWidth={active ? 2 : 1.8} />
+                    <span>{label}</span>
+                  </StoreLink>
+                )
+              })}
+            </div>
+          </div>
+        </Dialog>
       </div>
     </div>
   )

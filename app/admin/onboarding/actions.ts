@@ -4,8 +4,10 @@ import { headers } from 'next/headers'
 import { Prisma } from '@prisma/client'
 import { requireOwnerSession } from '@/lib/admin-guard'
 import { prisma } from '@/lib/prisma'
+import { uploadImage } from '@/lib/cloudinary'
+import { sendOnboardingCompleteEmail, sendOnboardingWelcomeEmail } from '@/lib/resend'
 import { DEFAULT_OCCASIONS } from '@/lib/default-occasions'
-import { getAdminUrl, isLocalDevHost } from '@/lib/tenant-url'
+import { getAdminUrl, getOnboardingUrl, getStoreUrl, isLocalDevHost } from '@/lib/tenant-url'
 import type { PaymentId } from './onboarding-data'
 
 type ActionResult = { error?: string }
@@ -22,16 +24,6 @@ function isSlugCollision(err: unknown): boolean {
     err.meta?.driverAdapterError as { cause?: { constraint?: { fields?: unknown } } } | undefined
   )?.cause?.constraint?.fields
   return Array.isArray(adapterFields) && adapterFields.includes('slug')
-}
-
-function slugify(value: string): string {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '') || 'product'
-  )
 }
 
 async function seedDefaultCategories(tenantId: string): Promise<void> {
@@ -52,15 +44,28 @@ async function seedDefaultCategories(tenantId: string): Promise<void> {
 }
 
 export async function saveStoreStep(input: { storeName: string; slug: string; category: string }): Promise<ActionResult> {
-  const { userId } = await requireOwnerSession()
+  const { userId, email } = await requireOwnerSession()
+  const isNewTenant = !(await prisma.tenant.findUnique({ where: { ownerId: userId }, select: { id: true } }))
   try {
     const tenant = await prisma.tenant.upsert({
       where: { ownerId: userId },
-      create: { ownerId: userId, name: input.storeName, slug: input.slug, storeType: input.category, onboardingStep: 1 },
+      create: {
+        ownerId: userId,
+        name: input.storeName,
+        slug: input.slug,
+        storeType: input.category,
+        onboardingStep: 1,
+        deliveryEstimateText: '5-7 business days',
+        returnWindowDays: 7,
+        trustBadgeText: 'Secure Payments · Easy Returns',
+      },
       update: { name: input.storeName, slug: input.slug, storeType: input.category, onboardingStep: 1 },
       select: { id: true },
     })
     await seedDefaultCategories(tenant.id)
+    if (isNewTenant && email) {
+      await sendOnboardingWelcomeEmail(email, { onboardingUrl: getOnboardingUrl() })
+    }
     return {}
   } catch (err) {
     if (isSlugCollision(err)) return { error: 'That store URL is taken — try another.' }
@@ -74,20 +79,22 @@ export async function checkSlugAvailability(slug: string): Promise<{ available: 
   return { available: !existing || existing.ownerId === userId }
 }
 
-export async function getOnboardingCategories(): Promise<{ id: string; name: string }[]> {
+export async function saveBrandStep(input: { brandColor: string; logo?: File }): Promise<ActionResult & { logoUrl?: string }> {
   const { userId } = await requireOwnerSession()
-  const tenant = await prisma.tenant.findUnique({ where: { ownerId: userId }, select: { id: true } })
-  if (!tenant) return []
-  return prisma.productCategory.findMany({ where: { tenantId: tenant.id }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } })
-}
-
-export async function saveBrandStep(input: { brandColor: string }): Promise<ActionResult> {
-  const { userId } = await requireOwnerSession()
+  let logoUrl: string | undefined
+  if (input.logo && input.logo.size > 0) {
+    const tenant = await prisma.tenant.findUniqueOrThrow({ where: { ownerId: userId }, select: { id: true } })
+    try {
+      logoUrl = await uploadImage(input.logo, `talam/${tenant.id}/brand`)
+    } catch {
+      return { error: 'Logo upload failed — try again.' }
+    }
+  }
   await prisma.tenant.update({
     where: { ownerId: userId },
-    data: { brandColor: input.brandColor, onboardingStep: 2 },
+    data: { brandColor: input.brandColor, onboardingStep: 2, ...(logoUrl ? { logoUrl } : {}) },
   })
-  return {}
+  return { logoUrl }
 }
 
 export async function saveContactStep(input: {
@@ -133,40 +140,12 @@ export async function saveStoryStep(input: { tagline: string; aboutDescription: 
   return {}
 }
 
-export async function saveProductStep(input: {
-  productName: string
-  productPrice: string
-  productStock: string
-  categoryId?: string
-}): Promise<ActionResult> {
+export async function saveSubscriptionStep(input: { subscriptionTier: 'starter' | 'growth' | 'pro' }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
-  const tenant = await prisma.tenant.update({
+  await prisma.tenant.update({
     where: { ownerId: userId },
-    data: { onboardingStep: 5 },
-    select: { id: true },
+    data: { tier: input.subscriptionTier, onboardingStep: 5 },
   })
-
-  const existingProduct = await prisma.product.findFirst({
-    where: { tenantId: tenant.id },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-
-  const productData = {
-    name: input.productName,
-    slug: slugify(input.productName),
-    price: Number(input.productPrice),
-    sizes: ['Free Size'],
-    stockBySize: { 'Free Size': Number(input.productStock) },
-    categoryId: input.categoryId ?? null,
-  }
-
-  if (existingProduct) {
-    await prisma.product.update({ where: { id: existingProduct.id }, data: productData })
-  } else {
-    await prisma.product.create({ data: { ...productData, tenantId: tenant.id } })
-  }
-
   return {}
 }
 
@@ -176,11 +155,15 @@ const PAYMENT_PROVIDER_MAP: Record<PaymentId, 'upi_manual' | 'razorpay' | 'insta
   instamojo: 'instamojo',
 }
 
-export async function savePaymentStep(input: { paymentId: PaymentId }): Promise<ActionResult> {
+export async function savePaymentStep(input: { paymentId: PaymentId; upiAddress: string }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
   await prisma.tenant.update({
     where: { ownerId: userId },
-    data: { paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentId], onboardingStep: 6 },
+    data: {
+      paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentId],
+      paymentConfig: { upiAddress: input.upiAddress.trim() },
+      onboardingStep: 6,
+    },
   })
   return {}
 }
@@ -223,13 +206,19 @@ export async function completeOnboarding(): Promise<ActionResult & { adminUrl?: 
   const tenant = await prisma.tenant.update({
     where: { ownerId: userId },
     data: { isOnboarded: true, onboardingStep: 7 },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, name: true, contactEmail: true },
   })
 
   await seedStarterContent(tenant.id)
 
   const host = (await headers()).get('host')
-  const adminUrl = getAdminUrl(tenant.slug, isLocalDevHost(host))
+  const isLocalDev = isLocalDevHost(host)
+  const adminUrl = getAdminUrl(tenant.slug, isLocalDev)
+  const storeUrl = getStoreUrl(tenant.slug, isLocalDev)
+
+  if (tenant.contactEmail) {
+    await sendOnboardingCompleteEmail(tenant.contactEmail, { storeName: tenant.name, storeUrl, adminUrl })
+  }
 
   return { adminUrl }
 }

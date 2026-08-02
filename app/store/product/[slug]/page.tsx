@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { StoreLink } from '@/components/store/store-context'
 import { getRequestTenantId, getTenantStorefront } from '@/lib/data/tenant'
 import { getProductBySlug, getProductReviews } from '@/lib/data/products'
+import { cacheForTenant } from '@/lib/storefront-cache'
 import { AddToCartButton } from '@/components/store/add-to-cart-button'
 import { ReviewsSection } from '@/components/store/reviews-section'
 import { ProductImageCarousel } from '@/components/store/product-image-carousel'
@@ -31,12 +32,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params
   const tenantId = await getRequestTenantId()
-  const product = tenantId ? await getProductBySlug(tenantId, slug) : null
-  if (!product || !tenantId) notFound()
+  if (!tenantId) notFound()
 
-  const tenant = await getTenantStorefront(tenantId)
-  if (!tenant) notFound()
-  const reviews = await getProductReviews(tenantId, product.id)
+  const [product, tenant, reviews] = await cacheForTenant(
+    async () => {
+      const p = await getProductBySlug(tenantId, slug)
+      if (!p) return [null, null, []] as const
+      const [t, r] = await Promise.all([getTenantStorefront(tenantId), getProductReviews(tenantId, p.id)])
+      return [p, t, r] as const
+    },
+    ['product-detail', tenantId, slug],
+    tenantId,
+    3600
+  )
+  if (!product || !tenant) notFound()
+
+  // Revive createdAt — Next's data cache turns Date fields into strings on a cache hit,
+  // and ReviewsSection's relativeTime() needs a real Date either way.
+  const reviewsWithDates = reviews.map((r) => ({ ...r, createdAt: new Date(r.createdAt) }))
 
   const price = Number(product.price)
   const comparePrice = product.comparePrice !== null ? Number(product.comparePrice) : null
@@ -176,7 +189,7 @@ export default async function ProductPage({ params }: Props) {
 
       <div className="px-4 sm:px-0">
         <ReviewsSection
-          reviews={reviews}
+          reviews={reviewsWithDates}
           averageRating={product.averageRating}
           count={product.reviewCount}
           onSubmitReview={submitReviewStub}
