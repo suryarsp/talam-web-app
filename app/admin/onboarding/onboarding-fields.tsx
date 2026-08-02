@@ -1,6 +1,3 @@
-import { ImagePlus } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -135,68 +132,3 @@ export function FieldHint({ children }: { readonly children: React.ReactNode }) 
   return <span className="mt-[-6px] font-body text-[13px] leading-tight text-[#6B7280]">{children}</span>
 }
 
-const IMAGE_ACCEPT = 'image/png,image/jpeg,image/svg+xml'
-
-export function FileDropzone({
-  hint,
-  file,
-  onFileChange,
-  boxClassName,
-  existingUrl,
-}: {
-  readonly hint: string
-  readonly file: File | null | undefined
-  readonly onFileChange: (file: File | null) => void
-  readonly boxClassName?: string
-  /** Already-uploaded image URL (e.g. from Cloudinary) to show when no new file is picked yet. */
-  readonly existingUrl?: string | null
-}) {
-  const [isDragging, setIsDragging] = useState(false)
-  const objectUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
-
-  useEffect(() => {
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [objectUrl])
-
-  const previewUrl = objectUrl ?? existingUrl ?? null
-
-  return (
-    <div>
-      <p className="mt-0.5 font-body text-xs leading-tight text-[#6B7280]">{hint}</p>
-      <label
-        className={[
-          'mt-2.5 flex cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border-2 border-dashed px-3 text-center transition-colors hover:border-brand-primary',
-          isDragging ? 'border-brand-primary bg-brand-primary/5' : 'border-[#D1D5DB] bg-[#F9FAFB]',
-          boxClassName ?? 'size-[120px]',
-        ].join(' ')}
-        onDragOver={(event) => {
-          event.preventDefault()
-          setIsDragging(true)
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault()
-          setIsDragging(false)
-          const dropped = event.dataTransfer.files?.[0] ?? null
-          if (dropped) onFileChange(dropped)
-        }}
-      >
-        <input
-          type="file"
-          accept={IMAGE_ACCEPT}
-          className="sr-only"
-          onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-        />
-        {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <>
-            <ImagePlus className="size-7 text-[#9CA3AF]" strokeWidth={1.5} />
-            <span className="font-body text-2xs font-medium leading-[14px] text-[#9CA3AF]">{file ? file.name : 'Upload'}</span>
-          </>
-        )}
-      </label>
-    </div>
-  )
-}

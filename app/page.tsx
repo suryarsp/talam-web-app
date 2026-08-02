@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveSignedInDestination } from '@/app/auth/page'
 import { MarketingNav } from '@/components/marketing/nav'
 import { Hero } from '@/components/marketing/hero'
+import { TextileStrip } from '@/components/marketing/textile-strip'
 import { ProblemStrip } from '@/components/marketing/problem-strip'
 import { Features } from '@/components/marketing/features'
 import { HowItWorks } from '@/components/marketing/how-it-works'
@@ -31,6 +32,7 @@ export default async function MarketingHome() {
     <main className="w-full overflow-x-clip">
       <MarketingNav />
       <Hero />
+      <TextileStrip />
       <ProblemStrip />
       <Features />
       <HowItWorks />

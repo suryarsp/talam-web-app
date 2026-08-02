@@ -3,7 +3,14 @@ import { Controller, type Control } from 'react-hook-form'
 import { Field, FieldHint, StepTitle, TextInput } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
 
-export function ContactStep({ control }: { readonly control: Control<OnboardingValues> }) {
+export function ContactStep({
+  control,
+  authProvider,
+}: {
+  readonly control: Control<OnboardingValues>
+  readonly authProvider?: string | null
+}) {
+  const emailLocked = authProvider === 'google'
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
       <StepTitle step={3} title="Contact & address" description="How customers reach you and where you're based." />
@@ -30,8 +37,16 @@ export function ContactStep({ control }: { readonly control: Control<OnboardingV
           name="contactEmail"
           render={({ field, fieldState }) => (
             <Field label="Contact email" error={fieldState.error?.message}>
-              <FieldHint>Where customers and Talam can reach you</FieldHint>
-              <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} inputMode="email" />
+              <FieldHint>{emailLocked ? 'Signed in with Google — using your Google account email' : 'Where customers and Talam can reach you'}</FieldHint>
+              <TextInput
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                invalid={Boolean(fieldState.error)}
+                inputMode="email"
+                disabled={emailLocked}
+                className={emailLocked ? 'cursor-not-allowed opacity-60' : undefined}
+              />
             </Field>
           )}
         />

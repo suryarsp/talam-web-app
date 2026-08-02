@@ -296,6 +296,19 @@ export async function getCategories(tenantId: string, department?: string): Prom
   )
 }
 
+/** Departments that have at least one published product — drives which nav links the storefront header shows. */
+export async function getActiveDepartments(tenantId: string): Promise<string[]> {
+  const rows = await withTenant(tenantId, (db) =>
+    db.product.findMany({
+      where: { tenantId, status: 'published', deletedAt: null, category: { department: { not: null } } },
+      select: { category: { select: { department: true } } },
+      distinct: ['categoryId'],
+    })
+  )
+  const departments = rows.map((r) => r.category?.department).filter((d): d is string => Boolean(d))
+  return Array.from(new Set(departments))
+}
+
 export async function softDeleteProducts(tenantId: string, productIds: string[]): Promise<void> {
   await withTenant(tenantId, (db) =>
     db.$transaction([

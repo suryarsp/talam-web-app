@@ -5,6 +5,7 @@ import { revalidatePath, updateTag } from 'next/cache'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { storefrontTag } from '@/lib/storefront-cache'
 import { uploadImage } from '@/lib/cloudinary'
+import { prisma } from '@/lib/prisma'
 import {
   createProduct,
   updateProduct,
@@ -16,6 +17,8 @@ import {
   type ProductInput,
 } from '@/lib/data/products'
 import { notifyIfReadyToGoLive } from '@/lib/data/tenant'
+
+const MIN_LIVE_PRODUCTS = 3
 import { updateProductOccasions } from '@/lib/data/occasions'
 import { assignProductsToOccasionAction } from '@/app/admin/occasions/actions'
 
@@ -24,7 +27,7 @@ export async function uploadProductImageAction(file: File): Promise<string> {
   return uploadImage(file, `talam/${tenantId}/products`)
 }
 
-export async function createProductAction(input: ProductInput): Promise<string> {
+export async function createProductAction(input: ProductInput): Promise<{ id: string; readyToGoLive: boolean }> {
   const { tenantId } = await requireOwnerTenant()
   const created = await createProduct(tenantId, input)
   revalidatePath('/admin/products')
@@ -33,7 +36,13 @@ export async function createProductAction(input: ProductInput): Promise<string> 
   const isLocalDev = (await headers()).get('host')?.includes('localhost') ?? false
   await notifyIfReadyToGoLive(tenantId, isLocalDev)
 
-  return created.id
+  const [publishedCount, tenant] = await Promise.all([
+    prisma.product.count({ where: { tenantId, status: 'published', deletedAt: null } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { isLive: true } }),
+  ])
+  const readyToGoLive = publishedCount >= MIN_LIVE_PRODUCTS && !tenant?.isLive
+
+  return { id: created.id, readyToGoLive }
 }
 
 export async function updateProductAction(id: string, input: ProductInput) {

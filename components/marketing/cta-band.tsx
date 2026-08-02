@@ -1,29 +1,55 @@
+'use client'
+
 import Link from 'next/link'
+import { motion } from 'motion/react'
+import { BlurFade } from '@/components/ui/blur-fade'
+import { ShimmerButton } from '@/components/ui/shimmer-button'
+import { Particles } from '@/components/ui/particles'
+import { TextAnimate } from '@/components/ui/text-animate'
 
 export function CtaBand() {
   return (
-    <section className="relative bg-bg-dark py-28 md:py-40 overflow-hidden">
-      <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-amber/10 blur-[120px] pointer-events-none" />
-      <div className="relative max-w-[900px] mx-auto px-6 md:px-[60px] text-center">
-        <h2 className="font-marketing font-semibold text-white text-[42px] md:text-[72px] leading-[1.05] tracking-[-0.02em]">
-          <span className="block overflow-hidden pb-1">
-            <span className="marketing-reveal block">Your platform.</span>
-          </span>
-          <span className="block overflow-hidden pb-1">
-            <span className="marketing-reveal block text-amber italic [animation-delay:140ms]">Your business.</span>
-          </span>
-        </h2>
-        <div className="marketing-reveal mt-10 [animation-delay:280ms]">
-          <Link
-            href="/auth"
-            className="inline-block px-10 py-4 rounded-full bg-brand-primary text-white text-base font-semibold font-body hover:opacity-90 transition-opacity"
+    <section className="relative bg-bg-dark py-36 md:py-48 overflow-hidden">
+      <Particles className="absolute inset-0 z-0" quantity={35} color="#f59e0b" size={0.4} staticity={50} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full bg-brand-primary/6 blur-[150px] pointer-events-none" />
+
+      <div className="relative z-10 max-w-[800px] mx-auto px-6 md:px-16 text-center">
+        <BlurFade delay={0.1} inView>
+          <TextAnimate
+            as="h2"
+            animation="blurInUp"
+            by="word"
+            once
+            startOnView
+            duration={0.8}
+            className="font-marketing font-semibold text-white text-[40px] sm:text-[56px] md:text-[72px] leading-[1.02] tracking-[-0.03em]"
           >
-            Start free
-          </Link>
-          <p className="mt-4 text-sm text-white/40 font-body">
+            Your textile store deserves more than a DM inbox.
+          </TextAnimate>
+        </BlurFade>
+
+        <BlurFade delay={0.4} inView>
+          <p className="mt-6 text-lg text-white/35 font-body max-w-[480px] mx-auto">
+            Join hundreds of textile retailers across India who've moved their business online with Talam.
+          </p>
+        </BlurFade>
+
+        <BlurFade delay={0.55} inView>
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/auth">
+              <ShimmerButton
+                shimmerColor="#ffffff"
+                background="rgba(193, 80, 46, 1)"
+                className="px-10 py-4 text-base font-semibold font-body"
+              >
+                Start your free trial
+              </ShimmerButton>
+            </Link>
+          </div>
+          <p className="mt-5 text-xs text-white/25 font-body">
             14-day free trial · No credit card · No GST needed
           </p>
-        </div>
+        </BlurFade>
       </div>
     </section>
   )

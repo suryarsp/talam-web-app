@@ -1,21 +1,50 @@
+'use client'
+
+import { motion } from 'motion/react'
+import { BlurFade } from '@/components/ui/blur-fade'
+import { TextAnimate } from '@/components/ui/text-animate'
+import { LineShadowText } from '@/components/ui/line-shadow-text'
+
 export function ProblemStrip() {
   return (
-    <section className="relative bg-bg py-24 md:min-h-[72vh] md:flex md:items-center overflow-hidden">
-      <div className="relative grid w-full max-w-[1100px] mx-auto gap-14 px-6 md:grid-cols-2 md:gap-10 md:px-[60px]">
-        <div className="marketing-reveal min-w-0 text-center md:text-left">
-          <div className="text-xs uppercase tracking-[0.2em] text-muted-warm font-body mb-4">Today</div>
-          <p className="font-marketing font-medium text-fg text-[28px] sm:text-[32px] md:text-[52px] leading-[1.15] tracking-[-0.01em] break-words">
-            Screenshots, DMs,<br />
-            UPI requests, <span className="text-danger">lost orders</span>.
-          </p>
-        </div>
-        <div className="marketing-reveal min-w-0 text-center md:text-left [animation-delay:160ms]">
-          <div className="text-xs uppercase tracking-[0.2em] text-muted-warm font-body mb-4">Tomorrow</div>
-          <p className="font-marketing font-medium text-fg text-[28px] sm:text-[32px] md:text-[52px] leading-[1.15] tracking-[-0.01em] break-words">
-            <span className="text-brand-primary">yourstore</span>.talam4shop.com
-          </p>
-          <p className="mt-4 text-base text-muted-warm font-body">One link. Every order in one place.</p>
-        </div>
+    <section className="relative bg-bg py-32 md:py-44 overflow-hidden">
+      <div className="max-w-[1000px] mx-auto px-6 md:px-16 text-center">
+        <BlurFade delay={0.1} inView>
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-warm font-body mb-6">The problem</p>
+        </BlurFade>
+
+        <TextAnimate
+          as="h2"
+          animation="blurInUp"
+          by="word"
+          once
+          startOnView
+          className="font-marketing font-semibold text-fg text-[32px] sm:text-[44px] md:text-[60px] leading-[1.08] tracking-[-0.02em]"
+        >
+          You sell silk worth lakhs through WhatsApp screenshots and UPI requests.
+        </TextAnimate>
+
+        <BlurFade delay={0.4} inView>
+          <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-6">
+            <motion.div
+              className="px-6 py-4 rounded-2xl bg-danger/5 border border-danger/10"
+              whileHover={{ scale: 1.02 }}
+            >
+              <p className="text-sm font-body text-danger/80 line-through decoration-danger/40">Screenshots in gallery</p>
+            </motion.div>
+            <div className="text-2xl text-muted-warm">→</div>
+            <motion.div
+              className="px-6 py-4 rounded-2xl bg-success/5 border border-success/20"
+              whileHover={{ scale: 1.02 }}
+            >
+              <p className="text-sm font-body">
+                <LineShadowText shadowColor="rgba(16, 185, 129, 0.4)" className="text-success font-medium">
+                  yoursilks.talam4shop.com
+                </LineShadowText>
+              </p>
+            </motion.div>
+          </div>
+        </BlurFade>
       </div>
     </section>
   )

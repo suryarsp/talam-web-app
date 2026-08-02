@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, X } from 'lucide-react'
@@ -8,6 +8,16 @@ import { ImagePlus, X } from 'lucide-react'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentActions,
+  AttachmentAction,
+  AttachmentTrigger,
+} from '@/components/ui/attachment'
 import { getContactSettingsAction, updateContactSettingsAction, addGalleryPhotoAction, removeGalleryPhotoAction } from './actions'
 import { contactInfoSchema, type ContactInfoValues } from './contact-info-schema'
 import { SectionLabel, Toggle } from './settings-shared'
@@ -31,58 +41,45 @@ function validateGalleryFile(file: File): string | null {
 }
 
 function GalleryDropzone({ gallery, onAdd, onRemove, error }: { gallery: string[]; onAdd: (file: File) => void; onRemove: (url: string) => void; error: string }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
   return (
     <div>
-      <div className="flex gap-3 overflow-x-auto">
+      <AttachmentGroup>
         {gallery.map((url) => (
-          <div key={url} className="group relative size-24 shrink-0 overflow-hidden rounded-lg">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt="" className="size-full object-cover" />
-            <button
-              type="button"
-              onClick={() => onRemove(url)}
-              className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <X className="size-3" />
-            </button>
-          </div>
+          <Attachment key={url} orientation="vertical" className="size-24">
+            <AttachmentMedia variant="image" className="size-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" />
+            </AttachmentMedia>
+            <AttachmentActions>
+              <AttachmentAction type="button" onClick={() => onRemove(url)}>
+                <X />
+              </AttachmentAction>
+            </AttachmentActions>
+          </Attachment>
         ))}
         {gallery.length < MAX_GALLERY_PHOTOS && (
-          <label
-            className={`flex size-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-muted-warm transition-colors hover:border-brand-primary ${
-              isDragging ? 'border-brand-primary bg-brand-primary/5' : 'border-border'
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setIsDragging(true)
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setIsDragging(false)
-              const file = e.dataTransfer.files?.[0]
-              if (file) onAdd(file)
-            }}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept={ACCEPTED_IMAGE_TYPES.join(',')}
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                e.target.value = ''
-                if (file) onAdd(file)
-              }}
-            />
-            <ImagePlus className="size-5" strokeWidth={1.5} />
-            <span className="text-2xs font-medium">Drop or click</span>
-          </label>
+          <Attachment orientation="vertical" className="size-24">
+            <AttachmentTrigger render={<label />}>
+              <input
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file) onAdd(file)
+                }}
+              />
+            </AttachmentTrigger>
+            <AttachmentMedia className="size-full">
+              <ImagePlus className="size-5" strokeWidth={1.5} />
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>Drop or click</AttachmentTitle>
+            </AttachmentContent>
+          </Attachment>
         )}
-      </div>
+      </AttachmentGroup>
       {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
       <p className="mt-1.5 text-xs text-muted-warm">Max {MAX_GALLERY_PHOTOS} photos, 5MB each (PNG/JPEG/WEBP). Appears on your About page and social share previews.</p>
     </div>

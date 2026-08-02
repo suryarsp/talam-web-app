@@ -1,7 +1,7 @@
 import { Controller, type Control } from 'react-hook-form'
 
 import { PAYMENTS } from './onboarding-data'
-import { StepTitle } from './onboarding-fields'
+import { Field, FieldHint, StepTitle, TextInput } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
 
 export function PaymentStep({ control }: { readonly control: Control<OnboardingValues> }) {
@@ -50,6 +50,24 @@ export function PaymentStep({ control }: { readonly control: Control<OnboardingV
           </div>
         )}
       />
+      <Controller
+        control={control}
+        name="upiAddress"
+        render={({ field, fieldState }) => (
+          <div className="mt-5">
+            <Field label="UPI address" error={fieldState.error?.message}>
+              <FieldHint>Where payouts are sent — e.g. yourname@paytm or 9876543210@upi</FieldHint>
+              <TextInput
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                invalid={Boolean(fieldState.error)}
+              />
+            </Field>
+          </div>
+        )}
+      />
+
       <div className="mt-5 rounded-lg border border-border bg-bg p-4">
         <p className="text-sm font-bold text-fg">💡 Pro tip</p>
         <p className="mt-1 text-xs leading-relaxed text-muted-warm">

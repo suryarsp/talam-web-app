@@ -26,7 +26,7 @@ vi.mock('@/lib/prisma', () => ({
   }),
 }))
 
-import { getProducts, getProductBySlug, getCategories } from './products'
+import { getProducts, getProductBySlug, getCategories, getActiveDepartments } from './products'
 
 describe('getProducts', () => {
   it('returns active products for a tenant', async () => {
@@ -66,5 +66,39 @@ describe('getCategories', () => {
     const cats = await getCategories('tenant-1')
     expect(cats).toHaveLength(1)
     expect(cats[0]).toMatchObject({ id: 'cat-1', name: 'Sarees', slug: 'sarees' })
+  })
+})
+
+describe('getActiveDepartments', () => {
+  it('returns the distinct departments of published products', async () => {
+    const { withTenant } = await import('@/lib/prisma')
+    vi.mocked(withTenant).mockImplementationOnce(async (_tenantId, fn) =>
+      fn({
+        product: {
+          findMany: vi.fn().mockResolvedValue([
+            { category: { department: 'women' } },
+            { category: { department: 'men' } },
+          ]),
+        },
+      } as never)
+    )
+    const departments = await getActiveDepartments('tenant-1')
+    expect(departments).toEqual(['women', 'men'])
+  })
+
+  it('dedupes departments', async () => {
+    const { withTenant } = await import('@/lib/prisma')
+    vi.mocked(withTenant).mockImplementationOnce(async (_tenantId, fn) =>
+      fn({
+        product: {
+          findMany: vi.fn().mockResolvedValue([
+            { category: { department: 'women' } },
+            { category: { department: 'women' } },
+          ]),
+        },
+      } as never)
+    )
+    const departments = await getActiveDepartments('tenant-1')
+    expect(departments).toEqual(['women'])
   })
 })
