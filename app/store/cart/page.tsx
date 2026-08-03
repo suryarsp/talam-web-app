@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { StoreLink } from '@/components/store/store-context'
+import { StoreLink, useStoreHref } from '@/components/store/store-context'
+import { ShinyButton } from '@/components/ui/shiny-button'
+import { formatCurrency } from '@/lib/utils'
 import { useCartStore, type CartItem } from '@/lib/store/cart'
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Heart, Lock, RotateCcw, Truck, Tag, Star, Check, X, ChevronDown } from 'lucide-react'
 
@@ -48,16 +51,16 @@ function CartItemRow({ item }: { item: CartItem }) {
         <div className="mt-1.5">
           <div className="flex items-center gap-2">
             <span className="font-body text-[18px] font-extrabold leading-[22px] text-store-primary">
-              ₹{item.price.toLocaleString('en-IN')}
+              {formatCurrency(item.price)}
             </span>
             {item.comparePrice && item.comparePrice > item.price && (
               <span className="font-body text-xs text-muted-warm line-through">
-                ₹{item.comparePrice.toLocaleString('en-IN')}
+                {formatCurrency(item.comparePrice)}
               </span>
             )}
             {savings > 0 && (
               <span className="font-body text-xs font-medium text-success">
-                Save ₹{savings.toLocaleString('en-IN')}
+                Save {formatCurrency(savings)}
               </span>
             )}
           </div>
@@ -144,7 +147,7 @@ function TrustBadges() {
     <div className="flex gap-2 overflow-x-auto no-scrollbar font-body text-xs text-muted-warm lg:flex-col lg:gap-2.5 lg:overflow-visible">
       <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 lg:border-0 lg:px-0 lg:py-0"><Lock className="h-3.5 w-3.5" /> Secure checkout</div>
       <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 lg:border-0 lg:px-0 lg:py-0"><RotateCcw className="h-3.5 w-3.5" /> Easy 30-day returns</div>
-      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 lg:hidden"><Truck className="h-3.5 w-3.5" /> Free delivery above ₹{tenant.freeDeliveryAbove?.toLocaleString('en-IN')}</div>
+      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 lg:hidden"><Truck className="h-3.5 w-3.5" /> Free delivery above {formatCurrency(tenant.freeDeliveryAbove)}</div>
     </div>
   )
 }
@@ -166,6 +169,8 @@ function EmptyCart() {
 }
 
 export default function CartPage() {
+  const router = useRouter()
+  const checkoutHref = useStoreHref('/checkout')
   const items = useCartStore(s => s.items)
   const total = useCartStore(s => s.total)
   const count = useCartStore(s => s.count)
@@ -217,7 +222,7 @@ export default function CartPage() {
             <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-2.5">
               <Truck className="h-4 w-4 shrink-0 text-success" />
               <p className="font-body text-sm text-fg">
-                Add <span className="font-bold">₹{amountToFreeDelivery.toLocaleString('en-IN')}</span> more to get free delivery on this order!
+                Add <span className="font-bold">{formatCurrency(amountToFreeDelivery)}</span> more to get free delivery on this order!
               </p>
             </div>
           )}
@@ -240,23 +245,23 @@ export default function CartPage() {
             <dl className="space-y-2 font-body text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-warm">Items ({itemCount})</dt>
-                <dd className="text-fg">₹{subtotal.toLocaleString('en-IN')}</dd>
+                <dd className="text-fg">{formatCurrency(subtotal)}</dd>
               </div>
               {mrpDiscount > 0 && (
                 <div className="flex justify-between">
                   <dt className="text-muted-warm">MRP Discount</dt>
-                  <dd className="font-medium text-success">−₹{mrpDiscount.toLocaleString('en-IN')}</dd>
+                  <dd className="font-medium text-success">−{formatCurrency(mrpDiscount)}</dd>
                 </div>
               )}
               <div className="flex justify-between">
                 <dt className="text-muted-warm">Delivery</dt>
                 <dd className={shippingFee === 0 ? 'font-medium text-success' : 'text-fg'}>
-                  {shippingFee === 0 ? 'Free' : `₹${shippingFee.toLocaleString('en-IN')}`}
+                  {shippingFee === 0 ? 'Free' : formatCurrency(shippingFee)}
                 </dd>
               </div>
               <div className="border-t border-border pt-3 flex justify-between">
                 <dt className="text-base font-bold text-fg">Total</dt>
-                <dd className="text-base font-bold text-fg">₹{grandTotal.toLocaleString('en-IN')}</dd>
+                <dd className="text-base font-bold text-fg">{formatCurrency(grandTotal)}</dd>
               </div>
             </dl>
 
@@ -264,17 +269,17 @@ export default function CartPage() {
               <div className="mt-3 flex items-center gap-2 rounded-lg bg-success/5 border border-success/20 px-3 py-2">
                 <Star className="h-4 w-4 shrink-0 text-success" />
                 <span className="font-body text-xs font-medium text-success">
-                  You&apos;re saving ₹{totalSavings.toLocaleString('en-IN')} on this order!
+                  You&apos;re saving {formatCurrency(totalSavings)} on this order!
                 </span>
               </div>
             )}
 
-            <StoreLink
-              href="/checkout"
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:opacity-90 transition-opacity"
+            <ShinyButton
+              onClick={() => router.push(checkoutHref)}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-store-primary font-body text-md font-semibold text-surface"
             >
               Proceed to Checkout <ArrowLeft className="h-4 w-4 rotate-180" />
-            </StoreLink>
+            </ShinyButton>
 
             <StoreLink
               href="/"
@@ -305,10 +310,10 @@ export default function CartPage() {
           </button>
           {detailsOpen && (
             <dl className="space-y-1.5 border-t border-border px-4 py-3 font-body text-sm">
-              <div className="flex justify-between"><dt className="text-muted-warm">Items ({itemCount})</dt><dd className="text-fg">₹{subtotal.toLocaleString('en-IN')}</dd></div>
-              {mrpDiscount > 0 && <div className="flex justify-between"><dt className="text-muted-warm">MRP Discount</dt><dd className="text-success">−₹{mrpDiscount.toLocaleString('en-IN')}</dd></div>}
-              <div className="flex justify-between"><dt className="text-muted-warm">Delivery</dt><dd className={shippingFee === 0 ? 'text-success' : 'text-fg'}>{shippingFee === 0 ? 'Free' : `₹${shippingFee}`}</dd></div>
-              <div className="border-t border-border pt-2 flex justify-between"><dt className="font-bold text-fg">Total</dt><dd className="font-bold text-fg">₹{grandTotal.toLocaleString('en-IN')}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-warm">Items ({itemCount})</dt><dd className="text-fg">{formatCurrency(subtotal)}</dd></div>
+              {mrpDiscount > 0 && <div className="flex justify-between"><dt className="text-muted-warm">MRP Discount</dt><dd className="text-success">−{formatCurrency(mrpDiscount)}</dd></div>}
+              <div className="flex justify-between"><dt className="text-muted-warm">Delivery</dt><dd className={shippingFee === 0 ? 'text-success' : 'text-fg'}>{shippingFee === 0 ? 'Free' : formatCurrency(shippingFee)}</dd></div>
+              <div className="border-t border-border pt-2 flex justify-between"><dt className="font-bold text-fg">Total</dt><dd className="font-bold text-fg">{formatCurrency(grandTotal)}</dd></div>
             </dl>
           )}
         </div>
@@ -316,7 +321,7 @@ export default function CartPage() {
         {totalSavings > 0 && (
           <div className="flex items-center gap-2 rounded-lg bg-success/5 border border-success/20 px-3 py-2.5">
             <Star className="h-4 w-4 shrink-0 text-success" />
-            <span className="font-body text-xs font-medium text-success">You&apos;re saving ₹{totalSavings.toLocaleString('en-IN')} on this order 🎉</span>
+            <span className="font-body text-xs font-medium text-success">You&apos;re saving {formatCurrency(totalSavings)} on this order 🎉</span>
           </div>
         )}
 
@@ -329,14 +334,14 @@ export default function CartPage() {
       <div className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between gap-3 border-t border-border/40 bg-surface/90 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="min-w-0">
           <p className="font-body text-[11px] text-muted-warm">Total ({itemCount} items)</p>
-          <p className="font-body text-lg font-bold text-store-primary">₹{grandTotal.toLocaleString('en-IN')}</p>
+          <p className="font-body text-lg font-bold text-store-primary">{formatCurrency(grandTotal)}</p>
         </div>
-        <StoreLink
-          href="/checkout"
-          className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-store-primary px-6 font-body text-sm font-semibold text-surface hover:opacity-90 transition-opacity"
+        <ShinyButton
+          onClick={() => router.push(checkoutHref)}
+          className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-store-primary px-6 font-body text-sm font-semibold text-surface"
         >
           Checkout <ArrowLeft className="h-4 w-4 rotate-180" />
-        </StoreLink>
+        </ShinyButton>
       </div>
     </main>
   )

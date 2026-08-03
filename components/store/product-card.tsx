@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { StoreLink } from '@/components/store/store-context'
 import { WishlistHeart } from '@/components/store/wishlist-heart'
 import type { Product, ProductCategory } from '@prisma/client'
+import { formatCurrency } from '@/lib/utils'
 
 type Props = {
   product: Product & {
@@ -68,11 +69,11 @@ export function ProductCard({ product, priority, saved = false }: Props) {
         </p>
         <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="font-body text-md leading-snug font-bold text-fg sm:text-base sm:leading-5">
-            ₹{Number(product.price).toLocaleString('en-IN')}
+            {formatCurrency(Number(product.price))}
           </span>
           {product.comparePrice && (
             <span className="font-body text-2xs leading-tight text-muted-warm line-through sm:text-sm">
-              ₹{Number(product.comparePrice).toLocaleString('en-IN')}
+              {formatCurrency(Number(product.comparePrice))}
             </span>
           )}
         </div>

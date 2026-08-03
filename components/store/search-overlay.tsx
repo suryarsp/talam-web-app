@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { useStoreBase } from './store-context'
 import { searchProductsAction } from '@/app/store/actions'
+import { formatCurrency } from '@/lib/utils'
 
 type Result = {
   slug: string
@@ -131,9 +132,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   {r.categoryName && <p className="font-body text-xs text-muted-warm">{r.categoryName}</p>}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="font-body text-md font-semibold text-fg">₹{r.price.toLocaleString('en-IN')}</p>
+                  <p className="font-body text-md font-semibold text-fg">{formatCurrency(r.price)}</p>
                   {r.comparePrice && (
-                    <p className="font-body text-xs text-muted-warm line-through">₹{r.comparePrice.toLocaleString('en-IN')}</p>
+                    <p className="font-body text-xs text-muted-warm line-through">{formatCurrency(r.comparePrice)}</p>
                   )}
                 </div>
               </button>

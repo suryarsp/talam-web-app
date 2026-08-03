@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
+import { ShinyButton } from '@/components/ui/shiny-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -92,13 +92,13 @@ export function OtpForm({ onVerified }: { onVerified?: () => void } = {}) {
           className="h-auto rounded-md border-[1.5px] border-border px-3 py-[11px] font-body text-md transition-colors focus-visible:border-store-primary focus-visible:ring-0 focus-visible:outline-none"
         />
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button
+        <ShinyButton
           type="submit"
           disabled={loading}
-          className="w-full h-auto rounded-[8px] p-[14px] mt-[14px] bg-store-primary text-surface text-[15px] font-semibold hover:bg-store-primary/90"
+          className="w-full rounded-[8px] p-[14px] mt-[14px] bg-store-primary text-surface text-[15px] font-semibold hover:bg-store-primary/90"
         >
           {loading ? 'Verifying…' : 'Verify OTP'}
-        </Button>
+        </ShinyButton>
         <button
           type="button"
           onClick={() => {
@@ -134,13 +134,13 @@ export function OtpForm({ onVerified }: { onVerified?: () => void } = {}) {
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button
+      <ShinyButton
         type="submit"
         disabled={loading}
-        className="w-full h-auto rounded-[8px] p-[14px] mt-[14px] bg-store-primary text-surface text-[15px] font-semibold hover:bg-store-primary/90"
+        className="w-full rounded-[8px] p-[14px] mt-[14px] bg-store-primary text-surface text-[15px] font-semibold hover:bg-store-primary/90"
       >
         {loading ? 'Sending…' : 'Continue'}
-      </Button>
+      </ShinyButton>
     </form>
   )
 }

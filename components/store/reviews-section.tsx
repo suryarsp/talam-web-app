@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Textarea } from '@/components/ui/textarea'
 
 type Review = {
   id: string
@@ -79,7 +80,7 @@ export function ReviewsSection({ reviews, averageRating, count, onSubmitReview }
         </div>
         {showForm && (
           <div className="space-y-3">
-            <textarea
+            <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Tell us about your experience with this product…"

@@ -6,6 +6,13 @@ import { createNotification } from '@/lib/data/notifications'
 
 export type SocialLink = { platform: string; url: string }
 
+export type RazorpayPaymentConfig = {
+  provider: 'razorpay'
+  accountId: string
+  status: 'pending' | 'needs_clarification' | 'activated' | 'rejected'
+  updatedAt: string
+}
+
 export type TenantStorefront = {
   id: string
   ownerId: string
@@ -61,6 +68,8 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
         where: { id: tenantId },
         select: {
           isOnboarded: true,
+          paymentProvider: true,
+          paymentConfig: true,
           contactPhone: true,
           contactEmail: true,
           about: { select: { description: true } },
@@ -73,15 +82,18 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
   if (!tenant) return []
 
   const missing: MissingConfigItem[] = []
-  // ponytail: no persisted "payment configured" flag exists yet (paymentProvider always has
-  // a default, and nothing writes paymentConfig) — the onboarding wizard forces a payment
-  // choice, so isOnboarded is the best available signal. Revisit once Payments settings are
-  // actually saveable after onboarding.
-  if (!tenant.isOnboarded)
+  // ponytail: no persisted "payment configured" flag exists yet for upi_manual/instamojo
+  // (paymentProvider always has a default, and nothing writes paymentConfig for them) — the
+  // onboarding wizard forces a payment choice, so isOnboarded is the best available signal.
+  // Razorpay is the exception: paymentConfig.status is real, KYC-verified truth.
+  const razorpayConfig = tenant.paymentConfig as RazorpayPaymentConfig | null
+  const paymentsOk = tenant.paymentProvider === 'razorpay' ? razorpayConfig?.status === 'activated' : tenant.isOnboarded
+  if (!paymentsOk)
     missing.push({
       key: 'payments',
       label: 'Payments',
-      description: 'Choose and enable a payment method',
+      description:
+        tenant.paymentProvider === 'razorpay' ? 'Finish Razorpay verification (KYC pending)' : 'Choose and enable a payment method',
       href: '/admin/settings?tab=Payments',
     })
   if (!tenant.contactPhone?.trim() || !tenant.contactEmail?.trim())

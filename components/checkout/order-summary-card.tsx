@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import { Lock, RotateCcw, Truck } from 'lucide-react'
 import type { CartItem } from '@/lib/store/cart'
+import { formatCurrency } from '@/lib/utils'
 
 export function OrderSummaryCard({
   items,
@@ -36,7 +37,7 @@ export function OrderSummaryCard({
                 {item.size ? `Size: ${item.size}` : ''}{item.size ? ' · ' : ''}Qty: {item.quantity}
               </p>
             </div>
-            <p className="shrink-0 font-body text-sm font-bold text-fg">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+            <p className="shrink-0 font-body text-sm font-bold text-fg">{formatCurrency(item.price * item.quantity)}</p>
           </div>
         ))}
       </div>
@@ -44,23 +45,23 @@ export function OrderSummaryCard({
       <dl className="space-y-1.5 border-t border-border pt-3 font-body text-sm">
         <div className="flex justify-between">
           <dt className="text-muted-warm">Subtotal</dt>
-          <dd className="text-fg">₹{subtotal.toLocaleString('en-IN')}</dd>
+          <dd className="text-fg">{formatCurrency(subtotal)}</dd>
         </div>
         {discount > 0 && (
           <div className="flex justify-between">
             <dt className="text-muted-warm">Discount (MRP)</dt>
-            <dd className="font-medium text-success">−₹{discount.toLocaleString('en-IN')}</dd>
+            <dd className="font-medium text-success">−{formatCurrency(discount)}</dd>
           </div>
         )}
         <div className="flex justify-between">
           <dt className="text-muted-warm">Delivery</dt>
           <dd className={shippingFee === 0 ? 'font-medium text-success' : 'text-fg'}>
-            {shippingFee === 0 ? 'Free' : `₹${shippingFee.toLocaleString('en-IN')}`}
+            {shippingFee === 0 ? 'Free' : formatCurrency(shippingFee)}
           </dd>
         </div>
         <div className="mt-1 flex justify-between border-t border-border pt-2.5">
           <dt className="font-heading text-[17px] font-bold text-fg">{totalLabel}</dt>
-          <dd className="font-heading text-[17px] font-bold text-fg">₹{total.toLocaleString('en-IN')}</dd>
+          <dd className="font-heading text-[17px] font-bold text-fg">{formatCurrency(total)}</dd>
         </div>
       </dl>
     </div>

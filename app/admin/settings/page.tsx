@@ -23,6 +23,8 @@ import {
   getPaymentsSettingsAction,
   updatePaymentsSettingsAction,
   deleteStoreAction,
+  startRazorpayOnboardingAction,
+  refreshRazorpayStatusAction,
   type StoreSettings,
   type StoreSettingsInput,
   type CategoryItem,
@@ -1059,6 +1061,16 @@ function SubscriptionTab() {
 }
 
 // ── Payments Tab ──
+type RazorpayStatus = 'upi_manual' | 'pending' | 'needs_clarification' | 'activated' | 'rejected'
+
+const RAZORPAY_STATUS_LABEL: Record<RazorpayStatus, string> = {
+  upi_manual: 'Not connected',
+  pending: 'Verification pending',
+  needs_clarification: 'Needs more info',
+  activated: 'Activated',
+  rejected: 'Rejected',
+}
+
 function PaymentsTab() {
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<PaymentGatewayConfig | null>(null)
@@ -1066,6 +1078,9 @@ function PaymentsTab() {
   const [lockedCount, setLockedCount] = useState(0)
   const [error, setError] = useState('')
   const [saved, flash] = useSavedFlash()
+  const [razorpayStatus, setRazorpayStatus] = useState<RazorpayStatus>('upi_manual')
+  const [connecting, setConnecting] = useState(false)
+  const [razorpayError, setRazorpayError] = useState('')
 
   useEffect(() => {
     getPaymentsSettingsAction().then((r) => {
@@ -1083,6 +1098,25 @@ function PaymentsTab() {
     if (result.error) setError(result.error)
     else flash()
   }
+
+  const handleConnect = useCallback(async () => {
+    setConnecting(true)
+    setRazorpayError('')
+    const result = await startRazorpayOnboardingAction()
+    setConnecting(false)
+    if ('error' in result) {
+      setRazorpayError(result.error)
+      return
+    }
+    setRazorpayStatus('pending')
+    window.open(result.onboardingUrl, '_blank')
+  }, [])
+
+  const handleRefresh = useCallback(async () => {
+    const result = await refreshRazorpayStatusAction()
+    if ('error' in result) setRazorpayError(result.error)
+    else setRazorpayStatus(result.status)
+  }, [])
 
   if (!loaded || !config) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
 
@@ -1165,11 +1199,34 @@ function PaymentsTab() {
               <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-[#072654] text-[9px] font-bold text-surface">RZRPAY</span>
               <div>
                 <p className="text-md font-semibold text-fg">Razorpay</p>
-                <p className="text-xs text-muted-warm">2% per transaction · Existing account required</p>
+                <p className="text-xs text-muted-warm">2% per transaction · Card, UPI, netbanking · KYC via Razorpay</p>
               </div>
             </div>
-            <Toggle checked={config.razorpay.enabled} onChange={(v) => !locked && save({ ...config, razorpay: { enabled: v } })} />
+            <div className="flex items-center gap-3">
+              <Toggle checked={config.razorpay.enabled} onChange={(v) => !locked && save({ ...config, razorpay: { enabled: v } })} />
+              <span
+                className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${razorpayStatus === 'activated' ? 'bg-success-bg text-success' : 'bg-[#FEF3C7] text-[#92400E]'}`}
+              >
+                {RAZORPAY_STATUS_LABEL[razorpayStatus]}
+              </span>
+              {razorpayStatus === 'upi_manual' && (
+                <button
+                  type="button"
+                  onClick={handleConnect}
+                  disabled={connecting}
+                  className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-surface disabled:opacity-50"
+                >
+                  {connecting ? 'Connecting…' : 'Connect Razorpay'}
+                </button>
+              )}
+              {(razorpayStatus === 'pending' || razorpayStatus === 'needs_clarification') && (
+                <button type="button" onClick={handleRefresh} className="text-sm font-semibold text-fg underline">
+                  Refresh status
+                </button>
+              )}
+            </div>
           </div>
+          {razorpayError && <p className="mt-2 text-xs text-danger">{razorpayError}</p>}
         </div>
       </div>
 

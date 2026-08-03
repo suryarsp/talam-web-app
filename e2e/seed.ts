@@ -21,10 +21,12 @@ async function main() {
       contactEmail: 'owner@e2e.test',
       tagline: 'Testing, testing',
       paymentProvider: 'upi_manual',
+      paymentConfig: { upi: { enabled: true, upiId: 'test@upi' } },
     },
     update: {
       isOnboarded: true,
       isLive: true,
+      paymentConfig: { upi: { enabled: true, upiId: 'test@upi' } },
     },
   })
 

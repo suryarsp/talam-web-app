@@ -7,6 +7,7 @@ import { cacheForTenant } from '@/lib/storefront-cache'
 import { AddToCartButton } from '@/components/store/add-to-cart-button'
 import { ReviewsSection } from '@/components/store/reviews-section'
 import { ProductImageCarousel } from '@/components/store/product-image-carousel'
+import { formatCurrency } from '@/lib/utils'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -97,15 +98,15 @@ export default async function ProductPage({ params }: Props) {
 
           <div className="flex items-baseline gap-3">
             <span className="font-body text-3xl font-bold text-fg">
-              ₹{price.toLocaleString('en-IN')}
+              {formatCurrency(price)}
             </span>
             {hasDiscount && (
               <>
                 <span className="font-body text-base text-muted-warm line-through">
-                  ₹{comparePrice!.toLocaleString('en-IN')}
+                  {formatCurrency(comparePrice!)}
                 </span>
                 <span className="rounded-full bg-danger px-2.5 py-1 font-body text-xs font-bold text-surface">
-                  Save ₹{savedAmount!.toLocaleString('en-IN')}
+                  Save {formatCurrency(savedAmount!)}
                 </span>
               </>
             )}

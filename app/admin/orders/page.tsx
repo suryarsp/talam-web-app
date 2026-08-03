@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, ArrowUpDown, ClipboardList } from 'lucide-react'
 import { OrderActionSheet } from '@/components/admin/order-action-sheet'
 import { OrderDetailsModal } from '@/components/admin/order-details-modal'
+import { formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
 import { getOrdersAction } from './actions'
@@ -110,7 +111,7 @@ export default function AdminOrdersPage() {
 
       {/* ── Summary strip ── */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:gap-4">
-        <StatCard label="Total Value" value={`₹${totalValue.toLocaleString('en-IN')}`} />
+        <StatCard label="Total Value" value={formatCurrency(totalValue)} />
         <StatCard label="Needs Attention" value={`${pendingCount} pending`} />
       </div>
 

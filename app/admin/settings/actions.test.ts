@@ -66,6 +66,15 @@ vi.mock('@/lib/cloudinary', () => ({ uploadImage: vi.fn(async () => 'https://cdn
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: vi.fn(async () => ({ auth: { signOut: vi.fn() } })) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }))
 
+const { mockCreateLinkedAccount, mockGetLinkedAccount } = vi.hoisted(() => ({
+  mockCreateLinkedAccount: vi.fn(),
+  mockGetLinkedAccount: vi.fn(),
+}))
+vi.mock('@/lib/razorpay', () => ({
+  createLinkedAccount: mockCreateLinkedAccount,
+  getLinkedAccount: mockGetLinkedAccount,
+}))
+
 import {
   getAboutAction,
   updateAboutAction,
@@ -77,6 +86,8 @@ import {
   deleteStoreAction,
   getAlertsAction,
   updateAlertsAction,
+  startRazorpayOnboardingAction,
+  refreshRazorpayStatusAction,
 } from './actions'
 
 beforeEach(() => vi.clearAllMocks())
@@ -199,5 +210,57 @@ describe('updateAlertsAction', () => {
     expect(mockTenantUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ notificationPreferences: expect.objectContaining({ lowStock: false, newOrder: true }) }) })
     )
+  })
+})
+
+describe('startRazorpayOnboardingAction', () => {
+  it('creates a linked account, stores pending status, and returns the onboarding URL', async () => {
+    mockTenantFindUnique.mockResolvedValue({ name: 'Priya Boutique', contactEmail: 'a@b.com', contactPhone: '9999999999' })
+    mockCreateLinkedAccount.mockResolvedValue({ id: 'acc_1', status: 'created' })
+    mockTenantUpdate.mockResolvedValue({})
+
+    const result = await startRazorpayOnboardingAction()
+
+    expect(result).toEqual({ onboardingUrl: 'https://dashboard.razorpay.com/onboarding/acc_1' })
+    expect(mockTenantUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 't1' },
+        data: expect.objectContaining({
+          paymentProvider: 'razorpay',
+          paymentConfig: expect.objectContaining({ provider: 'razorpay', accountId: 'acc_1', status: 'pending' }),
+        }),
+      })
+    )
+  })
+
+  it('returns an error when the tenant has no contact email/phone yet', async () => {
+    mockTenantFindUnique.mockResolvedValue({ name: 'Priya', contactEmail: null, contactPhone: null })
+
+    const result = await startRazorpayOnboardingAction()
+    expect(result).toEqual({ error: 'Add a contact phone and email before connecting Razorpay.' })
+    expect(mockCreateLinkedAccount).not.toHaveBeenCalled()
+  })
+})
+
+describe('refreshRazorpayStatusAction', () => {
+  it('fetches the linked account from Razorpay and persists the latest status', async () => {
+    mockTenantFindUnique.mockResolvedValue({ paymentConfig: { provider: 'razorpay', accountId: 'acc_1', status: 'pending', updatedAt: '2026-07-21T00:00:00.000Z' } })
+    mockGetLinkedAccount.mockResolvedValue({ id: 'acc_1', status: 'activated' })
+    mockTenantUpdate.mockResolvedValue({})
+
+    const result = await refreshRazorpayStatusAction()
+
+    expect(result).toEqual({ status: 'activated' })
+    expect(mockTenantUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentConfig: expect.objectContaining({ status: 'activated' }) }) })
+    )
+  })
+
+  it('returns an error when the tenant has no Razorpay account yet', async () => {
+    mockTenantFindUnique.mockResolvedValue({ paymentConfig: null })
+
+    const result = await refreshRazorpayStatusAction()
+    expect(result).toEqual({ error: 'No Razorpay account connected yet.' })
+    expect(mockGetLinkedAccount).not.toHaveBeenCalled()
   })
 })
