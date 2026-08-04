@@ -634,7 +634,13 @@ function StoreTab() {
                     return
                   }
                   setWhatsappError('')
-                  if (value !== settings.whatsappNumber) save({ whatsappNumber: value })
+                  if (value !== settings.whatsappNumber) {
+                    // A cleared/invalid number can't back a floating button — force the toggle
+                    // off with it rather than leaving "Show WhatsApp Button" enabled with nothing behind it.
+                    const patch: StoreSettingsInput = { whatsappNumber: value }
+                    if (!value && settings.showWhatsappButton) patch.showWhatsappButton = false
+                    save(patch)
+                  }
                 }}
                 className={`min-w-0 flex-1 rounded-lg border bg-bg px-3 py-[9px] text-md text-fg outline-none focus:border-brand-primary ${whatsappError ? 'border-danger' : 'border-border'}`}
               />
@@ -644,9 +650,18 @@ function StoreTab() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-md font-semibold text-fg">Show WhatsApp Button on Store</p>
-              <p className="text-xs text-muted-warm">Floating button visible to all visitors</p>
+              <p className="text-xs text-muted-warm">
+                {settings.whatsappNumber ? 'Floating button visible to all visitors' : 'Add a WhatsApp number above to enable this'}
+              </p>
             </div>
-            <Toggle checked={settings.showWhatsappButton} onChange={(checked) => save({ showWhatsappButton: checked })} />
+            <Toggle
+              checked={settings.showWhatsappButton}
+              disabled={!settings.showWhatsappButton && !settings.whatsappNumber}
+              onChange={(checked) => {
+                if (checked && !settings.whatsappNumber) return
+                save({ showWhatsappButton: checked })
+              }}
+            />
           </div>
         </div>
       </div>
@@ -1087,6 +1102,9 @@ function PaymentsTab() {
       setConfig(r.config)
       setLocked(r.locked)
       setLockedCount(r.lockedCount)
+      // Previously never fetched — the status chip stayed hardcoded to "Not connected" even
+      // when Razorpay was pending/activated, until a Connect/Refresh click happened to run.
+      setRazorpayStatus(r.config.razorpay.status ?? 'upi_manual')
       setLoaded(true)
     })
   }, [])
@@ -1102,14 +1120,21 @@ function PaymentsTab() {
   const handleConnect = useCallback(async () => {
     setConnecting(true)
     setRazorpayError('')
-    const result = await startRazorpayOnboardingAction()
-    setConnecting(false)
-    if ('error' in result) {
-      setRazorpayError(result.error)
-      return
+    try {
+      const result = await startRazorpayOnboardingAction()
+      if ('error' in result) {
+        setRazorpayError(result.error)
+        return
+      }
+      setRazorpayStatus('pending')
+      window.open(result.onboardingUrl, '_blank')
+    } catch {
+      // createLinkedAccount can throw (network error, Razorpay API error) — without this catch
+      // the button was stuck on "Connecting…" forever with no feedback.
+      setRazorpayError('Could not reach Razorpay. Please try again.')
+    } finally {
+      setConnecting(false)
     }
-    setRazorpayStatus('pending')
-    window.open(result.onboardingUrl, '_blank')
   }, [])
 
   const handleRefresh = useCallback(async () => {

@@ -2,14 +2,25 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { Joyride, ACTIONS, EVENTS, STATUS, type EventData, type Step } from 'react-joyride'
+import { Tour as ReactourTour, type StepType } from '@reactour/tour'
 import { useTourStore } from '@/lib/store/tour'
-import { TourHandBeacon } from './tour-hand-beacon'
 
 // ponytail: fixed poll ceiling (~3s) — fine for the handful of known go-live targets, swap for a
 // MutationObserver if steps needing cross-page navigation ever grow to watch many more targets.
 const POLL_INTERVAL_MS = 100
 const MAX_POLL_ATTEMPTS = 30
+
+/**
+ * `step.target` is either a plain CSS selector, or a resolver function from `visibleTarget()`
+ * (lib/tours.ts) — used where the same `data-tour` attribute exists twice in the DOM (desktop
+ * sidebar + mobile bottom nav, one hidden via CSS) and only the on-screen copy should be picked.
+ * `@reactour/tour`'s `selector` field wants a resolved `Element`, never a selector string built
+ * from a stringified function — passing the resolver through unresolved was the previous bug:
+ * it stringified into `document.querySelector`, throwing `SyntaxError: ... not a valid selector`.
+ */
+function resolveTarget(target: string | (() => HTMLElement | null)): HTMLElement | null {
+  return typeof target === 'function' ? target() : document.querySelector<HTMLElement>(target)
+}
 
 /** Shared engine for both tours: the fixed admin orientation tour and the go-live checklist tour. */
 export function Tour() {
@@ -25,6 +36,8 @@ export function Tour() {
   const setStepIndex = useTourStore((s) => s.setStepIndex)
 
   const [run, setRun] = useState(false)
+  const [resolvedTarget, setResolvedTarget] = useState<HTMLElement | null>(null)
+  const [disabledActions, setDisabledActions] = useState(false)
 
   useEffect(() => {
     if (!active) return
@@ -37,7 +50,10 @@ export function Tour() {
     // Orientation steps have no route — their target lives in the always-mounted nav shell,
     // so there's nothing to navigate to or wait for.
     if (!step.route) {
-      requestAnimationFrame(() => setRun(true))
+      requestAnimationFrame(() => {
+        setResolvedTarget(resolveTarget(step.target))
+        setRun(true)
+      })
       return
     }
 
@@ -54,15 +70,17 @@ export function Tour() {
     let attempts = 0
     const id = setInterval(() => {
       attempts++
-      if (document.querySelector(step.target as string)) {
+      const el = resolveTarget(step.target)
+      if (el) {
         clearInterval(id)
+        setResolvedTarget(el)
         setRun(true)
         return
       }
       if (attempts >= MAX_POLL_ATTEMPTS) {
         clearInterval(id)
         // Target never showed up (e.g. slower layout/hydration) — skip the step instead of
-        // running Joyride against nothing, which renders as a blank full-page overlay.
+        // running the tour against nothing, which renders as a blank full-page overlay.
         if (stepIndex + 1 < steps.length) setStepIndex(stepIndex + 1)
         else stop()
       }
@@ -71,50 +89,74 @@ export function Tour() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stepIndex, pathname, searchParamsKey, steps])
 
-  function handleEvent(data: EventData) {
-    const { status, action, index, type } = data
+  if (!active || steps.length === 0 || !run || !resolvedTarget) return null
 
-    if (status === STATUS.FINISHED || status === STATUS.SKIPPED || action === ACTIONS.CLOSE) {
-      setRun(false)
-      stop()
-      return
-    }
+  const current = steps[stepIndex]
+  const isLast = stepIndex === steps.length - 1
 
-    if (type === EVENTS.STEP_AFTER) {
-      setRun(false)
-      setStepIndex(index + (action === ACTIONS.PREV ? -1 : 1))
-    }
-  }
-
-  if (!active || steps.length === 0) return null
-
-  const joyrideSteps: Step[] = steps.map((s, i) => ({
-    target: s.target,
-    title: s.label,
-    content: s.description,
-    isFixed: s.isFixed,
-    // Only the very first step needs a beacon click — this tour is externally controlled
-    // (stepIndex driven by our own store, not Joyride's internal NEXT/PREV action), so
-    // react-joyride's own continuous-tour beacon skip never kicks in on later steps.
-    // Skipping it ourselves makes every step after the first jump straight to the tooltip.
-    skipBeacon: i > 0,
-  }))
+  // Progression is entirely driven by our own zustand store (stepIndex can jump across page
+  // navigations mid-tour), so the library's own Navigation/dots are switched off and this
+  // renders a single-step tour each time, with our own back/next/skip footer inside the popover.
+  const tourSteps: StepType[] = [
+    {
+      selector: resolvedTarget,
+      content: () => (
+        <div className="flex flex-col gap-3">
+          <p className="text-2xs font-semibold uppercase tracking-wide text-muted-warm">
+            Step {stepIndex + 1} of {steps.length}
+          </p>
+          <p className="font-heading text-sm font-bold text-fg">{current.label}</p>
+          <p className="text-sm text-muted-warm">{current.description}</p>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <button type="button" onClick={stop} className="text-xs font-semibold text-muted-warm hover:text-fg">
+              Skip
+            </button>
+            <div className="flex items-center gap-2">
+              {stepIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStepIndex(stepIndex - 1)}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-fg"
+                >
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => (isLast ? stop() : setStepIndex(stepIndex + 1))}
+                className="rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                {isLast ? 'Done' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <Joyride
-      steps={joyrideSteps}
-      stepIndex={stepIndex}
-      run={run}
-      continuous
-      beaconComponent={TourHandBeacon}
-      onEvent={handleEvent}
-      options={{
-        showProgress: true,
-        buttons: ['back', 'skip', 'close', 'primary'],
-        // cancellable at any step: both the skip button and the × end the whole tour, not just the step
-        closeButtonAction: 'skip',
-        overlayColor: '#00000099',
-        spotlightPadding: 6,
+    <ReactourTour
+      steps={tourSteps}
+      isOpen={run}
+      currentStep={0}
+      setCurrentStep={() => {}}
+      setIsOpen={(value) => {
+        const next = typeof value === 'function' ? value(run) : value
+        if (!next) {
+          setRun(false)
+          stop()
+        }
+      }}
+      disabledActions={disabledActions}
+      setDisabledActions={setDisabledActions}
+      showNavigation={false}
+      showDots={false}
+      showBadge={false}
+      showCloseButton
+      padding={6}
+      styles={{
+        maskArea: (base) => ({ ...base, fill: 'rgba(0,0,0,0.6)' }),
       }}
     />
   )

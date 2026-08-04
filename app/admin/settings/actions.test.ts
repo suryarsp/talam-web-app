@@ -215,7 +215,12 @@ describe('updateAlertsAction', () => {
 
 describe('startRazorpayOnboardingAction', () => {
   it('creates a linked account, stores pending status, and returns the onboarding URL', async () => {
-    mockTenantFindUnique.mockResolvedValue({ name: 'Priya Boutique', contactEmail: 'a@b.com', contactPhone: '9999999999' })
+    mockTenantFindUnique.mockResolvedValue({
+      name: 'Priya Boutique',
+      contactEmail: 'a@b.com',
+      contactPhone: '9999999999',
+      paymentConfig: { upi: { enabled: true, upiId: 'priya@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false } },
+    })
     mockCreateLinkedAccount.mockResolvedValue({ id: 'acc_1', status: 'created' })
     mockTenantUpdate.mockResolvedValue({})
 
@@ -226,15 +231,18 @@ describe('startRazorpayOnboardingAction', () => {
       expect.objectContaining({
         where: { id: 't1' },
         data: expect.objectContaining({
-          paymentProvider: 'razorpay',
-          paymentConfig: expect.objectContaining({ provider: 'razorpay', accountId: 'acc_1', status: 'pending' }),
+          // The bug: connecting Razorpay used to overwrite the whole column and wipe this.
+          paymentConfig: expect.objectContaining({
+            upi: { enabled: true, upiId: 'priya@bank' },
+            razorpay: expect.objectContaining({ enabled: true, accountId: 'acc_1', status: 'pending' }),
+          }),
         }),
       })
     )
   })
 
   it('returns an error when the tenant has no contact email/phone yet', async () => {
-    mockTenantFindUnique.mockResolvedValue({ name: 'Priya', contactEmail: null, contactPhone: null })
+    mockTenantFindUnique.mockResolvedValue({ name: 'Priya', contactEmail: null, contactPhone: null, paymentConfig: null })
 
     const result = await startRazorpayOnboardingAction()
     expect(result).toEqual({ error: 'Add a contact phone and email before connecting Razorpay.' })
@@ -243,8 +251,14 @@ describe('startRazorpayOnboardingAction', () => {
 })
 
 describe('refreshRazorpayStatusAction', () => {
-  it('fetches the linked account from Razorpay and persists the latest status', async () => {
-    mockTenantFindUnique.mockResolvedValue({ paymentConfig: { provider: 'razorpay', accountId: 'acc_1', status: 'pending', updatedAt: '2026-07-21T00:00:00.000Z' } })
+  it('fetches the linked account from Razorpay, persists the latest status, and keeps UPI intact', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      paymentConfig: {
+        upi: { enabled: true, upiId: 'priya@bank' },
+        instamojo: { enabled: false },
+        razorpay: { enabled: true, accountId: 'acc_1', status: 'pending', updatedAt: '2026-07-21T00:00:00.000Z' },
+      },
+    })
     mockGetLinkedAccount.mockResolvedValue({ id: 'acc_1', status: 'activated' })
     mockTenantUpdate.mockResolvedValue({})
 
@@ -252,7 +266,14 @@ describe('refreshRazorpayStatusAction', () => {
 
     expect(result).toEqual({ status: 'activated' })
     expect(mockTenantUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ paymentConfig: expect.objectContaining({ status: 'activated' }) }) })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentConfig: expect.objectContaining({
+            upi: { enabled: true, upiId: 'priya@bank' },
+            razorpay: expect.objectContaining({ status: 'activated' }),
+          }),
+        }),
+      })
     )
   })
 

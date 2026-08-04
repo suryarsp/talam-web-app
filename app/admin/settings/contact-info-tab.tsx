@@ -167,6 +167,7 @@ export function ContactInfoTab() {
 
   const sameAsContact = form.watch('sameAsContact')
   const contactPhone = form.watch('contactPhone')
+  const whatsappNumber = form.watch('whatsappNumber')
 
   if (!loaded) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
 
@@ -295,15 +296,29 @@ export function ContactInfoTab() {
             <FormField
               control={form.control}
               name="showWhatsappButton"
-              render={({ field }) => (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-md font-semibold text-fg">Show WhatsApp Button on Store</p>
-                    <p className="text-xs text-muted-warm">Floating button visible to all visitors</p>
+              render={({ field }) => {
+                // A cleared/no number can't back a floating button — gate the toggle on it
+                // rather than letting it stay enabled with nothing behind it.
+                const hasNumber = Boolean((sameAsContact ? contactPhone : whatsappNumber)?.trim())
+                return (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-md font-semibold text-fg">Show WhatsApp Button on Store</p>
+                      <p className="text-xs text-muted-warm">
+                        {hasNumber ? 'Floating button visible to all visitors' : 'Add a WhatsApp number above to enable this'}
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={field.value}
+                      disabled={!field.value && !hasNumber}
+                      onChange={(checked) => {
+                        if (checked && !hasNumber) return
+                        field.onChange(checked)
+                      }}
+                    />
                   </div>
-                  <Toggle checked={field.value} onChange={field.onChange} />
-                </div>
-              )}
+                )
+              }}
             />
           </div>
         </div>

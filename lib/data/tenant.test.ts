@@ -16,9 +16,7 @@ function mockTenant(overrides: Record<string, unknown>) {
   const db = {
     tenant: {
       findUnique: vi.fn().mockResolvedValue({
-        isOnboarded: true,
-        paymentProvider: 'upi_manual',
-        paymentConfig: null,
+        paymentConfig: { upi: { enabled: true, upiId: 'store@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false } },
         contactPhone: '9999999999',
         contactEmail: 'a@b.com',
         about: { description: 'We make things' },
@@ -35,30 +33,56 @@ function mockTenant(overrides: Record<string, unknown>) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('getMissingStoreConfig — payments check', () => {
-  it('passes non-razorpay providers based on isOnboarded (unchanged behavior)', async () => {
-    mockTenant({ paymentProvider: 'upi_manual', isOnboarded: true })
+  it('passes when UPI alone is enabled with a valid VPA', async () => {
+    mockTenant({ paymentConfig: { upi: { enabled: true, upiId: 'store@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false } } })
     const missing = await getMissingStoreConfig('tenant-1')
     expect(missing.find((m) => m.key === 'payments')).toBeUndefined()
   })
 
-  it('flags razorpay as missing when paymentConfig is null', async () => {
-    mockTenant({ paymentProvider: 'razorpay', paymentConfig: null })
+  it('flags payments as missing when no paymentConfig has been saved yet', async () => {
+    mockTenant({ paymentConfig: null })
     const missing = await getMissingStoreConfig('tenant-1')
     expect(missing.find((m) => m.key === 'payments')).toMatchObject({ key: 'payments' })
   })
 
-  it('flags razorpay as missing when status is pending', async () => {
+  it('does not require a valid VPA when UPI is off but Razorpay is activated', async () => {
     mockTenant({
-      paymentProvider: 'razorpay',
-      paymentConfig: { provider: 'razorpay', accountId: 'acc_1', status: 'pending', updatedAt: '2026-07-21T00:00:00.000Z' },
+      paymentConfig: {
+        upi: { enabled: false, upiId: '' },
+        instamojo: { enabled: false },
+        razorpay: { enabled: true, accountId: 'acc_1', status: 'activated' },
+      },
     })
     const missing = await getMissingStoreConfig('tenant-1')
-    expect(missing.find((m) => m.key === 'payments')).toMatchObject({ key: 'payments' })
+    expect(missing.find((m) => m.key === 'payments')).toBeUndefined()
   })
 
-  it('clears razorpay once status is activated', async () => {
+  it('a disabled/pending Razorpay never blocks go-live when UPI is already valid', async () => {
     mockTenant({
-      paymentProvider: 'razorpay',
+      paymentConfig: {
+        upi: { enabled: true, upiId: 'store@bank' },
+        instamojo: { enabled: false },
+        razorpay: { enabled: true, accountId: 'acc_1', status: 'pending' },
+      },
+    })
+    const missing = await getMissingStoreConfig('tenant-1')
+    expect(missing.find((m) => m.key === 'payments')).toBeUndefined()
+  })
+
+  it('flags payments as missing when Razorpay is the only gateway and still pending', async () => {
+    mockTenant({
+      paymentConfig: {
+        upi: { enabled: false, upiId: '' },
+        instamojo: { enabled: false },
+        razorpay: { enabled: true, accountId: 'acc_1', status: 'pending' },
+      },
+    })
+    const missing = await getMissingStoreConfig('tenant-1')
+    expect(missing.find((m) => m.key === 'payments')).toMatchObject({ key: 'payments', description: 'Finish Razorpay verification (KYC pending)' })
+  })
+
+  it('normalizes a legacy single-provider paymentConfig row', async () => {
+    mockTenant({
       paymentConfig: { provider: 'razorpay', accountId: 'acc_1', status: 'activated', updatedAt: '2026-07-21T00:00:00.000Z' },
     })
     const missing = await getMissingStoreConfig('tenant-1')

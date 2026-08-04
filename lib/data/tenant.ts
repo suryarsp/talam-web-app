@@ -3,15 +3,9 @@ import { prisma, withTenant } from '@/lib/prisma'
 import { sendGoLiveReadyEmail } from '@/lib/resend'
 import { getAdminUrl } from '@/lib/tenant-url'
 import { createNotification } from '@/lib/data/notifications'
+import { normalizePaymentConfig, isPaymentReady } from '@/lib/payments/config'
 
 export type SocialLink = { platform: string; url: string }
-
-export type RazorpayPaymentConfig = {
-  provider: 'razorpay'
-  accountId: string
-  status: 'pending' | 'needs_clarification' | 'activated' | 'rejected'
-  updatedAt: string
-}
 
 export type TenantStorefront = {
   id: string
@@ -67,8 +61,6 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
       db.tenant.findUnique({
         where: { id: tenantId },
         select: {
-          isOnboarded: true,
-          paymentProvider: true,
           paymentConfig: true,
           contactPhone: true,
           contactEmail: true,
@@ -82,18 +74,19 @@ export async function getMissingStoreConfig(tenantId: string): Promise<MissingCo
   if (!tenant) return []
 
   const missing: MissingConfigItem[] = []
-  // ponytail: no persisted "payment configured" flag exists yet for upi_manual/instamojo
-  // (paymentProvider always has a default, and nothing writes paymentConfig for them) — the
-  // onboarding wizard forces a payment choice, so isOnboarded is the best available signal.
-  // Razorpay is the exception: paymentConfig.status is real, KYC-verified truth.
-  const razorpayConfig = tenant.paymentConfig as RazorpayPaymentConfig | null
-  const paymentsOk = tenant.paymentProvider === 'razorpay' ? razorpayConfig?.status === 'activated' : tenant.isOnboarded
+  // Store is payment-ready if *any* gateway in the unified multi-gateway config is usable —
+  // UPI with a valid VPA, Instamojo enabled, or Razorpay activated. A disabled/pending Razorpay
+  // must never block go-live when another gateway is already working.
+  const paymentConfig = normalizePaymentConfig(tenant.paymentConfig)
+  const paymentsOk = isPaymentReady(paymentConfig)
   if (!paymentsOk)
     missing.push({
       key: 'payments',
       label: 'Payments',
       description:
-        tenant.paymentProvider === 'razorpay' ? 'Finish Razorpay verification (KYC pending)' : 'Choose and enable a payment method',
+        paymentConfig.razorpay.enabled && paymentConfig.razorpay.status && paymentConfig.razorpay.status !== 'activated'
+          ? 'Finish Razorpay verification (KYC pending)'
+          : 'Choose and enable a payment method',
       href: '/admin/settings?tab=Payments',
     })
   if (!tenant.contactPhone?.trim() || !tenant.contactEmail?.trim())

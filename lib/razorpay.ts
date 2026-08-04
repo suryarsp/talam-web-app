@@ -18,12 +18,22 @@ function authHeader(): string {
   return `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`
 }
 
+const REQUEST_TIMEOUT_MS = 15_000
+
 async function razorpayRequest<T>(path: string, init: { method: 'GET' | 'POST'; body?: unknown }): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: init.method,
-    headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
-    body: init.body ? JSON.stringify(init.body) : undefined,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: init.method,
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+      body: init.body ? JSON.stringify(init.body) : undefined,
+      // Without this, a hung Razorpay request leaves "Connect Razorpay" stuck on
+      // "Connecting…" forever — the client has no way to know the call ever finished.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw new Error(`Could not reach Razorpay: ${err instanceof Error ? err.message : String(err)}`)
+  }
   const json = await response.json()
   if (!response.ok) throw new RazorpayApiError(response.status, json)
   return json as T

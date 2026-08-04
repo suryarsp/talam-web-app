@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { getRequestTenantId, getTenantStorefront } from '@/lib/data/tenant'
 import { getAddresses } from '@/lib/data/addresses'
 import { withTenant } from '@/lib/prisma'
+import { normalizePaymentConfig } from '@/lib/payments/config'
 import { CheckoutClient } from './checkout-client'
 
 export const dynamic = 'force-dynamic'
@@ -27,17 +28,13 @@ export default async function CheckoutPage() {
     withTenant(tenantId, (db) => db.tenant.findUnique({ where: { id: tenantId }, select: { paymentConfig: true } })),
   ])
 
-  const config = (paymentRow?.paymentConfig ?? {}) as {
-    upi?: { enabled?: boolean; upiId?: string }
-    instamojo?: { enabled?: boolean }
-    razorpay?: { enabled?: boolean }
-  }
+  const config = normalizePaymentConfig(paymentRow?.paymentConfig)
 
   const methods: EnabledPaymentMethods = {
     // UPI needs a VPA to be usable at all — an enabled toggle with no ID is not a payment method.
-    upi: Boolean(config.upi?.enabled && config.upi?.upiId),
-    instamojo: Boolean(config.instamojo?.enabled),
-    razorpay: Boolean(config.razorpay?.enabled),
+    upi: Boolean(config.upi.enabled && config.upi.upiId),
+    instamojo: Boolean(config.instamojo.enabled),
+    razorpay: Boolean(config.razorpay.enabled),
   }
 
   return (

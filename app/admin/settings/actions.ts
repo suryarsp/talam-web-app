@@ -6,11 +6,14 @@ import type { Tier, DiscountType } from '@prisma/client'
 import { requireOwnerTenant } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
 import { createLinkedAccount, getLinkedAccount } from '@/lib/razorpay'
-import type { RazorpayPaymentConfig, SocialLink } from '@/lib/data/tenant'
+import type { SocialLink } from '@/lib/data/tenant'
 import { uploadImage } from '@/lib/cloudinary'
 import { createServerClient } from '@/lib/supabase/server'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import { storefrontTag } from '@/lib/storefront-cache'
+import { normalizePaymentConfig, type PaymentGatewayConfig, type RazorpayStatus } from '@/lib/payments/config'
+
+export type { PaymentGatewayConfig } from '@/lib/payments/config'
 
 function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
@@ -83,6 +86,9 @@ export async function getContactSettingsAction(): Promise<ContactSettings> {
 
 export async function updateContactSettingsAction(input: Omit<ContactSettings, 'galleryUrls'>): Promise<void> {
   const { tenantId } = await requireOwnerTenant()
+  // Client-side gating on the number is a UX nicety only — enforce it here too, or a
+  // cleared number leaves the floating button enabled with nothing to link to.
+  const showWhatsappButton = input.showWhatsappButton && Boolean(input.whatsappNumber?.trim())
 
   await withTenant(tenantId, async (db) => {
     const tenant = await db.tenant.update({
@@ -91,7 +97,7 @@ export async function updateContactSettingsAction(input: Omit<ContactSettings, '
         contactPhone: input.contactPhone,
         contactEmail: input.contactEmail,
         whatsappNumber: input.whatsappNumber,
-        showWhatsappButton: input.showWhatsappButton,
+        showWhatsappButton,
       },
       select: { name: true },
     })
@@ -235,6 +241,18 @@ export async function updateStoreSettingsAction(input: StoreSettingsInput): Prom
     } catch {
       return { error: 'Logo upload failed — try again.' }
     }
+  }
+
+  // This tab autosaves one field at a time, so `rest.whatsappNumber` is only present when the
+  // number itself is the field being saved — otherwise fall back to what's already stored, since
+  // enabling the button can't be judged against a number this patch never touched.
+  if (rest.showWhatsappButton) {
+    const effectiveNumber =
+      rest.whatsappNumber !== undefined
+        ? rest.whatsappNumber
+        : (await withTenant(tenantId, (db) => db.tenant.findUnique({ where: { id: tenantId }, select: { whatsappNumber: true } })))
+            ?.whatsappNumber
+    if (!effectiveNumber?.trim()) rest.showWhatsappButton = false
   }
 
   await withTenant(tenantId, (db) =>
@@ -453,18 +471,6 @@ export async function getSubscriptionAction(): Promise<SubscriptionInfo> {
 }
 
 // ── Payments Tab ──
-export type PaymentGatewayConfig = {
-  upi: { enabled: boolean; upiId: string }
-  instamojo: { enabled: boolean }
-  razorpay: { enabled: boolean }
-}
-
-const DEFAULT_PAYMENT_CONFIG: PaymentGatewayConfig = {
-  upi: { enabled: true, upiId: '' },
-  instamojo: { enabled: false },
-  razorpay: { enabled: false },
-}
-
 // Orders not yet in a terminal state block payment-config changes (mirrors the "3 pending orders" mock copy).
 const NON_TERMINAL_ORDER_STATUSES = ['pending', 'confirmed', 'shipped'] as const
 
@@ -476,13 +482,8 @@ export async function getPaymentsSettingsAction(): Promise<{ config: PaymentGate
       db.order.count({ where: { tenantId, status: { in: [...NON_TERMINAL_ORDER_STATUSES] } } }),
     ])
   )
-  const stored = (tenant?.paymentConfig as Partial<PaymentGatewayConfig> | null) ?? {}
   return {
-    config: {
-      upi: { ...DEFAULT_PAYMENT_CONFIG.upi, ...stored.upi },
-      instamojo: { ...DEFAULT_PAYMENT_CONFIG.instamojo, ...stored.instamojo },
-      razorpay: { ...DEFAULT_PAYMENT_CONFIG.razorpay, ...stored.razorpay },
-    },
+    config: normalizePaymentConfig(tenant?.paymentConfig),
     locked: lockedCount > 0,
     lockedCount,
   }
@@ -522,19 +523,11 @@ export async function deleteStoreAction(confirmName: string): Promise<{ error?: 
   return {}
 }
 
-export async function getPaymentSettingsAction(): Promise<{ provider: string; razorpay: RazorpayPaymentConfig | null }> {
-  const { tenantId } = await requireOwnerTenant()
-  const tenant = await withTenant(tenantId, (db) =>
-    db.tenant.findUnique({ where: { id: tenantId }, select: { paymentProvider: true, paymentConfig: true } })
-  )
-  return { provider: tenant?.paymentProvider ?? 'upi_manual', razorpay: (tenant?.paymentConfig as RazorpayPaymentConfig | null) ?? null }
-}
-
 export async function startRazorpayOnboardingAction(): Promise<{ onboardingUrl: string } | { error: string }> {
   const { tenantId } = await requireOwnerTenant()
 
   const tenant = await withTenant(tenantId, (db) =>
-    db.tenant.findUnique({ where: { id: tenantId }, select: { name: true, contactEmail: true, contactPhone: true } })
+    db.tenant.findUnique({ where: { id: tenantId }, select: { name: true, contactEmail: true, contactPhone: true, paymentConfig: true } })
   )
   if (!tenant?.contactEmail?.trim() || !tenant?.contactPhone?.trim()) {
     return { error: 'Add a contact phone and email before connecting Razorpay.' }
@@ -542,34 +535,34 @@ export async function startRazorpayOnboardingAction(): Promise<{ onboardingUrl: 
 
   const account = await createLinkedAccount({ email: tenant.contactEmail, phone: tenant.contactPhone, businessName: tenant.name })
 
-  const paymentConfig: RazorpayPaymentConfig = {
-    provider: 'razorpay',
-    accountId: account.id,
-    status: 'pending',
-    updatedAt: new Date().toISOString(),
+  // Merge into the existing multi-gateway config — never overwrite the whole column, or a
+  // merchant's saved UPI ID silently disappears the moment they connect Razorpay.
+  const current = normalizePaymentConfig(tenant.paymentConfig)
+  const config: PaymentGatewayConfig = {
+    ...current,
+    razorpay: { enabled: true, accountId: account.id, status: 'pending', updatedAt: new Date().toISOString() },
   }
-  await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { paymentProvider: 'razorpay', paymentConfig } }))
+  await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { paymentConfig: config } }))
 
   revalidatePath('/admin/settings')
   return { onboardingUrl: `https://dashboard.razorpay.com/onboarding/${account.id}` }
 }
 
-export async function refreshRazorpayStatusAction(): Promise<{ status: RazorpayPaymentConfig['status'] } | { error: string }> {
+export async function refreshRazorpayStatusAction(): Promise<{ status: RazorpayStatus } | { error: string }> {
   const { tenantId } = await requireOwnerTenant()
 
   const tenant = await withTenant(tenantId, (db) => db.tenant.findUnique({ where: { id: tenantId }, select: { paymentConfig: true } }))
-  const existing = tenant?.paymentConfig as RazorpayPaymentConfig | null
-  if (!existing?.accountId) return { error: 'No Razorpay account connected yet.' }
+  const current = normalizePaymentConfig(tenant?.paymentConfig)
+  if (!current.razorpay.accountId) return { error: 'No Razorpay account connected yet.' }
 
-  const account = await getLinkedAccount(existing.accountId)
-  const paymentConfig: RazorpayPaymentConfig = {
-    provider: 'razorpay',
-    accountId: existing.accountId,
-    status: account.status as RazorpayPaymentConfig['status'],
-    updatedAt: new Date().toISOString(),
+  const account = await getLinkedAccount(current.razorpay.accountId)
+  const status = account.status as RazorpayStatus
+  const config: PaymentGatewayConfig = {
+    ...current,
+    razorpay: { ...current.razorpay, status, updatedAt: new Date().toISOString() },
   }
-  await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { paymentConfig } }))
+  await withTenant(tenantId, (db) => db.tenant.update({ where: { id: tenantId }, data: { paymentConfig: config } }))
 
   revalidatePath('/admin/settings')
-  return { status: paymentConfig.status }
+  return { status }
 }
