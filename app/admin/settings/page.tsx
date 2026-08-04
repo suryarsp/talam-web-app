@@ -38,6 +38,7 @@ import { RichTextEditor } from '@/components/admin/rich-text-editor'
 import { Dialog } from '@/components/ui/dialog'
 import { Attachment, AttachmentMedia, AttachmentTrigger } from '@/components/ui/attachment'
 import { ROOT_DOMAIN } from '@/lib/tenant-url'
+import { InstagramIcon, FacebookIcon, YoutubeIcon, WhatsappIcon } from '@/components/icons/social-icons'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
 import { ContactInfoTab } from './contact-info-tab'
@@ -98,6 +99,13 @@ function ImageUploadPreview({ initialLabel, imageUrl, onFile }: { initialLabel: 
 // ── About Tab ──
 const SOCIAL_PLATFORM_PRESETS = ['Instagram', 'Facebook', 'YouTube', 'WhatsApp for Business'] as const
 
+const SOCIAL_PLATFORM_META: Record<(typeof SOCIAL_PLATFORM_PRESETS)[number], { Icon: typeof InstagramIcon; placeholder: string }> = {
+  Instagram: { Icon: InstagramIcon, placeholder: 'https://instagram.com/yourstore' },
+  Facebook: { Icon: FacebookIcon, placeholder: 'https://facebook.com/yourstore' },
+  YouTube: { Icon: YoutubeIcon, placeholder: 'https://youtube.com/@yourstore' },
+  'WhatsApp for Business': { Icon: WhatsappIcon, placeholder: 'https://wa.me/919876543210' },
+}
+
 function AddSocialLinkDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (link: SocialLink) => void }) {
   return (
     <Dialog open={open} onClose={onClose} position="center">
@@ -123,18 +131,22 @@ function AddSocialLinkForm({ onClose, onAdd }: { onClose: () => void; onAdd: (li
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-semibold text-fg">Platform</span>
             <div className="grid grid-cols-2 gap-2">
-              {SOCIAL_PLATFORM_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatform(p)}
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-                    platform === p ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-border text-fg hover:border-brand-primary/50'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {SOCIAL_PLATFORM_PRESETS.map((p) => {
+                const { Icon } = SOCIAL_PLATFORM_META[p]
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlatform(p)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                      platform === p ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-border text-fg hover:border-brand-primary/50'
+                    }`}
+                  >
+                    <Icon className="shrink-0" />
+                    {p}
+                  </button>
+                )
+              })}
             </div>
           </div>
           <Input
@@ -142,7 +154,7 @@ function AddSocialLinkForm({ onClose, onAdd }: { onClose: () => void; onAdd: (li
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            placeholder="https://instagram.com/yourstore"
+            placeholder={platform ? SOCIAL_PLATFORM_META[platform as keyof typeof SOCIAL_PLATFORM_META]?.placeholder : 'https://instagram.com/yourstore'}
             autoFocus
           />
         </div>
@@ -208,23 +220,26 @@ function AboutTab() {
         </SectionLabel>
         <div className="flex flex-col gap-3">
           {socialLinks.length === 0 && <p className="text-sm text-muted-warm">No social links yet. Add Instagram, Facebook, YouTube — anything.</p>}
-          {socialLinks.map((link, i) => (
+          {socialLinks.map((link, i) => {
+            const meta = SOCIAL_PLATFORM_META[link.platform as keyof typeof SOCIAL_PLATFORM_META]
+            return (
             <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-[9px]">
               <span className="flex size-7 shrink-0 items-center justify-center rounded bg-bg text-[10px] font-bold uppercase text-muted-warm">
-                {link.platform.slice(0, 2) || '—'}
+                {meta ? <meta.Icon /> : link.platform.slice(0, 2) || '—'}
               </span>
               <span className="w-[140px] shrink-0 border-r border-border pr-2 text-sm font-semibold text-fg">{link.platform}</span>
               <input
                 value={link.url}
                 onChange={(e) => updateLink(i, { url: e.target.value })}
-                placeholder="https://instagram.com/yourstore"
+                placeholder={meta?.placeholder ?? 'https://instagram.com/yourstore'}
                 className="min-w-0 flex-1 bg-transparent text-md text-fg outline-none"
               />
               <button type="button" onClick={() => setSocialLinks((prev) => prev.filter((_, j) => j !== i))} className="text-muted-warm hover:text-danger">
                 <X className="size-4" />
               </button>
             </div>
-          ))}
+            )
+          })}
         </div>
         <AddSocialLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} onAdd={(link) => setSocialLinks((prev) => [...prev, link])} />
       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, ClipboardList, Users, Settings, PartyPopper, History, ExternalLink, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, Package, ClipboardList, Users, Settings, PartyPopper, History, ExternalLink, MoreHorizontal, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { StoreLink, useStoreBase } from '@/components/store/store-context'
 import { ProfileMenu } from '@/components/marketing/profile-menu'
@@ -45,6 +45,8 @@ function navTourId(href: string) {
 
 const MOBILE_OVERFLOW_TOUR_IDS = new Set(MOBILE_OVERFLOW.map((item) => navTourId(item.href)))
 
+const SIDEBAR_COLLAPSED_KEY = 'talam-admin-sidebar-collapsed'
+
 function isActive(rel: string, href: string) {
   return rel === href || (href !== '/admin/dashboard' && rel.startsWith(href))
     || (href === '/admin/dashboard' && (rel === '/admin/dashboard' || rel === '/admin'))
@@ -57,6 +59,7 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
   const [liveStoreUrl, setLiveStoreUrl] = useState<string | null>(null)
   const [isLive, setIsLive] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const tourActive = useTourStore((s) => s.active)
   const tourStepKey = useTourStore((s) => s.steps[s.stepIndex]?.key)
@@ -65,6 +68,22 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
     getLiveStoreUrl().then(setLiveStoreUrl)
     getTenantLiveStateAction().then((state) => setIsLive(state.isLive))
   }, [])
+
+  // Server has no access to localStorage, so the sidebar always renders expanded on first
+  // paint and flips to the persisted state right after mount — matches the SSR HTML, then
+  // applies the user's preference a frame later instead of causing a hydration mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+  }, [])
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0')
+      return next
+    })
+  }
 
   function handleGoLive() {
     setIsLive(true)
@@ -90,9 +109,19 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
     <div className="font-admin min-h-screen bg-bg">
       {/* Desktop: dark sidebar + content */}
       <div className="hidden md:flex">
-        <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col bg-bg-dark px-3 pt-4">
-          <div className="mb-5 px-1">
-            <span className="font-marketing text-2xl italic text-white">talam.</span>
+        <aside
+          className={`sticky top-0 flex h-screen shrink-0 flex-col bg-bg-dark px-3 pt-4 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-[240px]'}`}
+        >
+          <div className="mb-5 flex items-center justify-between px-1">
+            {!collapsed && <span className="font-marketing text-2xl italic text-white">talam.</span>}
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[#9CA3AF] transition-colors hover:bg-white/5 hover:text-white"
+            >
+              {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
+            </button>
           </div>
           <nav className="flex flex-col gap-1">
             {NAV.map(({ href, label, icon: Icon }) => {
@@ -102,14 +131,15 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
                   key={href}
                   href={href}
                   data-tour={navTourId(href)}
+                  title={collapsed ? label : undefined}
                   className={`flex items-center gap-3 rounded-lg px-4 py-[10px] text-md font-medium transition-colors ${
                     active
                       ? 'bg-brand-primary/15 text-brand-primary'
                       : 'text-[#9CA3AF] hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <Icon className="size-5" strokeWidth={1.8} />
-                  <span>{label}</span>
+                  <Icon className="size-5 shrink-0" strokeWidth={1.8} />
+                  {!collapsed && <span>{label}</span>}
                 </StoreLink>
               )
             })}
@@ -118,10 +148,11 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
                 href={liveStoreUrl ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
+                title={collapsed ? 'Live Store' : undefined}
                 className="flex items-center gap-3 rounded-lg px-4 py-[10px] text-md font-medium text-[#9CA3AF] transition-colors hover:bg-white/5 hover:text-white"
               >
-                <ExternalLink className="size-5" strokeWidth={1.8} />
-                <span>Live Store</span>
+                <ExternalLink className="size-5 shrink-0" strokeWidth={1.8} />
+                {!collapsed && <span>Live Store</span>}
               </a>
             )}
           </nav>
