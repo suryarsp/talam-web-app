@@ -130,6 +130,7 @@ describe('saveContactStep', () => {
       contactEmail: 'owner@store.com',
       branchName: 'Main store',
       branchAddress: '123 MG Road',
+      branchState: 'Karnataka',
       branchCity: 'Bengaluru',
     })
     expect(result).toEqual({})
@@ -147,6 +148,7 @@ describe('saveContactStep', () => {
       contactEmail: 'owner@store.com',
       branchName: 'Main store',
       branchAddress: '123 MG Road',
+      branchState: 'Karnataka',
       branchCity: 'Bengaluru',
     })
     expect(prisma.storeBranch.create).not.toHaveBeenCalled()
@@ -167,21 +169,30 @@ describe('saveStoryStep', () => {
 describe('saveSubscriptionStep', () => {
   it('persists the chosen tier', async () => {
     vi.mocked(prisma.tenant.update).mockResolvedValue({} as never)
-    const result = await saveSubscriptionStep({ subscriptionTier: 'growth' })
+    const result = await saveSubscriptionStep({ subscriptionTier: 'pro' })
     expect(result).toEqual({})
     expect(prisma.tenant.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ tier: 'growth' }) })
+      expect.objectContaining({ data: expect.objectContaining({ tier: 'pro' }) })
     )
   })
 })
 
 describe('savePaymentStep', () => {
-  it('maps the payment id to a provider', async () => {
+  it('enables razorpay and upi together, since razorpay implies upi', async () => {
+    vi.mocked(prisma.tenant.findUniqueOrThrow).mockResolvedValue({ paymentConfig: null } as never)
     vi.mocked(prisma.tenant.update).mockResolvedValue({} as never)
-    const result = await savePaymentStep({ paymentId: 'razorpay', upiAddress: 'owner@upi' })
+    const result = await savePaymentStep({ paymentIds: ['razorpay', 'upi'], upiAddress: 'owner@upi' })
     expect(result).toEqual({})
     expect(prisma.tenant.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ paymentProvider: 'razorpay', paymentConfig: { upiAddress: 'owner@upi' } }) })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentProvider: 'razorpay',
+          paymentConfig: expect.objectContaining({
+            upi: { enabled: true, upiId: 'owner@upi' },
+            razorpay: expect.objectContaining({ enabled: true }),
+          }),
+        }),
+      })
     )
   })
 })

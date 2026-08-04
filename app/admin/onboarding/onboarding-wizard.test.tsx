@@ -37,13 +37,18 @@ const initialTenant = {
   logoUrl: 'https://cdn.example.com/logo.png',
   contactPhone: '9876543210',
   contactEmail: 'owner@store.com',
-  tagline: 'Handmade with love',
+  tagline: 'Handmade with love, crafted for every occasion',
   paymentProvider: 'upi_manual',
   onboardingStep: 0,
-  about: { description: 'We make beautiful things.' },
+  about: { description: 'We make beautiful things by hand, with care and tradition.' },
 }
 
-const initialBranch = { name: 'Main Store', address: '123 Market Street, Mumbai', city: 'Mumbai' }
+const initialBranch = {
+  name: 'Main Store',
+  address: '123 Market Street, Bandra West, Mumbai',
+  state: 'Maharashtra',
+  city: 'Mumbai',
+}
 
 function renderWizard() {
   return render(<OnboardingWizard initialTenant={initialTenant} initialBranch={initialBranch} />)
@@ -82,6 +87,8 @@ describe('OnboardingWizard', () => {
     await waitFor(() => expect(saveStoreStep).toHaveBeenCalledWith(
       expect.objectContaining({ storeName: "Priya's Boutique", category: 'Clothing' })
     ))
+    // ponytail: storeType stays a joined string — "Clothing" here is legacy seed data pre-dating
+    // the textile category list, and joining a single-item array reproduces it unchanged.
     await screen.findByRole('heading', { name: 'Brand your store' })
 
     await clickNext(user)
@@ -106,7 +113,7 @@ describe('OnboardingWizard', () => {
     await user.type(upiInput, 'owner@upi')
 
     await clickFinish(user)
-    await waitFor(() => expect(savePaymentStep).toHaveBeenCalledWith({ paymentId: 'upi', upiAddress: 'owner@upi' }))
+    await waitFor(() => expect(savePaymentStep).toHaveBeenCalledWith({ paymentIds: ['upi'], upiAddress: 'owner@upi' }))
     // completeOnboarding is deliberately held behind a 1.2s "launching" delay in the wizard.
     await waitFor(() => expect(completeOnboarding).toHaveBeenCalled(), { timeout: 3000 })
     await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/dashboard'), { timeout: 3000 })

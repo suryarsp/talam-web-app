@@ -67,6 +67,12 @@ export function SubscriptionStep({ control }: { readonly control: Control<Onboar
           </div>
         )}
       />
+      <p className="mt-4 text-center font-body text-xs text-muted-warm">
+        Need something bigger?{' '}
+        <a href="mailto:sales@talam4shop.com" className="font-semibold text-brand-primary underline">
+          Speak with our sales team
+        </a>
+      </p>
     </div>
   )
 }

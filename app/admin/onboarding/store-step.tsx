@@ -1,7 +1,7 @@
 import { Controller, type Control, useWatch } from 'react-hook-form'
 import { Loader2 } from 'lucide-react'
 
-import { Field, FieldHint, SelectField, StepTitle, TextInput } from './onboarding-fields'
+import { Field, FieldHint, StepTitle, TextInput } from './onboarding-fields'
 import { STORE_TYPES } from './onboarding-data'
 import type { OnboardingValues } from './onboarding-schema'
 import { ROOT_DOMAIN } from '@/lib/tenant-url'
@@ -19,7 +19,7 @@ export function StoreStep({
   readonly serverError: string | null
   readonly slugStatus: SlugStatus
 }) {
-  const category = useWatch({ control, name: 'category' })
+  const categories = useWatch({ control, name: 'categories' }) ?? []
   const slugError = serverError ?? (slugStatus === 'taken' ? 'That store URL is taken — try another.' : undefined)
 
   return (
@@ -56,24 +56,35 @@ export function StoreStep({
         </Field>
         <Controller
           control={control}
-          name="category"
+          name="categories"
           render={({ field, fieldState }) => (
             <Field label="Category" error={fieldState.error?.message}>
-              <SelectField
-                value={field.value}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-                invalid={Boolean(fieldState.error)}
-                options={[
-                  { value: '', label: 'Select a category' },
-                  { value: 'Clothing', label: 'Clothing' },
-                  ...STORE_TYPES.map((type) => ({ value: type, label: type })),
-                ]}
-              />
+              <FieldHint>Select everything you sell — you can pick more than one</FieldHint>
+              <div className="flex flex-wrap gap-2">
+                {STORE_TYPES.map((type) => {
+                  const selected = field.value?.includes(type)
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        field.onChange(selected ? field.value.filter((v: string) => v !== type) : [...(field.value ?? []), type])
+                      }
+                      className={[
+                        'cursor-pointer rounded-full border-[1.5px] px-4 py-2 font-body text-sm font-medium transition-colors',
+                        selected ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-[#E5E7EB] text-[#374151]',
+                      ].join(' ')}
+                    >
+                      {type}
+                    </button>
+                  )
+                })}
+              </div>
             </Field>
           )}
         />
-        {category === 'Other' ? (
+        {categories.includes('Other') ? (
           <Controller
             control={control}
             name="customCategory"

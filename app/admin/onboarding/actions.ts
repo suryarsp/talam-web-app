@@ -8,6 +8,7 @@ import { uploadImage } from '@/lib/cloudinary'
 import { sendOnboardingCompleteEmail, sendOnboardingWelcomeEmail } from '@/lib/resend'
 import { DEFAULT_OCCASIONS } from '@/lib/default-occasions'
 import { getAdminUrl, getOnboardingUrl, getStoreUrl, isLocalDevHost } from '@/lib/tenant-url'
+import { normalizePaymentConfig } from '@/lib/payments/config'
 import type { PaymentId } from './onboarding-data'
 
 type ActionResult = { error?: string }
@@ -102,6 +103,7 @@ export async function saveContactStep(input: {
   contactEmail: string
   branchName: string
   branchAddress: string
+  branchState: string
   branchCity: string
 }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
@@ -112,7 +114,7 @@ export async function saveContactStep(input: {
   })
 
   const existingBranch = await prisma.storeBranch.findFirst({ where: { tenantId: tenant.id }, select: { id: true } })
-  const branchData = { name: input.branchName, address: input.branchAddress, city: input.branchCity }
+  const branchData = { name: input.branchName, address: input.branchAddress, state: input.branchState, city: input.branchCity }
 
   if (existingBranch) {
     await prisma.storeBranch.update({ where: { id: existingBranch.id }, data: branchData })
@@ -140,7 +142,7 @@ export async function saveStoryStep(input: { tagline: string; aboutDescription: 
   return {}
 }
 
-export async function saveSubscriptionStep(input: { subscriptionTier: 'starter' | 'growth' | 'pro' }): Promise<ActionResult> {
+export async function saveSubscriptionStep(input: { subscriptionTier: 'starter' | 'pro' }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
   await prisma.tenant.update({
     where: { ownerId: userId },
@@ -155,13 +157,23 @@ const PAYMENT_PROVIDER_MAP: Record<PaymentId, 'upi_manual' | 'razorpay' | 'insta
   instamojo: 'instamojo',
 }
 
-export async function savePaymentStep(input: { paymentId: PaymentId; upiAddress: string }): Promise<ActionResult> {
+export async function savePaymentStep(input: { paymentIds: PaymentId[]; upiAddress: string }): Promise<ActionResult> {
   const { userId } = await requireOwnerSession()
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { ownerId: userId }, select: { paymentConfig: true } })
+  const config = normalizePaymentConfig(tenant.paymentConfig)
+  const upiId = input.upiAddress.trim()
+
   await prisma.tenant.update({
     where: { ownerId: userId },
     data: {
-      paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentId],
-      paymentConfig: { upiAddress: input.upiAddress.trim() },
+      // paymentProvider is legacy display-only now — paymentConfig below is the real source of truth.
+      paymentProvider: PAYMENT_PROVIDER_MAP[input.paymentIds[0] ?? 'upi'],
+      paymentConfig: {
+        ...config,
+        upi: { enabled: input.paymentIds.includes('upi') || input.paymentIds.includes('razorpay'), upiId: upiId || config.upi.upiId },
+        instamojo: { enabled: input.paymentIds.includes('instamojo') },
+        razorpay: { ...config.razorpay, enabled: input.paymentIds.includes('razorpay') },
+      },
       onboardingStep: 6,
     },
   })

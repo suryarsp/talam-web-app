@@ -299,6 +299,7 @@ model StoreBranch {
   name      String
   address   String?
   city      String?
+  state     String?
   phone     String?
   hours     String?
   mapsUrl   String?  @map("maps_url")

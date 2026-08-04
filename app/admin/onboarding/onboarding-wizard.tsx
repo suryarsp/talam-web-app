@@ -40,7 +40,7 @@ type InitialTenant = {
   about: { description: string | null } | null
 } | null
 
-type InitialBranch = { name: string; address: string | null; city: string | null } | null
+type InitialBranch = { name: string; address: string | null; state: string | null; city: string | null } | null
 
 const PAYMENT_ID_BY_PROVIDER: Record<string, PaymentId> = {
   upi_manual: 'upi',
@@ -71,7 +71,7 @@ export function OnboardingWizard({
     mode: 'onTouched',
     defaultValues: {
       storeName: initialTenant?.name ?? "Priya's Boutique",
-      category: initialTenant?.storeType ?? 'Clothing',
+      categories: initialTenant?.storeType ? initialTenant.storeType.split(', ').filter(Boolean) : [],
       customCategory: '',
       brandColor: ((initialTenant?.brandColor as BrandColor) ?? '#4F3FF0') as string,
       brandLogo: undefined as unknown as File,
@@ -79,11 +79,12 @@ export function OnboardingWizard({
       contactEmail: initialTenant?.contactEmail ?? userEmail ?? '',
       branchName: initialBranch?.name ?? '',
       branchAddress: initialBranch?.address ?? '',
+      branchState: initialBranch?.state ?? '',
       branchCity: initialBranch?.city ?? '',
       tagline: initialTenant?.tagline ?? '',
       aboutDescription: initialTenant?.about?.description ?? '',
       subscriptionTier: 'starter',
-      paymentId: PAYMENT_ID_BY_PROVIDER[initialTenant?.paymentProvider ?? 'upi_manual'] ?? 'upi',
+      paymentIds: [PAYMENT_ID_BY_PROVIDER[initialTenant?.paymentProvider ?? 'upi_manual'] ?? 'upi'],
       upiAddress: '',
     },
   })
@@ -120,7 +121,11 @@ export function OnboardingWizard({
 
   async function runStepAction(current: number, values: OnboardingValues): Promise<{ error?: string }> {
     if (current === 0) {
-      const category = values.category === 'Other' ? (values.customCategory ?? '').trim() : values.category
+      // ponytail: storeType stays a single string column — join the multi-select here rather
+      // than migrating it to an array; "Other" replaces the whole selection with the free-text value.
+      const category = values.categories.includes('Other')
+        ? (values.customCategory ?? '').trim()
+        : values.categories.join(', ')
       return saveStoreStep({ storeName: values.storeName, slug, category })
     }
     if (current === 1) {
@@ -134,11 +139,12 @@ export function OnboardingWizard({
         contactEmail: values.contactEmail,
         branchName: values.branchName,
         branchAddress: values.branchAddress,
+        branchState: values.branchState,
         branchCity: values.branchCity,
       })
     if (current === 3) return saveStoryStep({ tagline: values.tagline, aboutDescription: values.aboutDescription })
     if (current === 4) return saveSubscriptionStep({ subscriptionTier: values.subscriptionTier })
-    if (current === 5) return savePaymentStep({ paymentId: values.paymentId, upiAddress: values.upiAddress })
+    if (current === 5) return savePaymentStep({ paymentIds: values.paymentIds, upiAddress: values.upiAddress ?? '' })
     return {}
   }
 

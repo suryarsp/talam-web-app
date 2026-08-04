@@ -16,37 +16,42 @@ export const STEP_ACCENTS = [
   { wash: '#14b8a6', solid: 'bg-teal-500', text: 'text-teal-500' },
 ] as const
 
-// ponytail: placeholder pricing/features — swap for real plan copy once pricing is finalized.
+// Two plans only, matching the marketing page. Growth/₹0-Starter are retired — the `growth`
+// Tier enum value stays in the DB for existing tenants, it's just no longer offered here.
 export const SUBSCRIPTION_PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: '₹0',
+    price: '₹499',
     period: '/mo',
-    description: 'Everything you need to launch',
-    features: ['Up to 25 products', 'Basic storefront themes', 'Email support'],
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    price: '₹999',
-    period: '/mo',
-    description: 'For stores ready to scale',
-    features: ['Up to 250 products', 'Custom domain', 'Priority support', 'Advanced analytics'],
+    description: '14-day free trial, then ₹499/mo',
+    features: ['Up to 100 products', '500 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist'],
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: '₹2,499',
+    price: '₹1,499',
     period: '/mo',
-    description: 'Full power for high-growth brands',
-    features: ['Unlimited products', 'Custom domain', 'Dedicated support', 'Advanced analytics', 'API access'],
+    description: '14-day free trial, then ₹1,499/mo',
+    features: ['Unlimited products', '2,000 OTP logins/mo', 'Advanced analytics', 'Priority support'],
   },
 ] as const
 
 export type SubscriptionTier = (typeof SUBSCRIPTION_PLANS)[number]['id']
 
-export const STORE_TYPES = ['Ethnic wear', 'Bakery', 'Handicrafts', 'Salon', 'Other'] as const
+// ponytail: textile-only for v1 per product decision — no bakery/salon/handicraft verticals yet.
+export const STORE_TYPES = [
+  'Sarees',
+  'Salwar & Kurtis',
+  'Lehengas',
+  'Menswear',
+  'Kids wear',
+  'Unstitched fabric',
+  'Blouses',
+  'Dupattas & stoles',
+  'Home textiles',
+  'Other',
+] as const
 
 export const BRAND_COLORS = ['#4F3FF0', '#EC4899', '#06B6D4', '#8B5CF6'] as const
 
@@ -55,6 +60,7 @@ export const PAYMENTS = [
     id: 'upi',
     name: 'UPI',
     description: 'Google Pay, PhonePe, BHIM, Paytm',
+    commission: '0% fee · No KYC required',
     markClassName: 'bg-bg-dark text-amber',
     mark: 'UPI',
   },
@@ -62,6 +68,7 @@ export const PAYMENTS = [
     id: 'razorpay',
     name: 'Razorpay',
     description: 'Credit/Debit Card, UPI, Wallets',
+    commission: '2% per transaction · KYC via Razorpay',
     markClassName: 'bg-[#072654] text-surface',
     mark: 'RZP',
   },
@@ -69,10 +76,14 @@ export const PAYMENTS = [
     id: 'instamojo',
     name: 'Instamojo',
     description: 'Credit/Debit Card, UPI, EMI',
+    commission: '2% + ₹3 per transaction · PAN + savings account',
     markClassName: 'bg-[#004282] text-surface',
     mark: 'IM',
   },
 ] as const
+
+// Common PSP handles shown as autocomplete chips once the merchant types "@" in the UPI field.
+export const UPI_HANDLES = ['@okhdfcbank', '@ybl', '@oksbi', '@paytm', '@okaxis', '@upi'] as const
 
 export type BrandColor = (typeof BRAND_COLORS)[number]
 export type PaymentId = (typeof PAYMENTS)[number]['id']

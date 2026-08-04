@@ -1004,12 +1004,16 @@ function PromotionsTab() {
 }
 
 // ── Subscription Tab (read-only: no billing provider wired up yet) ──
+// `trial` and `growth` stay here so existing tenants on those tiers still render correctly —
+// only `starter`/`pro` are offered as picks (see AVAILABLE_PLAN_KEYS below), matching the
+// marketing page's two-plan model.
 const PLAN_COPY: Record<'trial' | 'starter' | 'growth' | 'pro', { name: string; price: string; features: string[]; missing: string[]; note: string }> = {
-  trial: { name: 'Trial', price: 'Free / 14 days', features: ['25 products', '100 OTP logins/mo'], missing: ['WhatsApp button', 'Discount codes', 'Wishlist'], note: 'Powered by badge shown' },
+  trial: { name: 'Trial', price: '14-day free trial', features: ['Full Starter features', 'No card required'], missing: [], note: 'Converts to Starter after 14 days' },
   starter: { name: 'Starter', price: '₹499 /mo', features: ['100 products', '500 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist'], missing: [], note: 'Badge hidden' },
-  growth: { name: 'Growth', price: '₹999 /mo', features: ['250 products', '1,000 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist', 'Advanced analytics'], missing: [], note: 'Badge hidden' },
+  growth: { name: 'Growth', price: '₹999 /mo', features: ['250 products', '1,000 OTP logins/mo', 'WhatsApp button', 'Discount codes', 'Wishlist', 'Advanced analytics'], missing: [], note: 'Legacy plan — no longer offered' },
   pro: { name: 'Pro', price: '₹1,499 /mo', features: ['Unlimited products', '2,000 OTP logins/mo', 'WhatsApp button', 'Advanced analytics', 'Priority support'], missing: [], note: 'Badge hidden' },
 }
+const AVAILABLE_PLAN_KEYS = ['starter', 'pro'] as const
 
 function SubscriptionTab() {
   const [info, setInfo] = useState<SubscriptionInfo | null>(null)
@@ -1042,8 +1046,8 @@ function SubscriptionTab() {
 
       <div>
         <SectionLabel>Available Plans</SectionLabel>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {(Object.keys(PLAN_COPY) as (keyof typeof PLAN_COPY)[]).map((key) => {
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {AVAILABLE_PLAN_KEYS.map((key) => {
             const plan = PLAN_COPY[key]
             const isCurrent = key === info.tier
             return (

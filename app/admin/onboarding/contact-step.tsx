@@ -1,6 +1,6 @@
 import { Controller, type Control } from 'react-hook-form'
 
-import { Field, FieldHint, StepTitle, TextInput } from './onboarding-fields'
+import { CountHint, Field, FieldHint, StepTitle, TextInput } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
 
 export function ContactStep({
@@ -62,9 +62,9 @@ export function ContactStep({
         />
         <Controller
           control={control}
-          name="branchAddress"
+          name="branchState"
           render={({ field, fieldState }) => (
-            <Field label="Address" error={fieldState.error?.message}>
+            <Field label="State" error={fieldState.error?.message}>
               <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} />
             </Field>
           )}
@@ -75,6 +75,16 @@ export function ContactStep({
           render={({ field, fieldState }) => (
             <Field label="City" error={fieldState.error?.message}>
               <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} />
+            </Field>
+          )}
+        />
+        <Controller
+          control={control}
+          name="branchAddress"
+          render={({ field, fieldState }) => (
+            <Field label="Address" error={fieldState.error?.message}>
+              <TextInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={Boolean(fieldState.error)} />
+              <CountHint value={field.value ?? ''} min={20} max={100} />
             </Field>
           )}
         />

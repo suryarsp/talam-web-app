@@ -132,3 +132,14 @@ export function FieldHint({ children }: { readonly children: React.ReactNode }) 
   return <span className="mt-[-6px] font-body text-[13px] leading-tight text-[#6B7280]">{children}</span>
 }
 
+/** Live `n / max` counter for length-validated fields (address, tagline, about). */
+export function CountHint({ value, min, max }: { readonly value: string; readonly min: number; readonly max: number }) {
+  const len = value.length
+  const warn = len < min || len > max
+  return (
+    <span className={['self-end font-body text-2xs', warn ? 'text-amber' : 'text-[#9CA3AF]'].join(' ')}>
+      {len} / {max} {len < min ? `(min ${min})` : ''}
+    </span>
+  )
+}
+
