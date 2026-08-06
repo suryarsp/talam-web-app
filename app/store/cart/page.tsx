@@ -198,7 +198,7 @@ export default function CartPage() {
     : 0
 
   return (
-    <main className="mx-auto max-w-6xl px-3 py-4 pb-24 sm:px-12 sm:py-10 sm:pb-10 lg:pb-10 overflow-x-hidden">
+    <main className="mx-auto max-w-6xl px-3 py-4 pb-24 sm:px-12 sm:py-10 sm:pb-10 lg:pb-10">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

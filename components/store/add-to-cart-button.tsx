@@ -55,7 +55,7 @@ export function AddToCartButton({ product, stockBySize }: Props) {
         />
       )}
       {error && <p className="font-body text-sm text-danger">{error}</p>}
-      <div className="flex gap-3">
+      <div className="hidden gap-3 sm:flex">
         <ShinyButton
           className="h-12 flex-1 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
           onClick={handleAddToCart}
@@ -63,6 +63,23 @@ export function AddToCartButton({ product, stockBySize }: Props) {
           {added ? 'Added to Cart ✓' : 'Add to Cart'}
         </ShinyButton>
         {/* ponytail: decorative only — wishlist needs a signed-in customer session, wire up once storefront auth + wishlist backend exist */}
+        <button
+          type="button"
+          aria-label="Add to wishlist"
+          className="flex h-12 items-center gap-1.5 rounded-lg border border-store-primary px-4 font-body text-md font-semibold text-store-primary"
+        >
+          ♡ Wishlist
+        </button>
+      </div>
+
+      {/* Mobile: fixed bottom bar, matches cart page pattern */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex gap-3 border-t border-border/40 bg-surface/90 px-4 py-3 backdrop-blur-xl sm:hidden">
+        <ShinyButton
+          className="h-12 flex-1 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
+          onClick={handleAddToCart}
+        >
+          {added ? 'Added to Cart ✓' : 'Add to Cart'}
+        </ShinyButton>
         <button
           type="button"
           aria-label="Add to wishlist"
