@@ -7,6 +7,7 @@ export type WishlistProduct = {
   slug: string
   price: number
   comparePrice: number | null
+  priceAtSave: number | null
   sizes: string[]
   images: string[]
   isNew: boolean
@@ -24,6 +25,7 @@ export async function listWishlist(tenantId: string, customerId: string): Promis
       where: { tenantId, customerId, product: { deletedAt: null, isActive: true, status: 'published' } },
       orderBy: { id: 'desc' },
       select: {
+        priceAtSave: true,
         product: {
           select: {
             id: true,
@@ -46,7 +48,7 @@ export async function listWishlist(tenantId: string, customerId: string): Promis
 
   const newCutoff = Date.now() - NEW_PRODUCT_DAYS * 86400_000
 
-  return rows.map(({ product: p }) => {
+  return rows.map(({ priceAtSave, product: p }) => {
     const ratings = p.reviews.map((r) => r.rating)
     return {
       id: p.id,
@@ -55,6 +57,7 @@ export async function listWishlist(tenantId: string, customerId: string): Promis
       slug: p.slug,
       price: Number(p.price),
       comparePrice: p.comparePrice === null ? null : Number(p.comparePrice),
+      priceAtSave: priceAtSave !== null && priceAtSave !== undefined ? Number(priceAtSave) : null,
       sizes: p.sizes,
       images: p.images,
       isNew: p.createdAt.getTime() > newCutoff,
@@ -80,7 +83,8 @@ export async function toggleWishlist(tenantId: string, customerId: string, produ
       await db.wishlist.delete({ where: { id: existing.id } })
       return false
     }
-    await db.wishlist.create({ data: { tenantId, customerId, productId } })
+    const product = await db.product.findUnique({ where: { id: productId }, select: { price: true } })
+    await db.wishlist.create({ data: { tenantId, customerId, productId, priceAtSave: product?.price ?? null } })
     return true
   })
 }

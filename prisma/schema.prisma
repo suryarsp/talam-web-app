@@ -158,12 +158,15 @@ model ProductCategory {
 }
 
 model Customer {
-  id        String   @id @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  name      String?
-  phone     String?
-  email     String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                  String   @id @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  name                String?
+  phone               String?
+  email               String?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  preferredCategories String[] @default([]) @map("preferred_categories")
+  preferredSize       String?  @map("preferred_size")
+  onboardingComplete  Boolean  @default(false) @map("onboarding_complete")
 
   tenant    Tenant          @relation(fields: [tenantId], references: [id])
   orders    Order[]
@@ -239,10 +242,11 @@ model OrderItem {
 }
 
 model Wishlist {
-  id         String @id @default(uuid()) @db.Uuid
-  tenantId   String @map("tenant_id") @db.Uuid
-  customerId String @map("customer_id") @db.Uuid
-  productId  String @map("product_id") @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  customerId  String   @map("customer_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  priceAtSave Decimal? @map("price_at_save") @db.Decimal(10, 2)
 
   tenant   Tenant   @relation(fields: [tenantId], references: [id])
   customer Customer @relation(fields: [customerId], references: [id])
