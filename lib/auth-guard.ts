@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
+import { withTenant } from '@/lib/prisma'
 
 // cache(): dedupe repeated calls within one request — layouts, pages, and server
 // actions on the same route each call this, and without memoization every call
@@ -20,6 +21,20 @@ export const requireAuth = cache(async function requireAuth(nextPath?: string) {
     const target = nextPath ? `${storeBase}${nextPath}` : undefined
     const suffix = target ? `?next=${encodeURIComponent(target)}` : ''
     redirect(`${storeBase}/auth${suffix}`)
+  }
+
+  // Google OAuth creates the customer row in the /auth/callback route, but phone-OTP
+  // sign-in verifies client-side and never hits a server route — so without this, any
+  // authenticated action (e.g. placing an order) 500s on a customer_id FK violation.
+  const tenantId = (await headers()).get('x-tenant-id')
+  if (tenantId) {
+    await withTenant(tenantId, (db) =>
+      db.customer.upsert({
+        where: { id: user.id },
+        create: { id: user.id, tenantId, email: user.email ?? null, phone: user.phone ?? null },
+        update: {},
+      })
+    )
   }
 
   return user
