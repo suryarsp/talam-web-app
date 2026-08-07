@@ -44,6 +44,7 @@ export default async function StorePage() {
         price: Number(p.price),
         comparePrice: p.comparePrice ? Number(p.comparePrice) : null,
         sizes: p.sizes,
+        images: p.images,
         reviewCount: reviews.length,
         averageRating: avgRating,
       }
@@ -103,6 +104,17 @@ export default async function StorePage() {
     })
     .sort((a, b) => b.discountPct - a.discountPct)
 
+  const policy = {
+    freeDeliveryAbove: tenant.freeDeliveryAbove,
+    returnWindowDays: tenant.returnWindowDays,
+    trustBadgeText: tenant.trustBadgeText,
+    deliveryEstimateText: tenant.deliveryEstimateText,
+  }
+
+  const story = tenant.about?.description
+    ? { title: tenant.about.storyTitle ?? 'Our story', description: tenant.about.description }
+    : null
+
   return (
     <StorePageClient
       banners={bannersWithReviews}
@@ -112,6 +124,8 @@ export default async function StorePage() {
       categories={categoryData}
       products={productData}
       offers={offerData}
+      policy={policy}
+      story={story}
     />
   )
 }

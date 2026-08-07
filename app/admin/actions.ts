@@ -64,13 +64,15 @@ export async function publishChangesAction(input?: { force?: boolean }): Promise
     ...draftOccasions.map((o) => ({ type: 'occasion' as const, name: o.name })),
   ]
 
-  const [products, about, occasions] = await withTenant(tenantId, (db) =>
-    db.$transaction([
-      db.product.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } }),
-      db.storeAbout.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } }),
-      db.productTag.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } }),
-    ])
-  )
+  // ponytail: withTenant already runs its callback inside an interactive transaction (needed for
+  // RLS scoping); a nested array-form db.$transaction([...]) here throws at runtime, so these run
+  // sequentially on the same already-transactional client instead.
+  const [products, about, occasions] = await withTenant(tenantId, async (db) => {
+    const products = await db.product.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } })
+    const about = await db.storeAbout.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } })
+    const occasions = await db.productTag.updateMany({ where: { tenantId, status: 'draft' }, data: { status: 'published' } })
+    return [products, about, occasions] as const
+  })
 
   const itemCount = products.count + about.count + occasions.count
   if (itemCount > 0) {

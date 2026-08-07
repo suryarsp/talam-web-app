@@ -17,7 +17,7 @@ import {
   AttachmentAction,
   AttachmentTrigger,
 } from '@/components/ui/attachment'
-import type { AdminProduct, CategoryMeta, ProductInput } from '@/lib/data/products'
+import type { AdminProduct, CategoryMeta, ProductInput, ProductSpec } from '@/lib/data/products'
 import {
   createProductAction,
   updateProductAction,
@@ -33,6 +33,25 @@ import {
 import { BATCH_ACTIONS, type BatchAction } from './batch-actions'
 
 type OccasionOption = { id: string; name: string; emoji: string | null }
+
+// ponytail: heuristic name match, not a schema flag — this only pre-fills a starting point the
+// admin can freely edit/remove, so it doesn't need to be a durable per-category fact.
+function defaultSpecsFor(categoryName: string | undefined): ProductSpec[] {
+  const name = (categoryName ?? '').toLowerCase()
+  if (name.includes('saree')) {
+    return [
+      { label: 'Fabric', value: '' },
+      { label: 'Length', value: '' },
+      { label: 'Blouse Piece', value: '' },
+      { label: 'Wash Care', value: '' },
+    ]
+  }
+  return [
+    { label: 'Fabric', value: '' },
+    { label: 'Fit', value: '' },
+    { label: 'Wash Care', value: '' },
+  ]
+}
 
 type StockFilter = 'in_stock' | 'low' | 'out'
 type SortKey = 'newest' | 'price_asc' | 'price_desc'
@@ -291,6 +310,7 @@ function ProductEditorForm({
   const [selectedSizes, setSelectedSizes] = useState<string[]>(editProduct?.sizes ?? [])
   const [images, setImages] = useState<string[]>(editProduct?.images ?? [])
   const [selectedOccasions, setSelectedOccasions] = useState<string[]>(editProduct?.occasionIds ?? [])
+  const [specs, setSpecs] = useState<ProductSpec[]>(editProduct?.specifications ?? [])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -328,19 +348,32 @@ function ProductEditorForm({
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     const quantity = Number(formData.get('quantity') ?? 0)
+    // No sizes selected → unstitched/one-size item (e.g. sarees, sold by length). Matches the
+    // 'Free Size' convention prisma/seed.ts and onboarding already use for sizeless products,
+    // so the storefront's existing sizeless handling (add-to-cart-button, checkout-pricing) just works.
+    const hasSizes = selectedSizes.length > 0
     const input: ProductInput = {
       name: String(formData.get('name') ?? '').trim(),
       description: String(formData.get('description') ?? '').trim() || null,
       price: Number(formData.get('price') ?? 0),
       comparePrice: formData.get('comparePrice') ? Number(formData.get('comparePrice')) : null,
       categoryId: String(formData.get('categoryId') ?? '') || null,
-      sizes: selectedSizes,
+      sizes: hasSizes ? selectedSizes : ['Free Size'],
       images,
-      stockBySize: Object.fromEntries(selectedSizes.map((s) => [s, quantity])),
+      stockBySize: hasSizes ? Object.fromEntries(selectedSizes.map((s) => [s, quantity])) : { 'Free Size': quantity },
+      specifications: specs.filter((s) => s.label.trim() || s.value.trim()),
     }
 
     if (!input.name || images.length === 0) {
       setError('Product name and at least one photo are required.')
+      return
+    }
+    if (input.comparePrice !== null && input.comparePrice >= input.price) {
+      setError('Discount price must be less than the price.')
+      return
+    }
+    if (quantity <= 0) {
+      setError('Quantity must be at least 1.')
       return
     }
 
@@ -361,8 +394,8 @@ function ProductEditorForm({
       await updateProductOccasionsAction(productId, selectedOccasions)
       router.refresh()
       onClose()
-    } catch {
-      setError('Something went wrong saving the product. Please try again.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong saving the product. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -394,7 +427,17 @@ function ProductEditorForm({
 
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-bold text-fg">Category *</span>
-              <select name="categoryId" required defaultValue={editProduct?.categoryId ?? ''} className="cursor-pointer rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface">
+              <select
+                name="categoryId"
+                required
+                defaultValue={editProduct?.categoryId ?? ''}
+                onChange={(e) => {
+                  if (isEdit || specs.length > 0) return
+                  const category = categories.find((c) => c.id === e.target.value)
+                  setSpecs(defaultSpecsFor(category?.name))
+                }}
+                className="cursor-pointer rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface"
+              >
                 <option value="">Select category</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -420,8 +463,8 @@ function ProductEditorForm({
             </div>
 
             <label className="flex flex-col gap-1.5 md:w-1/2 md:pr-1.5">
-              <span className="text-sm font-bold text-fg">Quantity per size *</span>
-              <input name="quantity" required type="number" min="0" defaultValue={isEdit ? (editProduct.sizes[0] ? editProduct.stockBySize[editProduct.sizes[0]] : 0) : ''} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="e.g., 25" />
+              <span className="text-sm font-bold text-fg">{selectedSizes.length > 0 ? 'Quantity per size' : 'Quantity'} *</span>
+              <input name="quantity" required type="number" min="1" defaultValue={isEdit ? (editProduct.sizes[0] ? editProduct.stockBySize[editProduct.sizes[0]] : '') : ''} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="e.g., 25" />
             </label>
 
             <div className="flex flex-col gap-1.5">
@@ -462,6 +505,7 @@ function ProductEditorForm({
 
             <div className="relative flex flex-col gap-1.5" ref={sizesRef}>
               <span className="text-sm font-bold text-fg">Sizes Available</span>
+              <span className="text-xs text-muted-warm">Leave empty for one-size items like sarees or unstitched fabric.</span>
               <button
                 type="button"
                 onClick={() => setSizesOpen((v) => !v)}
@@ -504,6 +548,39 @@ function ProductEditorForm({
                   </label>
                 ))}
                 {occasions.length === 0 && <p className="text-sm text-muted-warm">No occasions yet — create one under Occasions.</p>}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-bold text-fg">Product Specifications</span>
+              <span className="text-xs text-muted-warm">Shown on the product page. Pick a category above for a starting template.</span>
+              <div className="flex flex-col gap-2">
+                {specs.map((spec, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      value={spec.label}
+                      onChange={(e) => setSpecs((prev) => prev.map((s, j) => (j === i ? { ...s, label: e.target.value } : s)))}
+                      placeholder="Label, e.g. Fabric"
+                      className="w-2/5 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-primary focus:bg-surface"
+                    />
+                    <input
+                      value={spec.value}
+                      onChange={(e) => setSpecs((prev) => prev.map((s, j) => (j === i ? { ...s, value: e.target.value } : s)))}
+                      placeholder="Value, e.g. Pure Silk"
+                      className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-primary focus:bg-surface"
+                    />
+                    <button type="button" onClick={() => setSpecs((prev) => prev.filter((_, j) => j !== i))} className="cursor-pointer text-muted-warm hover:text-danger">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSpecs((prev) => [...prev, { label: '', value: '' }])}
+                  className="flex w-fit cursor-pointer items-center gap-1.5 text-sm font-semibold text-brand-primary"
+                >
+                  <Plus className="size-4" /> Add spec
+                </button>
               </div>
             </div>
           </form>

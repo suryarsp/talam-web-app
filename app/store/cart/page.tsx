@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { StoreLink, useStoreHref } from '@/components/store/store-context'
 import { ShinyButton } from '@/components/ui/shiny-button'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore, type CartItem } from '@/lib/store/cart'
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Heart, Lock, RotateCcw, Truck, Tag, Star, Check, X, ChevronDown } from 'lucide-react'
+import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Heart, Lock, RotateCcw, Truck, Tag, Star, ChevronDown } from 'lucide-react'
 
 // ponytail: inline tenant config until SSR wrapper is added
 const tenant = { name: 'Talam Store', freeDeliveryAbove: 999, shippingFee: 99 }
@@ -106,38 +106,15 @@ function CartItemRow({ item }: { item: CartItem }) {
   )
 }
 
-function CouponSection() {
-  const [code, setCode] = useState('')
-  const [applied, setApplied] = useState<string | null>(null)
-
+// ponytail: no Coupon model in DB yet — show a subtle hint instead of the
+// fake stub that hardcoded "You save ₹1,179!" and eroded trust.
+function CouponHint() {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-warm" />
-          <input
-            type="text"
-            value={code}
-            onChange={e => setCode(e.target.value.toUpperCase())}
-            placeholder="Have a coupon? Enter code"
-            className="h-11 w-full rounded-lg border border-border bg-surface pl-9 pr-3 font-body text-sm text-fg placeholder:text-muted-warm/60 focus:outline-none"
-          />
-        </div>
-        <button
-          onClick={() => { if (code.trim()) setApplied(code.trim()) }}
-          className="h-11 shrink-0 rounded-lg bg-success px-5 font-body text-sm font-semibold text-surface hover:opacity-90 transition-opacity"
-        >
-          Apply
-        </button>
-      </div>
-      {applied && (
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-success/30 bg-success/5 px-3 py-2">
-          <span className="flex items-center gap-1.5 font-body text-xs text-success">
-            <Check className="h-3.5 w-3.5" /> {applied} applied · You save ₹1,179!
-          </span>
-          <button onClick={() => setApplied(null)} className="text-muted-warm hover:text-fg"><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3">
+      <Tag className="h-4 w-4 shrink-0 text-muted-warm" />
+      <p className="font-body text-sm text-muted-warm">
+        Have a coupon? You can apply it at checkout.
+      </p>
     </div>
   )
 }
@@ -153,11 +130,46 @@ function TrustBadges() {
 }
 
 function EmptyCart() {
+  const [suggestions, setSuggestions] = useState<{ source: string; items: Array<{ name: string; slug: string; price: number; comparePrice: number | null; image: string | null }> } | null>(null)
+
+  useEffect(() => {
+    import('./actions').then((m) => m.getEmptyCartSuggestions()).then(setSuggestions)
+  }, [])
+
+  const heading = suggestions?.source === 'saved' ? 'Your saved items are waiting' : 'Trending right now'
+
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <ShoppingBag className="mb-4 h-20 w-20 text-border animate-[pulse_2.5s_ease-in-out_infinite]" strokeWidth={1} />
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <ShoppingBag className="mb-4 h-16 w-16 text-border" strokeWidth={1} />
       <h2 className="mb-2 font-heading text-xl font-bold text-fg">Your cart is empty</h2>
-      <p className="mb-6 font-body text-sm text-muted-warm">Looks like you haven&apos;t added anything yet.</p>
+      <p className="mb-6 font-body text-sm text-muted-warm">
+        {suggestions?.source === 'saved'
+          ? "Don’t let these slip away — your saved items are still here."
+          : "Looks like you haven’t added anything yet."}
+      </p>
+
+      {suggestions && suggestions.items.length > 0 && (
+        <div className="w-full max-w-lg mb-6">
+          <p className="mb-3 text-left font-body text-sm font-semibold text-fg">{heading}</p>
+          <div className="grid grid-cols-2 gap-3">
+            {suggestions.items.map((p) => (
+              <StoreLink key={p.slug} href={`/product/${p.slug}`} className="flex gap-3 rounded-xl border border-border bg-surface p-2.5 text-left hover:border-store-primary transition-colors">
+                {p.image && (
+                  <Image src={p.image} alt={p.name} width={56} height={72} className="h-[72px] w-[56px] shrink-0 rounded-lg object-cover" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-xs font-semibold text-fg line-clamp-2">{p.name}</p>
+                  <p className="mt-1 font-body text-sm font-bold text-store-primary">{formatCurrency(p.price)}</p>
+                  {p.comparePrice && p.comparePrice > p.price && (
+                    <p className="font-body text-[10px] text-muted-warm line-through">{formatCurrency(p.comparePrice)}</p>
+                  )}
+                </div>
+              </StoreLink>
+            ))}
+          </div>
+        </div>
+      )}
+
       <StoreLink
         href="/"
         className="inline-flex items-center gap-2 rounded-lg bg-store-primary px-6 py-3 font-body text-sm font-semibold text-surface hover:opacity-90 transition-opacity"
@@ -235,7 +247,7 @@ export default function CartPage() {
           </div>
 
           {/* Coupon */}
-          <CouponSection />
+          <CouponHint />
         </div>
 
         {/* Right column — order summary (desktop sidebar) */}

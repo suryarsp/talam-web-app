@@ -72,12 +72,10 @@ export async function deleteOccasion(occasionId: string): Promise<ActionResult> 
   if (!occasion) return { error: 'Occasion not found.' }
   if (occasion.isDefault) return { error: 'Default occasions cannot be deleted.' }
 
-  await withTenant(tenantId, (db) =>
-    db.$transaction([
-      db.productTagAssignment.deleteMany({ where: { tenantId, tagId: occasionId } }),
-      db.productTag.delete({ where: { id: occasionId } }),
-    ])
-  )
+  await withTenant(tenantId, async (db) => {
+    await db.productTagAssignment.deleteMany({ where: { tenantId, tagId: occasionId } })
+    await db.productTag.delete({ where: { id: occasionId } })
+  })
   updateTag(storefrontTag(tenantId))
   return {}
 }

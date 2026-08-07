@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockRequireOwnerTenant, mockFindFirst, mockCreate, mockUpdate, mockDelete, mockTransaction } = vi.hoisted(() => ({
+const { mockRequireOwnerTenant, mockFindFirst, mockCreate, mockUpdate, mockDelete, mockDeleteManyAssignment } = vi.hoisted(() => ({
   mockRequireOwnerTenant: vi.fn(async () => ({ userId: 'u1', tenantId: 'tenant-1' })),
   mockFindFirst: vi.fn(),
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
-  mockTransaction: vi.fn(),
+  mockDeleteManyAssignment: vi.fn(),
 }))
 
 vi.mock('@/lib/admin-guard', () => ({ requireOwnerTenant: mockRequireOwnerTenant }))
@@ -15,8 +15,7 @@ vi.mock('@/lib/prisma', () => ({
   withTenant: vi.fn(async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) =>
     fn({
       productTag: { findFirst: mockFindFirst, create: mockCreate, update: mockUpdate, delete: mockDelete },
-      productTagAssignment: { deleteMany: vi.fn() },
-      $transaction: mockTransaction,
+      productTagAssignment: { deleteMany: mockDeleteManyAssignment },
     })
   ),
 }))
@@ -87,7 +86,8 @@ describe('setOccasionStatusAction', () => {
 describe('deleteOccasion', () => {
   beforeEach(() => {
     mockFindFirst.mockReset()
-    mockTransaction.mockReset()
+    mockDelete.mockReset()
+    mockDeleteManyAssignment.mockReset()
   })
 
   it('rejects deleting a default occasion', async () => {
@@ -96,7 +96,7 @@ describe('deleteOccasion', () => {
     const result = await deleteOccasion('occasion-1')
 
     expect(result.error).toBe('Default occasions cannot be deleted.')
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(mockDelete).not.toHaveBeenCalled()
   })
 
   it('deletes a non-default occasion', async () => {
@@ -105,6 +105,7 @@ describe('deleteOccasion', () => {
     const result = await deleteOccasion('occasion-1')
 
     expect(result.error).toBeUndefined()
-    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    expect(mockDeleteManyAssignment).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1', tagId: 'occasion-1' } })
+    expect(mockDelete).toHaveBeenCalledWith({ where: { id: 'occasion-1' } })
   })
 })

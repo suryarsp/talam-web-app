@@ -37,11 +37,19 @@ export default async function CheckoutPage() {
     razorpay: Boolean(config.razorpay.enabled),
   }
 
+  // Fetch customer name so checkout can pre-fill the address form
+  const customer = user
+    ? await withTenant(tenantId, (db) =>
+        db.customer.findUnique({ where: { id: user.id }, select: { name: true, phone: true } })
+      )
+    : null
+
   return (
     <CheckoutClient
       storeName={tenant.name}
       signedIn={Boolean(user)}
-      signedInPhone={user?.phone ?? null}
+      signedInPhone={customer?.phone ?? user?.phone ?? null}
+      signedInName={customer?.name ?? null}
       addresses={addresses}
       methods={methods}
     />

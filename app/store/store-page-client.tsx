@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
-import { StoreLink, useStoreBase } from '@/components/store/store-context'
+import { StoreLink } from '@/components/store/store-context'
 import Image from 'next/image'
 import { hapticError } from '@/lib/haptics'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
@@ -15,6 +15,7 @@ type BannerData = {
   price: number
   comparePrice: number | null
   sizes: string[]
+  images: string[]
   reviewCount: number
   averageRating: number
 }
@@ -50,6 +51,15 @@ type ProductData = {
 
 type OfferProductData = ProductData & { discountPct: number }
 
+type PolicyData = {
+  freeDeliveryAbove: number | null
+  returnWindowDays: number | null
+  trustBadgeText: string | null
+  deliveryEstimateText: string | null
+}
+
+type StoryData = { title: string; description: string } | null
+
 type StorePageClientProps = {
   banners: BannerData[]
   promotions: PromotionData[]
@@ -58,6 +68,8 @@ type StorePageClientProps = {
   categories: CategoryData[]
   products: ProductData[]
   offers: OfferProductData[]
+  policy: PolicyData
+  story: StoryData
 }
 
 // ponytail: fixed palette cycled by index for category card backgrounds — no per-category color field in schema.
@@ -89,30 +101,45 @@ function CheckIcon() {
   )
 }
 
-function HeartIcon({ size = 12, color = '#8B7D7A' }: { size?: number; color?: string }) {
+function HeartIcon({ size = 16, color = '#4A423F' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="none" stroke={color} strokeWidth="1.8" />
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="none" stroke={color} strokeWidth="1.7" />
     </svg>
   )
 }
 
-function CartIcon() {
+function ArrowIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="9" cy="21" r="1" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="20" cy="21" r="1" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
   )
 }
 
-function ImagePlaceholder() {
+const TRUST_ICONS = {
+  quality: (
+    <path d="M16.5 9.4 7.5 4.21M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+  ),
+  returns: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
+  shipping: (
+    <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+  ),
+  payment: <path d="M3 11h18M7 15h2" />,
+} as const
+
+function TrustIcon({ name }: { name: keyof typeof TRUST_ICONS }) {
+  if (name === 'payment') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-store-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    )
+  }
   return (
-    <svg width="64" height="64" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="rgb(255 255 255 / 20%)" />
-      <circle cx="8.5" cy="8.5" r="1.5" fill="none" stroke="rgb(255 255 255 / 20%)" />
-      <path d="M21 15l-5-5L5 21" fill="none" stroke="rgb(255 255 255 / 20%)" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-store-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {TRUST_ICONS[name]}
     </svg>
   )
 }
@@ -133,7 +160,11 @@ function useCountdown(targetIso: string | null) {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   const s = seconds % 60
-  return [String(h).padStart(2, '0'), String(m).padStart(2, '0'), String(s).padStart(2, '0')] as const
+  return [
+    { value: String(h).padStart(2, '0'), label: 'Hrs' },
+    { value: String(m).padStart(2, '0'), label: 'Min' },
+    { value: String(s).padStart(2, '0'), label: 'Sec' },
+  ]
 }
 
 function toggle<T>(set: Set<T>, val: T): Set<T> {
@@ -145,7 +176,7 @@ function toggle<T>(set: Set<T>, val: T): Set<T> {
 function discountLabel(price: number, comparePrice: number | null) {
   if (!comparePrice || comparePrice <= price) return null
   const pct = Math.round((1 - price / comparePrice) * 100)
-  return `${pct}% OFF`
+  return `${pct}% off`
 }
 
 export function StorePageClient(props: StorePageClientProps) {
@@ -156,8 +187,7 @@ export function StorePageClient(props: StorePageClientProps) {
   )
 }
 
-function StorePageInner({ banners, promotions, countdownTarget, tags, categories, products, offers }: StorePageClientProps) {
-  // ── Header nav filter params (Women/Men/Festive/New Arrivals — see StoreHeader) ──
+function StorePageInner({ banners, promotions, countdownTarget, tags, categories, products, offers, policy, story }: StorePageClientProps) {
   const searchParams = useSearchParams()
 
   // ── Derived product display data ──
@@ -165,7 +195,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
     () =>
       products.map((p) => ({
         ...p,
-        badge: p.isNew ? 'NEW' : null,
+        badge: p.isNew ? 'New' : null,
         discount: discountLabel(p.price, p.comparePrice),
       })),
     [products]
@@ -173,16 +203,23 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
 
   const CATEGORY_OPTIONS = useMemo(() => categories.map((c) => c.name), [categories])
   const SIZE_OPTIONS = useMemo(() => Array.from(new Set(products.flatMap((p) => p.sizes))).sort(), [products])
+  const categoryCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of products) m.set(p.category, (m.get(p.category) ?? 0) + 1)
+    return m
+  }, [products])
 
-  const newThisWeek = useMemo(() => allProductsData.filter((p) => p.isNew).slice(0, 5), [allProductsData])
+  const newThisWeek = useMemo(() => allProductsData.filter((p) => p.isNew).slice(0, 8), [allProductsData])
 
   // ── Shop by Offers filter (single-select, minimum discount %) ──
   const [offerFilterMin, setOfferFilterMin] = useState(0)
   const filteredOffers = useMemo(() => offers.filter((o) => o.discountPct >= offerFilterMin), [offers, offerFilterMin])
+  const featureOffer = filteredOffers[0]
+  const offerGrid = filteredOffers.slice(1, 5)
 
   // ── Carousel ──
   const [heroIndex, setHeroIndex] = useState(0)
-  const [activeSize, setActiveSize] = useState('XS')
+  const [activeSize, setActiveSize] = useState('')
   const autoplayRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hero = banners[heroIndex]
 
@@ -190,7 +227,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
     if (autoplayRef.current) clearInterval(autoplayRef.current)
     if (banners.length <= 1) return
     if (document.visibilityState !== 'visible') return
-    autoplayRef.current = setInterval(() => setHeroIndex((i) => (i + 1) % banners.length), 5000)
+    autoplayRef.current = setInterval(() => setHeroIndex((i) => (i + 1) % banners.length), 6000)
   }, [banners.length])
 
   const stopAutoplay = useCallback(() => {
@@ -202,7 +239,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
     return stopAutoplay
   }, [startAutoplay, stopAutoplay])
 
-  const goTo = (i: number) => { setHeroIndex(i); stopAutoplay() }
+  const goTo = (i: number) => { setHeroIndex(i); setActiveSize(''); stopAutoplay() }
   const prevHero = () => goTo((heroIndex - 1 + banners.length) % banners.length)
   const nextHero = () => goTo((heroIndex + 1) % banners.length)
 
@@ -284,38 +321,44 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
     ...[...selectedSizes].map(v => ({ type: 'size' as const, label: `Size ${v}`, value: v })),
   ]
 
+  // ── Trust badges (real tenant policy, generic fallback copy) ──
+  const trustItems: { icon: keyof typeof TRUST_ICONS; title: string; subtitle: string }[] = [
+    { icon: 'quality', title: 'Quality checked', subtitle: policy.trustBadgeText ?? 'Every piece checked before it ships.' },
+    { icon: 'returns', title: policy.returnWindowDays ? `${policy.returnWindowDays}-day returns` : 'Easy returns', subtitle: 'Changed your mind? Send it back.' },
+    { icon: 'shipping', title: 'Fast dispatch', subtitle: policy.deliveryEstimateText ?? (policy.freeDeliveryAbove ? `Free above ₹${policy.freeDeliveryAbove.toLocaleString('en-IN')}` : 'Ships quickly, tracked all the way.') },
+    { icon: 'payment', title: 'Pay your way', subtitle: 'UPI, cards, or cash on delivery.' },
+  ]
+
   // ── Filter sidebar (shared between desktop and mobile sheet) ──
   const filterPanel = (
     <>
-      <p className="text-fg text-base font-bold font-body leading-5 mb-5">Filters</p>
+      <p className="mb-5 font-heading text-lg font-semibold text-[#1E1A19]">Refine</p>
 
-      {/* Category */}
-      <div className="border-b border-[#F0E8D8] mb-5 pb-5">
-        <p className="text-[#8B7D7A] text-[11px] font-bold font-body uppercase tracking-[0.08em] leading-[14px] mb-3">Category</p>
-        <div className="flex flex-col gap-2">
+      <div className="mb-5 border-b border-[#E7E0D6] pb-5">
+        <p className="mb-3 font-body text-2xs font-bold uppercase tracking-[0.1em] text-[#7A6E6A]">Category</p>
+        <div className="flex flex-col gap-2.5">
           {CATEGORY_OPTIONS.map(c => {
             const checked = selectedCategories.has(c)
             return (
-              <label key={c} className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedCategories(s => toggle(s, c))}>
-                <span className={`w-4 h-4 rounded shrink-0 border-[1.5px] flex items-center justify-center transition-colors ${checked ? 'bg-store-primary border-store-primary' : 'bg-white border-border'}`}>
+              <label key={c} className="flex cursor-pointer items-center gap-2.5" onClick={() => setSelectedCategories(s => toggle(s, c))}>
+                <span className={`flex size-[17px] shrink-0 items-center justify-center rounded-[5px] border-[1.5px] transition-colors ${checked ? 'border-store-primary bg-store-primary' : 'border-[#D8CFC2] bg-white'}`}>
                   {checked && <CheckIcon />}
                 </span>
-                <span className="text-fg text-[13px] font-body leading-4">{c}</span>
-                <span className="text-[#B0A090] text-[11px] font-body ml-auto">({allProductsData.filter(p => p.category === c).length})</span>
+                <span className="font-body text-[13.5px] text-[#3A3331]">{c}</span>
+                <span className="ml-auto font-body text-[11.5px] text-[#7A6E6A]">{categoryCounts.get(c) ?? 0}</span>
               </label>
             )
           })}
         </div>
       </div>
 
-      {/* Size */}
-      <div className="border-b border-[#F0E8D8] mb-5 pb-5">
-        <p className="text-[#8B7D7A] text-[11px] font-bold font-body uppercase tracking-[0.08em] leading-[14px] mb-3">Size</p>
+      <div className="mb-5 border-b border-[#E7E0D6] pb-5">
+        <p className="mb-3 font-body text-2xs font-bold uppercase tracking-[0.1em] text-[#7A6E6A]">Size</p>
         <div className="flex flex-wrap gap-1.5">
           {SIZE_OPTIONS.map(s => {
             const active = selectedSizes.has(s)
             return (
-              <button key={s} onClick={() => setSelectedSizes(set => toggle(set, s))} className={`px-3 py-1.5 rounded-md border-[1.5px] text-[12px] font-body leading-4 transition-colors ${active ? 'bg-store-primary/6 border-store-primary text-store-primary font-semibold' : 'border-border text-[#8B7D7A] hover:border-[#8B7D7A]'}`}>
+              <button key={s} onClick={() => setSelectedSizes(set => toggle(set, s))} className={`rounded-lg border px-3 py-1.5 font-body text-xs font-medium transition-colors ${active ? 'border-[#1E1A19] bg-[#1E1A19] text-white' : 'border-[#D8CFC2] text-[#5C534F] hover:border-[#7A6E6A]'}`}>
                 {s}
               </button>
             )
@@ -323,319 +366,362 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
         </div>
       </div>
 
-      {/* Price Range */}
       <div className="mb-5">
-        <p className="text-[#8B7D7A] text-[11px] font-bold font-body uppercase tracking-[0.08em] leading-[14px] mb-3">Price Range</p>
+        <p className="mb-3 font-body text-2xs font-bold uppercase tracking-[0.1em] text-[#7A6E6A]">Price</p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 border-[1.5px] border-border rounded-md px-2.5 py-[7px] focus-within:border-store-primary transition-colors">
-            <input type="number" value={priceMin} onChange={e => setPriceMin(e.target.value)} className="text-fg text-[12px] font-body bg-transparent outline-none w-full" placeholder="Min" />
+          <div className="flex-1 rounded-lg border-[1.5px] border-[#D8CFC2] px-2.5 py-[7px] transition-colors focus-within:border-store-primary">
+            <input type="number" value={priceMin} onChange={e => setPriceMin(e.target.value)} className="w-full bg-transparent font-body text-xs text-[#1E1A19] outline-none" placeholder="Min" />
           </div>
-          <span className="text-[#B0A090] text-[12px] font-body">–</span>
-          <div className="flex-1 border-[1.5px] border-border rounded-md px-2.5 py-[7px] focus-within:border-store-primary transition-colors">
-            <input type="number" value={priceMax} onChange={e => setPriceMax(e.target.value)} className="text-fg text-[12px] font-body bg-transparent outline-none w-full" placeholder="Max" />
+          <span className="font-body text-xs text-[#B0A090]">–</span>
+          <div className="flex-1 rounded-lg border-[1.5px] border-[#D8CFC2] px-2.5 py-[7px] transition-colors focus-within:border-store-primary">
+            <input type="number" value={priceMax} onChange={e => setPriceMax(e.target.value)} className="w-full bg-transparent font-body text-xs text-[#1E1A19] outline-none" placeholder="Max" />
           </div>
         </div>
         {priceRangeInvalid && (
-          <p className="text-danger text-[10px] font-body mt-1">Min price cannot exceed max price</p>
+          <p className="mt-1 font-body text-2xs text-danger">Min price cannot exceed max price</p>
         )}
       </div>
 
-      {/* Buttons */}
       <div className="flex gap-2">
-        <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); setShowMobileFilters(false) }} className="flex-1 py-2.5 rounded-lg border-[1.5px] border-store-primary text-store-primary text-[13px] font-semibold font-body text-center hover:bg-store-primary/5 transition-colors">
+        <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); setShowMobileFilters(false) }} className="flex-1 rounded-full border-[1.5px] border-store-primary py-2.5 text-center font-body text-[13px] font-semibold text-store-primary transition-colors hover:bg-store-primary/5">
           Apply ({filteredProducts.length})
         </button>
-        <button onClick={handleReset} className="px-3.5 py-2.5 rounded-lg border-[1.5px] border-border text-[#8B7D7A] text-[13px] font-body hover:bg-[#F9F9F9] transition-colors">Reset</button>
+        <button onClick={handleReset} className="rounded-full border-[1.5px] border-[#D8CFC2] px-3.5 py-2.5 font-body text-[13px] text-[#7A6E6A] transition-colors hover:bg-[#F9F9F9]">Reset</button>
       </div>
     </>
   )
 
   return (
-    <div className="flex flex-col min-h-screen bg-white font-body overflow-x-hidden scroll-smooth">
-      <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
-      {/* ─── Hero Carousel (fixed height, no layout shift) ─── */}
-      {banners.length === 0 && (
-        <div className="h-[440px] md:h-[420px] animate-pulse bg-bg" />
-      )}
+    <div className="flex flex-col min-h-screen bg-[#FBF8F3] font-body overflow-x-hidden scroll-smooth">
+      {/* ─── Hero ─── */}
+      {banners.length === 0 && <div className="h-[420px] lg:h-[560px] animate-pulse bg-[#F2EDE4]" />}
       {banners.length > 0 && hero && (
-        <section
-          className="relative overflow-hidden h-[440px] md:h-[420px] touch-pan-y -mx-0"
-          style={{ backgroundImage: 'linear-gradient(120deg, oklab(22.1% 0.025 -0.083), oklab(26.4% 0.107 0.004) 45%, oklab(53.1% 0.201 0.020))' }}
-          onTouchStart={handleHeroTouchStart}
-          onTouchEnd={handleHeroTouchEnd}
-        >
-          <div className="absolute rounded-full" style={{ top: '-80px', left: '50%', width: '400px', height: '400px', backgroundColor: 'rgba(255,255,255,0.04)' }} />
-          <div className="absolute rounded-full" style={{ bottom: '-60px', right: '200px', width: '240px', height: '240px', backgroundColor: 'rgba(255,255,255,0.03)' }} />
-          {/* Bottom gradient overlay for text readability on mobile */}
-          <div className="lg:hidden absolute inset-x-0 bottom-0 h-2/3 pointer-events-none" style={{ backgroundImage: 'linear-gradient(0deg, rgba(0,0,0,0.75), rgba(0,0,0,0.15) 55%, transparent)' }} />
-
-          <div className="flex h-full">
-            {/* Product image area */}
-            <div className="w-[520px] shrink-0 hidden lg:flex items-center justify-center relative">
-              <div className="w-[340px] h-[380px] rounded-2xl border border-white/10 flex items-center justify-center transition-opacity duration-500" style={{ backgroundImage: 'linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>
-                <ImagePlaceholder />
-              </div>
-              <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
-                {banners.map((_, i) => (
-                  <button key={i} onClick={() => goTo(i)} className={`w-[52px] h-[52px] rounded-lg shrink-0 transition-all ${i === heroIndex ? 'border-2 border-white bg-white/15' : 'border border-white/30 bg-white/8'}`} />
-                ))}
-              </div>
-            </div>
-
-            {/* Product info — key forces remount for clean transition */}
-            <div key={heroIndex} className="flex-1 flex flex-col justify-end lg:justify-center px-5 md:pr-16 md:pl-5 pb-8 pt-6 md:py-12 relative animate-[fadeIn_0.4s_ease-out] lg:backdrop-blur-0 backdrop-blur-[2px] lg:bg-transparent">
-              <div className="flex gap-2.5 mb-4 flex-wrap">
-                {discountLabel(hero.price, hero.comparePrice) && <span className="px-3.5 py-1 bg-store-primary rounded-md text-white text-[13px] font-extrabold leading-4 font-body">{discountLabel(hero.price, hero.comparePrice)}</span>}
-              </div>
-              <p className="text-white/50 text-[11px] font-body uppercase tracking-[0.12em] leading-[14px] mb-2">{hero.subtitle}</p>
-              <h1 className="text-white text-[22px] md:text-[36px] font-bold font-heading leading-[115%] mb-3 md:mb-4 whitespace-pre-line">{hero.headline}</h1>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-success text-[13px] font-body">★★★★★</span>
-                <span className="text-white/60 text-[13px] font-body">{hero.averageRating.toFixed(1)} · {hero.reviewCount} reviews</span>
-              </div>
-              <div className="flex items-baseline gap-2 md:gap-3 mb-4 md:mb-6 flex-wrap">
-                <span className="text-white text-[22px] md:text-[32px] font-extrabold font-body leading-8 md:leading-10">₹{hero.price.toLocaleString('en-IN')}</span>
+        <section className="relative overflow-hidden bg-[#FBF8F3]">
+          <div className="grid lg:h-[560px] lg:grid-cols-2">
+            {/* Content */}
+            <div className="order-2 flex flex-col justify-center px-5 py-8 sm:px-8 lg:order-1 lg:px-14 lg:py-0">
+              <span className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-store-primary/15 bg-white px-3.5 py-[7px]">
+                <span className="size-1.5 rounded-full bg-store-primary" />
+                <span className="font-body text-[10px] font-bold uppercase tracking-[0.14em] text-store-primary">{hero.subtitle || 'Featured'}</span>
+              </span>
+              <h1 className="mb-3 whitespace-pre-line font-heading text-[30px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#1E1A19] sm:text-[40px] lg:mb-5 lg:text-[46px]">
+                {hero.headline}
+              </h1>
+              {hero.reviewCount > 0 && (
+                <div className="mb-4 flex items-center gap-1.5">
+                  <span className="font-body text-[13px] text-store-primary">★★★★★</span>
+                  <span className="font-body text-[13px] text-[#7A6E6A]">{hero.averageRating.toFixed(1)} · {hero.reviewCount} reviews</span>
+                </div>
+              )}
+              <div className="mb-5 flex flex-wrap items-baseline gap-2.5 lg:mb-7">
+                <span className="font-body text-[26px] font-bold text-[#1E1A19] lg:text-[32px]">₹{hero.price.toLocaleString('en-IN')}</span>
                 {hero.comparePrice && (
-                  <>
-                    <span className="text-white/40 text-[14px] md:text-[18px] font-body line-through">₹{hero.comparePrice.toLocaleString('en-IN')}</span>
-                    <span className="px-2 py-0.5 md:px-2.5 md:py-1 bg-white/10 border border-white/20 rounded text-white/70 text-[10px] md:text-[12px] font-body leading-4">Save ₹{hero.comparePrice - hero.price}</span>
-                  </>
+                  <span className="font-body text-base text-[#7A6E6A] line-through">₹{hero.comparePrice.toLocaleString('en-IN')}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 flex-wrap">
-                <span className="text-white/50 text-[12px] font-body mr-1">Size:</span>
-                {hero.sizes.map(s => (
-                  <button key={s} onClick={() => setActiveSize(s)} className={`px-2.5 md:px-4 py-1 md:py-1.5 rounded-lg text-[12px] md:text-[13px] font-body transition-all ${s === activeSize ? 'border-2 border-white text-white font-bold' : 'border border-white/30 text-white/60'}`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
+              {hero.sizes.length > 0 && (
+                <div className="mb-5 flex flex-wrap items-center gap-2 lg:mb-7">
+                  <span className="mr-1 font-body text-xs text-[#7A6E6A]">Size:</span>
+                  {hero.sizes.map(s => (
+                    <button key={s} onClick={() => setActiveSize(s)} className={`rounded-lg px-3.5 py-1.5 font-body text-[13px] transition-all ${s === activeSize ? 'border-2 border-[#1E1A19] font-bold text-[#1E1A19]' : 'border border-[#D8CFC2] text-[#5C534F]'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-3">
-                <StoreLink href={`/product/${hero.slug}`} className="inline-flex items-center gap-2 bg-store-primary rounded-[10px] px-5 md:px-8 py-3 md:py-3.5 hover:opacity-90 transition-opacity">
-                  <CartIcon />
-                  <span className="text-white text-[15px] font-bold font-body leading-[18px]">View Product</span>
+                <StoreLink href={`/product/${hero.slug}`} className="inline-flex items-center gap-2.5 rounded-full bg-store-primary px-7 py-4 font-body text-[15px] font-semibold text-white transition-opacity hover:opacity-90">
+                  View product
+                  <ArrowIcon />
                 </StoreLink>
-                <button className="w-12 h-12 shrink-0 rounded-[10px] border-[1.5px] border-white/40 flex items-center justify-center hover:bg-white/10 transition-colors">
-                  <HeartIcon size={20} color="#FFFFFF" />
+                <button className="flex size-[52px] shrink-0 items-center justify-center rounded-full border border-[#D8CFC2] transition-colors hover:bg-white" aria-label="Add to wishlist">
+                  <HeartIcon size={19} />
                 </button>
               </div>
             </div>
 
-            {/* Carousel controls (desktop) */}
-            <div className="hidden lg:flex items-center gap-2 absolute bottom-5 right-12">
-              {banners.map((_, i) => (
-                <span key={i} className={`rounded-full transition-all cursor-pointer ${i === heroIndex ? 'w-7 h-[5px] bg-white' : 'w-[5px] h-[5px] bg-white/35'}`} onClick={() => goTo(i)} />
-              ))}
-              <div className="flex gap-1.5 ml-3">
-                <button onClick={prevHero} className="w-8 h-8 rounded-full bg-white/15 border border-white/25 flex items-center justify-center hover:bg-white/25 transition-colors">
-                  <ChevronLeft className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                </button>
-                <button onClick={nextHero} className="w-8 h-8 rounded-full bg-white/15 border border-white/25 flex items-center justify-center hover:bg-white/25 transition-colors">
-                  <ChevronRight className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
+            {/* Image */}
+            <div
+              className="relative order-1 h-[300px] overflow-hidden sm:h-[380px] lg:order-2 lg:h-full"
+              onTouchStart={handleHeroTouchStart}
+              onTouchEnd={handleHeroTouchEnd}
+            >
+              {hero.images[0] ? (
+                <Image src={hero.images[0]} alt={hero.headline} fill sizes="(min-width:1024px) 50vw, 100vw" className="object-cover" priority />
+              ) : (
+                <div className="absolute inset-0 bg-[#F2EDE4]" />
+              )}
+              <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,#FBF8F3_0%,rgba(251,248,243,0)_18%)] lg:block" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(0deg,rgba(30,26,25,0.5),rgba(30,26,25,0)_60%)] lg:hidden" />
 
-            {/* Mobile carousel dots */}
-            <div className="lg:hidden absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-              {banners.map((_, i) => (
-                <span key={i} className={`rounded-full transition-all duration-300 ${i === heroIndex ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40'}`} onClick={() => goTo(i)} />
-              ))}
+              {hero.images[0] && (
+                <div className="absolute bottom-5 left-5 hidden items-center gap-3.5 rounded-2xl bg-white/95 py-3.5 pl-3.5 pr-5 shadow-[0_12px_34px_rgba(30,26,25,0.14)] lg:flex">
+                  <div className="relative size-[52px] shrink-0 overflow-hidden rounded-[10px]">
+                    <Image src={hero.images[0]} alt="" fill sizes="52px" className="object-cover" />
+                  </div>
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-body text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#7A6E6A]">Featured</span>
+                    <span className="font-heading text-[15px] font-semibold text-[#1E1A19] whitespace-nowrap">₹{hero.price.toLocaleString('en-IN')}</span>
+                  </span>
+                </div>
+              )}
+
+              {banners.length > 1 && (
+                <>
+                  <div className="absolute bottom-4 left-5 flex items-center gap-1.5 lg:hidden">
+                    {banners.map((_, i) => (
+                      <button key={i} onClick={() => goTo(i)} className={`h-1 rounded-full transition-all ${i === heroIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/45'}`} />
+                    ))}
+                  </div>
+                  <div className="absolute bottom-5 right-5 hidden items-center gap-2.5 lg:flex">
+                    {banners.map((_, i) => (
+                      <button key={i} onClick={() => goTo(i)} className={`h-1 rounded-full transition-all ${i === heroIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/45'}`} />
+                    ))}
+                    <button onClick={prevHero} className="ml-2 flex size-9 items-center justify-center rounded-full border border-white/55 bg-white/20 backdrop-blur-md transition-colors hover:bg-white/30">
+                      <ChevronLeft className="size-3.5 text-white" strokeWidth={2.5} />
+                    </button>
+                    <button onClick={nextHero} className="flex size-9 items-center justify-center rounded-full border border-white/55 bg-white/20 backdrop-blur-md transition-colors hover:bg-white/30">
+                      <ChevronRight className="size-3.5 text-white" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </section>
       )}
 
-      {/* ─── Flash Sale Bar ─── */}
-      {promotions.length > 0 && (
-        <div className="overflow-hidden" style={{ backgroundImage: 'linear-gradient(90deg, #0E0A1F, #1A1230, #0E0A1F)' }}>
-          {/* Main row: timer + deals */}
-          <div className="flex items-center justify-center lg:justify-start gap-3 lg:gap-8 h-12 lg:h-14 px-3 lg:px-12">
-            <div className="flex items-center gap-1.5 lg:gap-2.5 shrink-0">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-[#D4AF37]" style={{ animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+      {/* ─── Trust badges ─── */}
+      <div className="border-y border-[#EAE3D9] bg-white">
+        <div className="mx-auto grid max-w-[1328px] grid-cols-2 gap-x-4 gap-y-5 px-5 py-6 sm:px-14 lg:grid-cols-4 lg:gap-y-0 lg:py-0">
+          {trustItems.map((item, i) => (
+            <div key={i} className="flex items-start gap-3 lg:py-6 lg:pr-7">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-store-primary/10">
+                <TrustIcon name={item.icon} />
               </span>
-              <span className="text-sm lg:text-base">⚡</span>
-              <span className="text-white text-[12px] lg:text-[13px] font-bold font-body uppercase tracking-[0.08em]">Flash Sale</span>
-              {countdown && (
-                <div className="flex items-center gap-[2px] lg:gap-[3px]">
-                  {countdown.map((t, i) => (
-                    <div key={i} className="flex items-center gap-[2px] lg:gap-[3px]">
-                      {i > 0 && <span className="text-[#D4AF37]/60 text-[10px] lg:text-[11px] font-body">:</span>}
-                      <span className="bg-[#D4AF37]/15 border border-[#D4AF37]/30 rounded px-1.5 lg:px-2 py-0.5 lg:py-1 text-[#D4AF37] text-[12px] lg:text-[13px] font-bold font-body leading-4 tabular-nums w-[30px] lg:w-[33px] text-center">{t}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <span className="flex flex-col gap-0.5">
+                <span className="font-body text-[13px] font-semibold text-[#1E1A19]">{item.title}</span>
+                <span className="font-body text-[11.5px] leading-[1.4] text-[#7A6E6A]">{item.subtitle}</span>
+              </span>
             </div>
-            <div className="hidden lg:flex gap-2.5 flex-1 overflow-x-auto">
-              {promotions.map((d, i) => (
-                <span key={i} className="inline-flex items-center gap-2 shrink-0 px-4 py-1.5 rounded-lg border border-[#D4AF374D] bg-white/8">
-                  <span className="text-[#D4AF37] text-[12px] font-bold font-body leading-4">{d.offerText}</span>
-                  {d.subtitle && <span className="text-white/35 text-[11px] font-body">{d.subtitle}</span>}
-                </span>
-              ))}
-            </div>
-            <span className="text-[#D4AF37] text-[12px] font-semibold font-body shrink-0 hidden lg:block cursor-pointer hover:underline">View all deals →</span>
-          </div>
-          {/* Mobile/tablet marquee deals */}
-          <div className="lg:hidden h-7 overflow-hidden border-t border-white/5">
-            <div className="flex gap-6 animate-[marquee_15s_linear_infinite] whitespace-nowrap items-center h-full px-3">
-              {[...promotions, ...promotions].map((d, i) => (
-                <span key={i} className="text-[#D4AF37] text-[10px] font-bold font-body">{d.offerText} {d.subtitle && <span className="text-white/35 font-normal">on {d.subtitle}</span>}</span>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* ─── Main content area ─── */}
-      <div className="max-w-[1312px] mx-auto w-full px-4 md:px-16">
-        {/* Shop by Occasion */}
-        {tags.length > 0 && (
-          <section className="py-10">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[18px] font-bold text-fg font-body leading-[22px]">Shop by Occasion</h2>
+      <div className="mx-auto w-full max-w-[1328px] px-4 sm:px-8 lg:px-14">
+        {/* ─── Shop by category ─── */}
+        {categories.length > 0 && (
+          <section className="py-10 lg:py-16">
+            <div className="mb-6 flex items-end justify-between">
+              <div>
+                <p className="mb-1.5 font-body text-[11px] font-bold uppercase tracking-[0.16em] text-store-primary">The wardrobe</p>
+                <h2 className="font-heading text-[24px] font-semibold tracking-[-0.01em] text-[#1E1A19] lg:text-[30px]">Shop by category</h2>
+              </div>
             </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar lg:grid lg:grid-cols-[1.6fr_1fr_1fr] lg:auto-rows-[200px] lg:gap-4 lg:overflow-visible">
+              {categories.map((cat, i) => (
+                <StoreLink
+                  key={cat.id}
+                  href={`/?category=${cat.slug}`}
+                  className={`relative w-[150px] shrink-0 overflow-hidden rounded-2xl lg:w-auto ${i === 0 ? 'lg:row-span-2' : ''}`}
+                  style={{ backgroundImage: CATEGORY_GRADIENTS[i % CATEGORY_GRADIENTS.length] }}
+                >
+                  <div className="h-[190px] w-full lg:h-full" />
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(30,26,25,0)_45%,rgba(30,26,25,0.72))]" />
+                  <div className="absolute bottom-3.5 left-4 flex flex-col gap-0.5">
+                    <span className="font-heading text-base font-semibold text-white lg:text-xl">{cat.name}</span>
+                    <span className="font-body text-[11px] text-white/70">{categoryCounts.get(cat.name) ?? 0} pieces</span>
+                  </div>
+                </StoreLink>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ─── Countdown promo ─── */}
+        {promotions.length > 0 && countdown && (
+          <section className="pb-10 lg:pb-16">
+            <div className="rounded-2xl bg-[#1E1A19] p-5 lg:flex lg:items-center lg:justify-between lg:px-8 lg:py-5">
+              <div className="mb-4 flex items-center gap-3 lg:mb-0 lg:gap-4">
+                <span className="font-body text-[11px] font-bold uppercase tracking-[0.16em] text-amber">Limited time</span>
+                <span className="hidden h-[22px] w-px bg-white/15 lg:block" />
+                <span className="font-heading text-lg font-medium text-white lg:text-[22px]">{promotions[0].offerText}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4 lg:gap-4">
+                <span className="flex items-center gap-2.5">
+                  {countdown.map((c, i) => (
+                    <span key={i} className="flex min-w-[42px] flex-col items-center gap-1">
+                      <span className="font-heading text-xl font-semibold tabular-nums text-white lg:text-2xl">{c.value}</span>
+                      <span className="font-body text-[9px] uppercase tracking-[0.14em] text-white/40">{c.label}</span>
+                    </span>
+                  ))}
+                </span>
+                <StoreLink href="/offers" className="rounded-full bg-white px-5 py-2.5 font-body text-[13.5px] font-semibold text-[#1E1A19] lg:px-6 lg:py-3">
+                  Shop the sale
+                </StoreLink>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ─── New this week ─── */}
+        {newThisWeek.length > 0 && (
+          <section className="pb-10 lg:pb-16">
+            <div className="mb-5 flex items-end justify-between lg:mb-6">
+              <div>
+                <p className="mb-1.5 font-body text-[11px] font-bold uppercase tracking-[0.16em] text-store-primary">Off the shelf</p>
+                <h2 className="font-heading text-[24px] font-semibold tracking-[-0.01em] text-[#1E1A19] lg:text-[30px]">New this week</h2>
+              </div>
+              <StoreLink href="/?sort=newest" className="hidden font-body text-[13.5px] font-semibold text-[#1E1A19] border-b border-[#C9BEB0] pb-0.5 sm:block">
+                View all new arrivals
+              </StoreLink>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:overflow-visible sm:gap-5">
+              {newThisWeek.map((p, i) => (
+                <StoreLink key={i} href={`/product/${p.slug}`} className="w-[190px] shrink-0 cursor-pointer sm:w-auto">
+                  <div className="relative overflow-hidden rounded-[14px] bg-[#F2EDE4]">
+                    <div className="relative aspect-[4/5] w-full">
+                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:1024px) 22vw, 45vw" className="object-cover transition-transform duration-300 hover:scale-105" />}
+                    </div>
+                    <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2.5 py-[5px] font-body text-[10px] font-bold uppercase tracking-[0.1em] text-[#1E1A19]">New</span>
+                    <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/92">
+                      <HeartIcon size={15} />
+                    </span>
+                  </div>
+                  <div className="pt-3">
+                    <p className="mb-1 font-body text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#7A6E6A]">{p.category}</p>
+                    <h3 className="mb-1.5 line-clamp-1 font-heading text-[15.5px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</h3>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
+                      {p.comparePrice && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                    </div>
+                  </div>
+                </StoreLink>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ─── Shop by offer ─── */}
+        {offers.length > 0 && featureOffer && (
+          <section className="pb-10 lg:pb-16">
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:mb-6">
+              <div>
+                <p className="mb-1.5 font-body text-[11px] font-bold uppercase tracking-[0.16em] text-store-primary">Marked down</p>
+                <h2 className="font-heading text-[24px] font-semibold tracking-[-0.01em] text-[#1E1A19] lg:text-[30px]">Shop by offer</h2>
+              </div>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                {OFFER_FILTERS.map((f) => (
+                  <button
+                    key={f.label}
+                    onClick={() => setOfferFilterMin(f.min)}
+                    className={`shrink-0 rounded-full border px-4 py-2 font-body text-xs font-semibold transition-colors ${offerFilterMin === f.min ? 'border-[#1E1A19] bg-[#1E1A19] text-white' : 'border-[#D8CFC2] text-[#5C534F]'}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_1fr] lg:gap-5">
+              <StoreLink href={`/product/${featureOffer.slug}`} className="relative min-h-[320px] overflow-hidden rounded-2xl lg:min-h-[400px]">
+                {featureOffer.images[0] ? (
+                  <Image src={featureOffer.images[0]} alt={featureOffer.name} fill sizes="(min-width:1024px) 45vw, 100vw" className="object-cover" />
+                ) : (
+                  <div className="absolute inset-0 bg-[#F2EDE4]" />
+                )}
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(30,26,25,0.05)_30%,rgba(30,26,25,0.82))]" />
+                <div className="pointer-events-none absolute inset-x-6 bottom-6">
+                  {discountLabel(featureOffer.price, featureOffer.comparePrice) && (
+                    <span className="mb-3.5 inline-block rounded-full bg-store-primary px-3.5 py-1.5 font-body text-[11px] font-bold tracking-[0.08em] text-white">{discountLabel(featureOffer.price, featureOffer.comparePrice)}</span>
+                  )}
+                  <h3 className="mb-2 font-heading text-2xl font-semibold text-white">{featureOffer.name}</h3>
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-body text-lg font-bold text-white">₹{featureOffer.price.toLocaleString('en-IN')}</span>
+                    {featureOffer.comparePrice && <span className="font-body text-sm text-white/55 line-through">₹{featureOffer.comparePrice.toLocaleString('en-IN')}</span>}
+                  </div>
+                </div>
+              </StoreLink>
+              <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:gap-5">
+                {offerGrid.map((p, i) => (
+                  <StoreLink key={i} href={`/product/${p.slug}`} className="flex gap-4 rounded-[14px] border border-[#EDE6DB] bg-white p-4 transition-colors hover:border-store-primary">
+                    <div className="relative h-[132px] w-[104px] shrink-0 overflow-hidden rounded-[10px]">
+                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="104px" className="object-cover" />}
+                    </div>
+                    <div className="flex min-w-0 flex-col justify-center gap-1.5">
+                      <span className="font-body text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#7A6E6A]">{p.category}</span>
+                      <span className="line-clamp-2 font-heading text-[15px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</span>
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
+                        {p.comparePrice && <span className="font-body text-xs text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                      </span>
+                      {discountLabel(p.price, p.comparePrice) && (
+                        <span className="mt-0.5 w-fit rounded-md bg-store-primary/10 px-2.5 py-1 font-body text-[11px] font-bold text-store-primary">{discountLabel(p.price, p.comparePrice)}</span>
+                      )}
+                    </div>
+                  </StoreLink>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ─── Shop by Occasion (existing tag data, kept intact) ─── */}
+        {tags.length > 0 && (
+          <section className="pb-10 lg:pb-16">
+            <h2 className="mb-5 font-heading text-[24px] font-semibold tracking-[-0.01em] text-[#1E1A19] lg:text-[30px]">Shop by occasion</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               {tags.map(tag => (
-                <StoreLink key={tag.id} href={`/occasion/${tag.slug}`} className="flex items-center gap-3 shrink-0 pl-3 pr-5 py-2.5 rounded-full border border-store-primary/15 hover:border-store-primary/40 transition-colors" style={{ backgroundImage: 'linear-gradient(135deg, rgba(232,87,126,0.08), rgba(232,87,126,0.02))', boxShadow: '0 4px 14px rgba(232,87,126,0.12)' }}>
-                  <span className="text-4xl leading-none">{tag.emoji}</span>
+                <StoreLink key={tag.id} href={`/occasion/${tag.slug}`} className="flex shrink-0 items-center gap-3 rounded-full border border-store-primary/15 bg-white py-2.5 pl-3 pr-5 transition-colors hover:border-store-primary/40">
+                  <span className="text-3xl leading-none">{tag.emoji}</span>
                   <span className="flex flex-col items-start">
-                    <span className="text-fg text-[13px] font-semibold font-body">{tag.name}</span>
-                    <span className="text-[#8B7D7A] text-[11px] font-body">{tag.productCount} items</span>
+                    <span className="font-body text-[13px] font-semibold text-[#1E1A19]">{tag.name}</span>
+                    <span className="font-body text-[11px] text-[#7A6E6A]">{tag.productCount} items</span>
                   </span>
                 </StoreLink>
               ))}
             </div>
           </section>
         )}
-
-        {/* Shop by Offers */}
-        {offers.length > 0 && (
-          <section className="pb-10">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[18px] font-bold text-fg font-body leading-[22px]">Shop by Offers</h2>
-              <StoreLink href="/offers" className="text-store-primary text-[13px] font-semibold font-body hover:underline">See all offers →</StoreLink>
-            </div>
-            <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
-              {OFFER_FILTERS.map((f) => (
-                <button
-                  key={f.label}
-                  onClick={() => setOfferFilterMin(f.min)}
-                  className={`shrink-0 px-3.5 py-1.5 rounded-full border-[1.5px] text-[12px] font-semibold font-body transition-colors ${offerFilterMin === f.min ? 'bg-store-primary border-store-primary text-white' : 'border-border text-[#8B7D7A]'}`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {filteredOffers.slice(0, 5).map((p, i) => {
-                const label = discountLabel(p.price, p.comparePrice)
-                return (
-                  <StoreLink key={i} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
-                    <div className="aspect-[3/4] relative bg-bg">
-                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 20vw, 50vw" className="object-cover" priority={i === 0} />}
-                      {label && <span className="absolute top-2 left-2 px-2 py-[3px] bg-danger rounded text-white text-[10px] font-bold font-body leading-3">{label}</span>}
-                    </div>
-                    <div className="p-2.5">
-                      <p className="text-fg text-[13px] font-semibold font-body line-clamp-1">{p.name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-fg text-[13px] font-bold font-body">₹{p.price.toLocaleString('en-IN')}</span>
-                        {p.comparePrice && <span className="text-[#8B7D7A] text-[11px] font-body line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
-                      </div>
-                    </div>
-                  </StoreLink>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* New This Week */}
-        {newThisWeek.length > 0 && (
-          <section className="pb-10">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <h2 className="text-[18px] font-bold text-fg font-body leading-[22px]">New This Week</h2>
-                <span className="ml-1 px-2.5 py-0.5 bg-success text-white text-[10px] font-bold rounded font-body leading-3">{newThisWeek.length} items</span>
-              </div>
-              <span className="text-store-primary text-[13px] font-semibold font-body cursor-pointer hover:underline">View all new arrivals</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {newThisWeek.map((p, i) => (
-                <StoreLink key={i} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden block hover:border-store-primary hover:shadow-md transition">
-                  <div className="aspect-[3/4] relative bg-bg">
-                    {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 20vw, 50vw" className="object-cover" />}
-                    <span className="absolute top-2 left-2 px-2 py-[3px] bg-success rounded text-white text-[10px] font-bold font-body leading-3">NEW</span>
-                    <span className="absolute top-2 right-2 w-7 h-7 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <HeartIcon />
-                    </span>
-                    <span className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-[3px] bg-success rounded text-white text-[10px] font-bold font-body leading-3">
-                      {p.averageRating.toFixed(1)} ★ <span className="font-normal opacity-80">| {p.reviewCount}</span>
-                    </span>
-                  </div>
-                  <div className="p-2.5">
-                    <p className="text-[#8B7D7A] text-[10px] font-bold font-body uppercase tracking-[0.08em] leading-3 mb-1">{p.category}</p>
-                    <h3 className="text-fg text-[13px] font-bold font-heading leading-[130%] mb-1">{p.name}</h3>
-                    <p className="text-fg text-[14px] font-extrabold font-body leading-[18px]">₹{p.price.toLocaleString('en-IN')}</p>
-                  </div>
-                </StoreLink>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Browse Categories */}
-        {categories.length > 0 && (
-          <section className="pb-10">
-            <h2 className="text-[18px] font-bold text-fg font-body leading-[22px] mb-5">Browse Categories</h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar md:grid md:grid-cols-6 md:overflow-visible">
-              {categories.map((cat, i) => (
-                <div key={cat.id} className="w-[130px] md:w-auto h-[160px] shrink-0 rounded-2xl overflow-hidden relative flex items-end p-3.5 cursor-pointer group" style={{ backgroundImage: CATEGORY_GRADIENTS[i % CATEGORY_GRADIENTS.length] }}>
-                  <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(0deg, rgba(0,0,0,0.6), rgba(0,0,0,0) 55%)' }} />
-                  <div className="relative">
-                    <p className="text-white text-[14px] font-bold font-body leading-4" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>{cat.name}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
 
-      {/* Divider */}
-      <div className="h-2 bg-[#F0E8D8]" />
+      {/* ─── Our story ─── */}
+      {story && (
+        <section className="border-y border-[#EDE4D8] bg-white">
+          <div className="mx-auto max-w-[900px] px-5 py-14 text-center lg:py-20">
+            <p className="mb-3.5 font-body text-[11px] font-bold uppercase tracking-[0.16em] text-store-primary">Our story</p>
+            <h2 className="mb-5 font-heading text-[28px] font-semibold leading-[1.15] tracking-[-0.01em] text-[#1E1A19] lg:text-[36px]">{story.title}</h2>
+            <p className="mx-auto max-w-[560px] font-body text-[15px] leading-[1.7] text-[#5C534F] lg:text-base">{story.description}</p>
+          </div>
+        </section>
+      )}
 
       {/* ─── Filters + Product Grid ─── */}
-      <div className="max-w-[1312px] mx-auto w-full px-4 md:px-16 py-8">
-        <div className="flex gap-8">
-          {/* Desktop Sidebar */}
-          <aside className="hidden lg:block w-[240px] shrink-0">
+      <div className="mx-auto w-full max-w-[1328px] px-4 py-10 sm:px-8 lg:px-14 lg:py-14">
+        <div className="flex gap-10">
+          <aside className="hidden w-[216px] shrink-0 lg:block">
             {filterPanel}
           </aside>
 
-          {/* Product grid area */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-fg text-[16px] font-bold font-body leading-5">All Products</h2>
-                <span className="text-[#8B7D7A] text-[13px] font-body">{filteredProducts.length} items</span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-5 flex items-end justify-between border-b border-[#E7E0D6] pb-4">
+              <div>
+                <h2 className="mb-1 font-heading text-[22px] font-semibold text-[#1E1A19]">The full collection</h2>
+                <p className="font-body text-xs text-[#7A6E6A]">{filteredProducts.length} pieces</p>
               </div>
-              <div className="hidden lg:flex items-center gap-2">
+              <div className="hidden items-center gap-2 lg:flex">
                 {activeChips.map(c => (
-                  <button key={c.label} onClick={() => removeFilterChip(c.type, c.value)} className="flex items-center gap-1 px-3 py-1 bg-store-primary/10 rounded-full text-store-primary text-[12px] font-body hover:bg-store-primary/20 transition-colors">
-                    {c.label} <X className="w-3 h-3" />
+                  <button key={c.label} onClick={() => removeFilterChip(c.type, c.value)} className="flex items-center gap-1 rounded-full bg-store-primary/10 px-3 py-1 font-body text-xs text-store-primary transition-colors hover:bg-store-primary/20">
+                    {c.label} <X className="size-3" />
                   </button>
                 ))}
                 <div className="relative ml-2">
-                  <button onClick={() => setShowSortMenu(v => !v)} className="flex items-center gap-1 text-[13px] text-fg font-body">
-                    Sort: <strong>{sortBy}</strong> <ChevronDown className="w-3.5 h-3.5" />
+                  <button onClick={() => setShowSortMenu(v => !v)} className="flex items-center gap-1 font-body text-[13px] text-[#1E1A19]">
+                    Sort: <strong>{sortBy}</strong> <ChevronDown className="size-3.5" />
                   </button>
                   {showSortMenu && (
-                    <div className="absolute top-8 right-0 bg-white rounded-lg border border-border shadow-lg py-1 z-20 w-48">
+                    <div className="absolute right-0 top-8 z-20 w-48 rounded-lg border border-[#EAE3D9] bg-white py-1 shadow-lg">
                       {SORT_OPTIONS.map(opt => (
-                        <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false) }} className={`w-full text-left px-4 py-2 text-[13px] font-body transition-colors ${opt === sortBy ? 'text-store-primary bg-store-primary/5 font-semibold' : 'text-fg hover:bg-[#F9F9F9]'}`}>
+                        <button key={opt} onClick={() => { setSortBy(opt); setShowSortMenu(false) }} className={`w-full px-4 py-2 text-left font-body text-[13px] transition-colors ${opt === sortBy ? 'bg-store-primary/5 font-semibold text-store-primary' : 'text-[#1E1A19] hover:bg-[#F9F9F9]'}`}>
                           {opt}
                         </button>
                       ))}
@@ -643,55 +729,53 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                   )}
                 </div>
               </div>
-              {/* Mobile filter button */}
-              <button onClick={() => setShowMobileFilters(true)} className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[13px] text-fg font-body">
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                Filter & Sort
-                {activeFilterCount > 0 && <span className="w-4 h-4 bg-store-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">{activeFilterCount}</span>}
+              <button onClick={() => setShowMobileFilters(true)} className="flex items-center gap-1.5 rounded-full border border-[#D8CFC2] px-3.5 py-1.5 font-body text-[13px] text-[#1E1A19] lg:hidden">
+                <SlidersHorizontal className="size-3.5" />
+                Filter
+                {activeFilterCount > 0 && <span className="flex size-4 items-center justify-center rounded-full bg-store-primary text-[9px] font-bold text-white">{activeFilterCount}</span>}
               </button>
             </div>
 
-            {/* Active filter chips (mobile) */}
             {activeChips.length > 0 && (
-              <div className="lg:hidden flex gap-2 mb-4 flex-wrap">
+              <div className="mb-4 flex flex-wrap gap-2 lg:hidden">
                 {activeChips.map(c => (
-                  <button key={c.label} onClick={() => removeFilterChip(c.type, c.value)} className="flex items-center gap-1 px-2.5 py-1 bg-store-primary/10 rounded-full text-store-primary text-[11px] font-body">
-                    {c.label} <X className="w-2.5 h-2.5" />
+                  <button key={c.label} onClick={() => removeFilterChip(c.type, c.value)} className="flex items-center gap-1 rounded-full bg-store-primary/10 px-2.5 py-1 font-body text-[11px] text-store-primary">
+                    {c.label} <X className="size-2.5" />
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Grid */}
             {visibleProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-fg text-[16px] font-semibold font-body mb-2">No products found</p>
-                <p className="text-[#8B7D7A] text-[13px] font-body mb-4">Try adjusting your filters</p>
-                <button onClick={handleReset} className="px-6 py-2 rounded-lg border-[1.5px] border-store-primary text-store-primary text-[13px] font-semibold font-body">Clear all filters</button>
+                <p className="mb-2 font-body text-base font-semibold text-[#1E1A19]">No products found</p>
+                <p className="mb-4 font-body text-[13px] text-[#7A6E6A]">Try adjusting your filters</p>
+                <button onClick={handleReset} className="rounded-full border-[1.5px] border-store-primary px-6 py-2 font-body text-[13px] font-semibold text-store-primary">Clear all filters</button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:gap-6">
                 {visibleProducts.map((p, i) => (
-                  <StoreLink key={`${p.name}-${i}`} href={`/product/${p.slug}`} className="bg-white rounded-xl border-[1.5px] border-[#F0E8D8] overflow-hidden group cursor-pointer block hover:border-store-primary hover:shadow-md transition">
-                    <div className="aspect-[3/4] relative bg-bg">
-                      {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:768px) 30vw, 50vw" className="object-cover" />}
-                      {p.discount && <span className="absolute top-2 left-2 px-2.5 py-[3px] bg-store-primary rounded-full text-white text-[10px] font-bold font-body leading-3">{p.discount}</span>}
-                      {p.badge && !p.discount && <span className="absolute top-2 left-2 px-2.5 py-[3px] rounded-full text-white text-[10px] font-bold font-body leading-3 bg-success">{p.badge}</span>}
-                      <span className="absolute top-2 right-2 w-7 h-7 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                        <HeartIcon />
-                      </span>
-                      <span className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-[3px] bg-success rounded text-white text-[10px] font-bold font-body leading-3">
-                        {p.averageRating.toFixed(1)} ★ <span className="font-normal opacity-80">| {p.reviewCount}</span>
+                  <StoreLink key={`${p.name}-${i}`} href={`/product/${p.slug}`} className="group block cursor-pointer">
+                    <div className="relative overflow-hidden rounded-[14px] bg-[#F2EDE4]">
+                      <div className="relative aspect-[4/5] w-full">
+                        {p.images[0] && <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:1024px) 22vw, 45vw" className="object-cover transition-transform duration-300 group-hover:scale-105" />}
+                      </div>
+                      {(p.discount || p.badge) && (
+                        <span className={`absolute left-2.5 top-2.5 rounded-full px-2.5 py-[5px] font-body text-[10px] font-bold uppercase tracking-[0.1em] ${p.discount ? 'bg-store-primary text-white' : 'bg-white/95 text-[#1E1A19]'}`}>
+                          {p.discount ?? p.badge}
+                        </span>
+                      )}
+                      <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/92 transition-colors group-hover:bg-white">
+                        <HeartIcon size={15} />
                       </span>
                     </div>
-                    <div className="p-2">
-                      <h3 className="text-fg text-[13px] font-bold font-heading leading-[130%] mb-1">{p.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-store-primary text-[14px] font-extrabold font-body leading-[18px]">₹{p.price.toLocaleString('en-IN')}</span>
-                        {p.comparePrice && <span className="text-[#B0A090] text-[11px] font-body line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
-                        <span className="ml-auto w-7 h-7 bg-store-primary rounded-full flex items-center justify-center">
-                          <CartIcon />
-                        </span>
+                    <div className="pt-3">
+                      <p className="mb-1 font-body text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#7A6E6A]">{p.category}</p>
+                      <h3 className="mb-1.5 line-clamp-1 font-heading text-[15.5px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
+                        {p.comparePrice && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                        {p.averageRating > 0 && <span className="ml-auto font-body text-[11px] text-[#7A6E6A]">★ {p.averageRating.toFixed(1)}</span>}
                       </div>
                     </div>
                   </StoreLink>
@@ -699,20 +783,18 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               </div>
             )}
 
-            {/* Show more */}
             {filteredProducts.length > 0 && (
-              <div className="flex flex-col items-center gap-3 mt-8">
+              <div className="mt-10 flex flex-col items-center gap-3">
                 {hasMore ? (
-                  <button onClick={() => setVisibleCount(c => c + PRODUCTS_PER_PAGE)} className="inline-flex items-center gap-2 px-10 py-3 bg-store-primary text-white text-[14px] font-semibold font-body rounded-full hover:opacity-90 transition-opacity">
-                    Show more products
-                    <ChevronDown className="w-4 h-4" />
+                  <button onClick={() => setVisibleCount(c => c + PRODUCTS_PER_PAGE)} className="inline-flex items-center gap-2 rounded-full px-10 py-3.5 font-body text-[14px] font-semibold text-[#1E1A19] border border-[#1E1A19] transition-colors hover:bg-[#1E1A19] hover:text-white">
+                    Show more pieces
                   </button>
                 ) : visibleCount > PRODUCTS_PER_PAGE && (
-                  <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); window.scrollTo({ top: (document.querySelector('#product-grid-top')?.getBoundingClientRect().top ?? 0) + window.scrollY - 80, behavior: 'smooth' }) }} className="inline-flex items-center gap-2 px-10 py-3 border-[1.5px] border-store-primary text-store-primary text-[14px] font-semibold font-body rounded-full hover:bg-store-primary/5 transition-colors">
+                  <button onClick={() => { setVisibleCount(PRODUCTS_PER_PAGE); window.scrollTo({ top: (document.querySelector('#product-grid-top')?.getBoundingClientRect().top ?? 0) + window.scrollY - 80, behavior: 'smooth' }) }} className="inline-flex items-center gap-2 rounded-full border border-[#1E1A19] px-10 py-3.5 font-body text-[14px] font-semibold text-[#1E1A19] transition-colors hover:bg-[#1E1A19] hover:text-white">
                     Show less
                   </button>
                 )}
-                <span className="text-[#8B7D7A] text-[11px] font-body">Showing {Math.min(visibleCount, filteredProducts.length)} of {filteredProducts.length} products</span>
+                <span className="font-body text-[11px] text-[#7A6E6A]">Showing {Math.min(visibleCount, filteredProducts.length)} of {filteredProducts.length} pieces</span>
               </div>
             )}
           </div>
@@ -729,12 +811,11 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
             </button>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-6 pt-4">
-            {/* Sort (mobile only) */}
-            <div className="border-b border-[#F0E8D8] mb-5 pb-5">
-              <p className="text-[#8B7D7A] text-[11px] font-bold font-body uppercase tracking-[0.08em] leading-[14px] mb-3">Sort By</p>
+            <div className="mb-5 border-b border-[#E7E0D6] pb-5">
+              <p className="mb-3 font-body text-2xs font-bold uppercase tracking-[0.1em] text-[#7A6E6A]">Sort By</p>
               <div className="flex flex-wrap gap-1.5">
                 {SORT_OPTIONS.map(opt => (
-                  <button key={opt} onClick={() => setSortBy(opt)} className={`px-3 py-1.5 rounded-md border-[1.5px] text-[12px] font-body leading-4 transition-colors ${opt === sortBy ? 'bg-store-primary/6 border-store-primary text-store-primary font-semibold' : 'border-border text-[#8B7D7A]'}`}>
+                  <button key={opt} onClick={() => setSortBy(opt)} className={`rounded-lg border-[1.5px] px-3 py-1.5 font-body text-xs transition-colors ${opt === sortBy ? 'border-store-primary bg-store-primary/6 font-semibold text-store-primary' : 'border-[#D8CFC2] text-[#7A6E6A]'}`}>
                     {opt}
                   </button>
                 ))}

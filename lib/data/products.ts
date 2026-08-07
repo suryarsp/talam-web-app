@@ -15,6 +15,8 @@ export type ProductFilters = {
 
 export type CategoryMeta = { id: string; name: string; slug: string; department: string | null }
 
+export type ProductSpec = { label: string; value: string }
+
 export type AdminProduct = {
   id: string
   name: string
@@ -27,6 +29,7 @@ export type AdminProduct = {
   sizes: string[]
   images: string[]
   stockBySize: Record<string, number>
+  specifications: ProductSpec[]
   isActive: boolean
   occasionIds: string[]
 }
@@ -40,10 +43,23 @@ export type ProductInput = {
   sizes: string[]
   images: string[]
   stockBySize: Record<string, number>
+  specifications: ProductSpec[]
 }
 
 function slugify(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+// Root-caused here rather than only in the form: both createProduct and updateProduct route
+// through this, so a raw call (bypassing the client form) can't slip an invalid product through.
+function validateProductInput(input: ProductInput) {
+  if (input.price <= 0) throw new Error('Price must be greater than ₹0.')
+  if (input.comparePrice !== null && input.comparePrice >= input.price) {
+    throw new Error('Discount price must be less than the price.')
+  }
+  if (Object.values(input.stockBySize).some((qty) => qty <= 0)) {
+    throw new Error('Quantity must be at least 1.')
+  }
 }
 
 export async function listProductsForAdmin(tenantId: string): Promise<AdminProduct[]> {
@@ -70,12 +86,14 @@ export async function listProductsForAdmin(tenantId: string): Promise<AdminProdu
     sizes: p.sizes,
     images: p.images,
     stockBySize: p.stockBySize as Record<string, number>,
+    specifications: p.specifications as ProductSpec[],
     isActive: p.isActive,
     occasionIds: p.tagAssignments.map((a) => a.tagId),
   }))
 }
 
 export async function createProduct(tenantId: string, input: ProductInput) {
+  validateProductInput(input)
   // ponytail: slug is name-derived + a time suffix for uniqueness, no collision-retry needed at this scale
   const slug = `${slugify(input.name)}-${Date.now().toString(36).slice(-4)}`
   return withTenant(tenantId, async (db) => {
@@ -96,6 +114,7 @@ export async function createProduct(tenantId: string, input: ProductInput) {
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
+        specifications: input.specifications,
         status: tenant?.isLive ? 'draft' : 'published',
       },
     })
@@ -103,6 +122,7 @@ export async function createProduct(tenantId: string, input: ProductInput) {
 }
 
 export async function updateProduct(tenantId: string, id: string, input: ProductInput) {
+  validateProductInput(input)
   return withTenant(tenantId, async (db) => {
     // Same reasoning as createProduct: pre-launch there's no live storefront to protect,
     // so edits shouldn't demote a product to 'draft' — that silently drops it from the
@@ -120,6 +140,7 @@ export async function updateProduct(tenantId: string, id: string, input: Product
         sizes: input.sizes,
         images: input.images,
         stockBySize: input.stockBySize,
+        specifications: input.specifications,
         status: tenant?.isLive ? 'draft' : 'published',
       },
     })
@@ -310,16 +331,17 @@ export async function getActiveDepartments(tenantId: string): Promise<string[]> 
 }
 
 export async function softDeleteProducts(tenantId: string, productIds: string[]): Promise<void> {
-  await withTenant(tenantId, (db) =>
-    db.$transaction([
-      db.product.updateMany({
-        where: { tenantId, id: { in: productIds } },
-        data: { deletedAt: new Date() },
-      }),
-      db.productTagAssignment.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
-      db.storePromotionProduct.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
-    ])
-  )
+  // ponytail: withTenant already runs its callback inside an interactive transaction (needed for
+  // RLS scoping); a nested array-form db.$transaction([...]) here throws at runtime, so these run
+  // sequentially on the same already-transactional client instead.
+  await withTenant(tenantId, async (db) => {
+    await db.product.updateMany({
+      where: { tenantId, id: { in: productIds } },
+      data: { deletedAt: new Date() },
+    })
+    await db.productTagAssignment.deleteMany({ where: { tenantId, productId: { in: productIds } } })
+    await db.storePromotionProduct.deleteMany({ where: { tenantId, productId: { in: productIds } } })
+  })
 }
 
 export async function bulkSetProductsCategory(tenantId: string, productIds: string[], categoryId: string | null): Promise<void> {
@@ -343,10 +365,8 @@ export async function bulkSetProductsActive(tenantId: string, productIds: string
 // Clears a product's occasion and offer associations only — name, price, images, category,
 // and active/deleted state are untouched.
 export async function resetProductsToDefault(tenantId: string, productIds: string[]): Promise<void> {
-  await withTenant(tenantId, (db) =>
-    db.$transaction([
-      db.productTagAssignment.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
-      db.storePromotionProduct.deleteMany({ where: { tenantId, productId: { in: productIds } } }),
-    ])
-  )
+  await withTenant(tenantId, async (db) => {
+    await db.productTagAssignment.deleteMany({ where: { tenantId, productId: { in: productIds } } })
+    await db.storePromotionProduct.deleteMany({ where: { tenantId, productId: { in: productIds } } })
+  })
 }

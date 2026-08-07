@@ -105,6 +105,7 @@ model Tenant {
   tags          ProductTag[]
   addresses     Address[]
   publishLogs   PublishLog[]
+  paymentMethods PaymentMethod[]
   notifications Notification[]
 
   @@map("tenants")
@@ -122,6 +123,7 @@ model Product {
   sizes        String[]
   images       String[]
   stockBySize  Json          @default("{}") @map("stock_by_size")
+  specifications Json        @default("[]")
   isActive     Boolean       @default(true) @map("is_active")
   status       PublishStatus @default(published)
   deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz
@@ -158,23 +160,42 @@ model ProductCategory {
 }
 
 model Customer {
-  id                  String   @id @db.Uuid
-  tenantId            String   @map("tenant_id") @db.Uuid
+  id                  String    @id @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
   name                String?
   phone               String?
   email               String?
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
-  preferredCategories String[] @default([]) @map("preferred_categories")
-  preferredSize       String?  @map("preferred_size")
-  onboardingComplete  Boolean  @default(false) @map("onboarding_complete")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  preferredCategories String[]  @default([]) @map("preferred_categories")
+  preferredSize       String?   @map("preferred_size")
+  onboardingComplete  Boolean   @default(false) @map("onboarding_complete")
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+  notifyDeals         Boolean   @default(true) @map("notify_deals")
+  notifyOrderUpdates  Boolean   @default(true) @map("notify_order_updates")
+  notifyPromotions    Boolean   @default(false) @map("notify_promotions")
 
-  tenant    Tenant          @relation(fields: [tenantId], references: [id])
-  orders    Order[]
-  wishlists Wishlist[]
-  reviews   ProductReview[]
-  addresses Address[]
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  orders         Order[]
+  wishlists      Wishlist[]
+  reviews        ProductReview[]
+  addresses      Address[]
+  paymentMethods PaymentMethod[]
 
   @@map("customers")
+}
+
+model PaymentMethod {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  upiId      String   @map("upi_id")
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("payment_methods")
 }
 
 model Address {

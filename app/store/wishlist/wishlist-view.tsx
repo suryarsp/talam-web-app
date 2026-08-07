@@ -20,6 +20,8 @@ function WishlistCard({ item, onRemove }: { item: WishlistProduct; onRemove: () 
     item.comparePrice && item.comparePrice > item.price
       ? Math.round(((item.comparePrice - item.price) / item.comparePrice) * 100)
       : 0
+  const priceDropped = item.priceAtSave !== null && item.price < item.priceAtSave
+  const priceDrop = priceDropped ? Math.round(((item.priceAtSave! - item.price) / item.priceAtSave!) * 100) : 0
 
   function handleAddToCart() {
     addItem({
@@ -63,9 +65,14 @@ function WishlistCard({ item, onRemove }: { item: WishlistProduct; onRemove: () 
             Out of Stock
           </span>
         )}
+        {priceDropped && (
+          <span className="absolute bottom-10 left-3 rounded-md bg-success px-3 py-1 font-body text-[11px] font-bold text-surface">
+            Price dropped {priceDrop}%!
+          </span>
+        )}
         {!outOfStock && item.totalStock <= 3 && (
           <span className="absolute bottom-3 left-3 rounded-md bg-store-primary px-3 py-1 font-body text-[11px] font-bold text-surface">
-            Only {item.totalStock} left!
+            Only {item.totalStock} left — selling fast!
           </span>
         )}
         {item.averageRating && (

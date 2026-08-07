@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { withTenant } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { headers } from 'next/headers'
@@ -19,23 +19,29 @@ export async function GET(request: NextRequest) {
 
     if (!error) {
       const user = data.user
-      await prisma.customer.upsert({
-        where: { id: user.id },
-        create: {
-          id: user.id,
-          tenantId,
-          name: user.user_metadata?.full_name ?? null,
-          email: user.email ?? null,
-          phone: user.phone ?? null,
-        },
-        update: {
-          name: user.user_metadata?.full_name ?? null,
-          email: user.email ?? null,
-          phone: user.phone ?? null,
-        },
-      })
+      const customer = await withTenant(tenantId, (db) =>
+        db.customer.upsert({
+          where: { id: user.id },
+          create: {
+            id: user.id,
+            tenantId,
+            name: user.user_metadata?.full_name ?? null,
+            email: user.email ?? null,
+            phone: user.phone ?? null,
+          },
+          update: {
+            name: user.user_metadata?.full_name ?? null,
+            email: user.email ?? null,
+            phone: user.phone ?? null,
+          },
+          select: { onboardingComplete: true },
+        })
+      )
 
-      return NextResponse.redirect(`${origin}${next ?? `${storeBase}/account/profile`}`)
+      const defaultDest = customer.onboardingComplete
+        ? `${storeBase}/account/profile`
+        : `${storeBase}/onboarding`
+      return NextResponse.redirect(`${origin}${next ?? defaultDest}`)
     }
   }
 

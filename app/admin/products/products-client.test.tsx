@@ -47,6 +47,7 @@ function product(overrides: Partial<AdminProduct> = {}): AdminProduct {
     sizes: ['M'],
     images: [],
     stockBySize: { M: 5 },
+    specifications: [],
     isActive: true,
     occasionIds: [],
     ...overrides,

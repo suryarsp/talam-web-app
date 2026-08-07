@@ -1,13 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Truck } from 'lucide-react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useCartStore, type CartItem } from '@/lib/store/cart'
+import { formatCurrency } from '@/lib/utils'
 import { CheckoutHeader } from '@/components/checkout/checkout-header'
 import { StepIndicator } from '@/components/checkout/step-indicator'
 import { OrderSummaryCard, TrustBar } from '@/components/checkout/order-summary-card'
@@ -43,7 +44,14 @@ const addressSchema = z.object({
 type AddressForm = z.infer<typeof addressSchema>
 
 const EMPTY_ADDRESS: AddressForm = { name: '', phone: '', line1: '', line2: '', pincode: '', city: '', state: '' }
-const INDIAN_STATES = ['Tamil Nadu', 'Karnataka', 'Kerala', 'Andhra Pradesh', 'Telangana', 'Maharashtra', 'Delhi']
+const INDIAN_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar',
+  'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa',
+  'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+  'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim',
+  'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+]
 
 const NEW_ADDRESS = 'new'
 
@@ -67,12 +75,14 @@ export function CheckoutClient({
   storeName,
   signedIn,
   signedInPhone,
+  signedInName,
   addresses,
   methods,
 }: {
   storeName: string
   signedIn: boolean
   signedInPhone: string | null
+  signedInName: string | null
   addresses: AddressItem[]
   methods: EnabledPaymentMethods
 }) {
@@ -114,11 +124,34 @@ export function CheckoutClient({
   const [selectedAddressId, setSelectedAddressId] = useState<string>(
     addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id ?? NEW_ADDRESS
   )
-  const { control: addressControl, trigger: triggerAddress } = useForm<AddressForm>({
+  // ponytail: pre-fill name/phone from signed-in customer so the form isn't blank
+  const prefilled: AddressForm = {
+    ...EMPTY_ADDRESS,
+    ...(signedInName ? { name: signedInName } : {}),
+    ...(signedInPhone ? { phone: signedInPhone.replace(/^\+91/, '') } : {}),
+  }
+  const { control: addressControl, trigger: triggerAddress, setValue } = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
-    defaultValues: EMPTY_ADDRESS,
+    defaultValues: addresses.length > 0 ? EMPTY_ADDRESS : prefilled,
   })
   const newAddress = useWatch({ control: addressControl })
+
+  // ponytail: auto-fill city/state from pincode via India Post API
+  const pincodeValue = newAddress.pincode ?? ''
+  const lastLookedUp = useRef('')
+  useEffect(() => {
+    if (pincodeValue.length !== 6 || pincodeValue === lastLookedUp.current) return
+    lastLookedUp.current = pincodeValue
+    fetch(`https://api.postalpincode.in/pincode/${pincodeValue}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const po = data?.[0]?.PostOffice?.[0]
+        if (!po) return
+        setValue('city', po.District, { shouldValidate: true })
+        setValue('state', po.State, { shouldValidate: true })
+      })
+      .catch(() => {})
+  }, [pincodeValue, setValue])
   const usingNewAddress = selectedAddressId === NEW_ADDRESS
   const savedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null
 
@@ -382,6 +415,24 @@ export function CheckoutClient({
                     </button>
                   </div>
                   <DeliveringTo address={savedAddress} newAddress={usingNewAddress ? (newAddress as AddressForm) : null} />
+                </div>
+
+                {/* ponytail: reciprocity moment — show value before asking for payment */}
+                <div className="mt-3 flex flex-col gap-2 rounded-xl border border-success/20 bg-success/5 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-4 w-4 shrink-0 text-success" />
+                    <span className="font-body text-sm font-medium text-fg">
+                      {quote && quote.shippingFee === 0 ? 'You\'ve unlocked free delivery!' : 'Estimated delivery in 5–7 business days'}
+                    </span>
+                  </div>
+                  {quote && (quote.productDiscount + quote.couponDiscount) > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-success" />
+                      <span className="font-body text-sm font-medium text-success">
+                        You&apos;re saving {formatCurrency(quote.productDiscount + quote.couponDiscount)} on this order
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 flex flex-col gap-2.5">

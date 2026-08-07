@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockUpdateMany, mockTransaction, mockTagDeleteMany, mockPromoDeleteMany } = vi.hoisted(() => ({
+const { mockUpdateMany, mockTagDeleteMany, mockPromoDeleteMany } = vi.hoisted(() => ({
   mockUpdateMany: vi.fn(),
-  mockTransaction: vi.fn(),
   mockTagDeleteMany: vi.fn(),
   mockPromoDeleteMany: vi.fn(),
 }))
@@ -13,7 +12,6 @@ vi.mock('@/lib/prisma', () => ({
       product: { updateMany: mockUpdateMany },
       productTagAssignment: { deleteMany: mockTagDeleteMany },
       storePromotionProduct: { deleteMany: mockPromoDeleteMany },
-      $transaction: mockTransaction,
     })
   ),
 }))
@@ -25,9 +23,14 @@ beforeEach(() => {
 })
 
 describe('softDeleteProducts', () => {
-  it('sets deletedAt and clears tag/promotion assignments in one transaction', async () => {
+  it('sets deletedAt and clears tag/promotion assignments', async () => {
     await softDeleteProducts('tenant-1', ['p1', 'p2'])
-    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1', id: { in: ['p1', 'p2'] } },
+      data: { deletedAt: expect.any(Date) },
+    })
+    expect(mockTagDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1', productId: { in: ['p1', 'p2'] } } })
+    expect(mockPromoDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1', productId: { in: ['p1', 'p2'] } } })
   })
 })
 
@@ -52,8 +55,9 @@ describe('bulkSetProductsActive', () => {
 })
 
 describe('resetProductsToDefault', () => {
-  it('clears tag and promotion assignments in one transaction', async () => {
+  it('clears tag and promotion assignments', async () => {
     await resetProductsToDefault('tenant-1', ['p1', 'p2'])
-    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    expect(mockTagDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1', productId: { in: ['p1', 'p2'] } } })
+    expect(mockPromoDeleteMany).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1', productId: { in: ['p1', 'p2'] } } })
   })
 })

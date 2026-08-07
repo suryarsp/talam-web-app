@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { StoreLink } from '@/components/store/store-context'
@@ -56,6 +57,22 @@ export default async function ProductPage({ params }: Props) {
   const stockBySize = product.stockBySize as Record<string, number>
   const hasDiscount = comparePrice && comparePrice > price
   const savedAmount = hasDiscount ? comparePrice! - price : null
+  const discountPct = hasDiscount ? Math.round((1 - price / comparePrice!) * 100) : null
+
+  // ponytail: fetch category max price for anchoring context on non-discounted items
+  const categoryMaxPrice = !hasDiscount && product.category
+    ? await cacheForTenant(
+        async () => {
+          const { _max } = await (await import('@/lib/prisma')).withTenant(tenantId, (db) =>
+            db.product.aggregate({ where: { tenantId, categoryId: product.category!.id, isActive: true }, _max: { price: true } })
+          )
+          return _max.price ? Number(_max.price) : null
+        },
+        ['cat-max-price', tenantId, product.category.id],
+        tenantId,
+        3600
+      )
+    : null
 
   const freeDeliveryText =
     tenant.freeDeliveryAbove && price >= tenant.freeDeliveryAbove
@@ -96,7 +113,7 @@ export default async function ProductPage({ params }: Props) {
             </div>
           )}
 
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
             <span className="font-body text-3xl font-bold text-fg">
               {formatCurrency(price)}
             </span>
@@ -106,9 +123,17 @@ export default async function ProductPage({ params }: Props) {
                   {formatCurrency(comparePrice!)}
                 </span>
                 <span className="rounded-full bg-danger px-2.5 py-1 font-body text-xs font-bold text-surface">
+                  {discountPct}% OFF
+                </span>
+                <span className="rounded-full bg-success/10 px-2.5 py-1 font-body text-xs font-semibold text-success">
                   Save {formatCurrency(savedAmount!)}
                 </span>
               </>
+            )}
+            {!hasDiscount && categoryMaxPrice && categoryMaxPrice > price && (
+              <span className="font-body text-sm text-muted-warm">
+                Others in this category up to {formatCurrency(categoryMaxPrice)}
+              </span>
             )}
           </div>
 
@@ -160,6 +185,12 @@ export default async function ProductPage({ params }: Props) {
           <div className="space-y-3 border-t border-border pt-5">
             <p className="font-body text-sm font-semibold text-fg">Product Specifications</p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-0 font-body text-sm">
+              {(product.specifications as { label: string; value: string }[]).map((spec, i) => (
+                <Fragment key={i}>
+                  <dt className="text-muted-warm py-2 even:bg-bg px-2 -mx-2">{spec.label}</dt>
+                  <dd className="text-fg py-2 even:bg-bg px-2 -mx-2">{spec.value}</dd>
+                </Fragment>
+              ))}
               {product.category && (
                 <>
                   <dt className="text-muted-warm py-2 even:bg-bg px-2 -mx-2">Category</dt>
