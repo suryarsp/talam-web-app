@@ -8,6 +8,18 @@ import { ORDER_STATUS_LABEL, timelineFor } from '@/lib/order-status'
 import type { OrderStatus } from '@prisma/client'
 import { BuyAgainButton } from '../buy-again-button'
 import { CopyButton } from './copy-button'
+import { ReportProblemButton } from './report-problem-button'
+
+const DISPUTE_ELIGIBLE_PROVIDERS = new Set(['upi_manual', 'cod'])
+const DISPUTE_ELIGIBLE_AFTER_MS = 3 * 24 * 60 * 60 * 1000
+
+function canReportOrderProblem(order: { status: string; paymentProvider: string | null; createdAt: Date }): boolean {
+  return (
+    order.status === 'pending' &&
+    Boolean(order.paymentProvider && DISPUTE_ELIGIBLE_PROVIDERS.has(order.paymentProvider)) &&
+    Date.now() - order.createdAt.getTime() >= DISPUTE_ELIGIBLE_AFTER_MS
+  )
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +46,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const { steps, currentIndex } = timelineFor(order.status)
   const isTerminalBad = order.status === 'cancelled' || order.status === 'returned'
+
+  const canReportProblem = canReportOrderProblem(order)
 
   return (
     <main className="mx-auto max-w-3xl overflow-x-hidden px-3 py-4 sm:px-8 sm:py-10">
@@ -158,6 +172,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <CopyButton value={order.trackingId} />
           </div>
         </div>
+      )}
+
+      {(canReportProblem || order.disputeFlaggedAt) && (
+        <ReportProblemButton orderId={order.id} alreadyFlagged={Boolean(order.disputeFlaggedAt)} />
       )}
 
       <div className="flex flex-wrap gap-2">

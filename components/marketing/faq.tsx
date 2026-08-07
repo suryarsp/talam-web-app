@@ -15,6 +15,8 @@ const FAQS = [
   { q: 'How does shipping work?', a: 'Shiprocket is built in. Generate a shipping label in one click per order. Customers get a WhatsApp tracking link automatically.' },
   { q: 'Is there a free trial?', a: '14 days, full access, no credit card. Walk away with nothing owed if it\'s not for you.' },
   { q: 'Can I switch plans later?', a: 'Anytime. Upgrade or downgrade from your dashboard — change applies next billing cycle.' },
+  { q: 'Do I need anything special to accept payments?', a: 'No. We support small businesses that don\'t need a license at all — you can accept UPI payments directly with zero fees, no setup required.' },
+  { q: 'How do I know a manual UPI payment is real?', a: 'When a customer pays by UPI, they enter the reference number (UTR) from their payment, and it shows up right on the order. Before marking an order as paid, just check that UTR against your own UPI app or bank SMS — a quick human check, not automatic, but it takes seconds.' },
 ]
 
 function FaqItem({ q, a, index }: { q: string; a: string; index: number }) {

@@ -183,6 +183,23 @@ describe('placeOrderAction', () => {
     )
   })
 
+  it('creates a Pay on Delivery order with no UTR and no UTR validation', async () => {
+    seedHappyPath({ price: 1000, stock: 10 })
+
+    const result = await placeOrderAction({ ...input, paymentProvider: 'cod', utr: undefined })
+    expect(result).toEqual({ orderId: 'order-1' })
+
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentProvider: 'cod',
+          paymentStatus: 'pending',
+          paymentId: null,
+        }),
+      })
+    )
+  })
+
   it('rejects a UPI order without a 12-digit reference number', async () => {
     seedHappyPath()
     expect(await placeOrderAction({ ...input, utr: '12345' })).toEqual({

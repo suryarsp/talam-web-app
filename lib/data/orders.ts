@@ -1,5 +1,5 @@
 import { withTenant } from '@/lib/prisma'
-import type { OrderStatus } from '@prisma/client'
+import type { OrderStatus, PaymentStatus } from '@prisma/client'
 
 export type { OrderStatus }
 
@@ -24,6 +24,9 @@ export type AdminOrder = {
   itemCount: number
   total: number
   status: OrderStatus
+  paymentProvider: string | null
+  paymentStatus: PaymentStatus
+  paymentId: string | null
   trackingId: string | null
   createdAt: Date
   address: AdminOrderAddress
@@ -63,6 +66,9 @@ export async function listOrdersForAdmin(tenantId: string): Promise<AdminOrder[]
       itemCount: count,
       total: Number(order.total),
       status: order.status,
+      paymentProvider: order.paymentProvider,
+      paymentStatus: order.paymentStatus,
+      paymentId: order.paymentId,
       trackingId: order.trackingId,
       createdAt: order.createdAt,
       address: (order.shippingAddress ?? {}) as AdminOrderAddress,

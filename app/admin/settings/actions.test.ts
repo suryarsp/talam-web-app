@@ -168,20 +168,20 @@ describe('createPromotionAction', () => {
 
 describe('updatePaymentsSettingsAction', () => {
   it('requires UPI ID when UPI is enabled', async () => {
-    const config = { upi: { enabled: true, upiId: '' }, instamojo: { enabled: false }, razorpay: { enabled: false } }
+    const config = { upi: { enabled: true, upiId: '' }, instamojo: { enabled: false }, razorpay: { enabled: false }, cod: { enabled: false } }
     expect(await updatePaymentsSettingsAction(config)).toEqual({ error: 'UPI ID is required when UPI is enabled.' })
   })
 
   it('blocks when pending orders exist', async () => {
     mockOrderCount.mockResolvedValue(2)
-    const config = { upi: { enabled: true, upiId: 'me@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false } }
+    const config = { upi: { enabled: true, upiId: 'me@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false }, cod: { enabled: false } }
     expect(await updatePaymentsSettingsAction(config)).toEqual({ error: 'Finish or cancel pending orders before changing payment settings.' })
   })
 
   it('saves when no pending orders', async () => {
     mockOrderCount.mockResolvedValue(0)
     mockTenantUpdate.mockResolvedValue({})
-    const config = { upi: { enabled: true, upiId: 'me@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false } }
+    const config = { upi: { enabled: true, upiId: 'me@bank' }, instamojo: { enabled: false }, razorpay: { enabled: false }, cod: { enabled: false } }
     expect(await updatePaymentsSettingsAction(config)).toEqual({})
   })
 })

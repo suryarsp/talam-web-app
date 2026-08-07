@@ -8,7 +8,7 @@ import { CheckoutClient } from './checkout-client'
 
 export const dynamic = 'force-dynamic'
 
-export type EnabledPaymentMethods = { upi: boolean; instamojo: boolean; razorpay: boolean }
+export type EnabledPaymentMethods = { upi: boolean; instamojo: boolean; razorpay: boolean; cod: boolean }
 
 export default async function CheckoutPage() {
   const tenantId = await getRequestTenantId()
@@ -35,6 +35,7 @@ export default async function CheckoutPage() {
     upi: Boolean(config.upi.enabled && config.upi.upiId),
     instamojo: Boolean(config.instamojo.enabled),
     razorpay: Boolean(config.razorpay.enabled),
+    cod: Boolean(config.cod.enabled),
   }
 
   // Fetch customer name so checkout can pre-fill the address form

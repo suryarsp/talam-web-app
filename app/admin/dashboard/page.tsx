@@ -5,6 +5,7 @@ import { ChevronRight, Clock, Package, ClipboardList, AlertTriangle, Rocket } fr
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { StatCard } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
+import { OnboardingStepper } from '@/components/admin/onboarding-stepper'
 import { getTenantLiveStateAction, getDashboardDataAction } from './actions'
 import type { DashboardData, DashboardStat } from '@/lib/data/dashboard'
 
@@ -56,6 +57,8 @@ export default function AdminDashboardPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-warm">Last 7 days</p>
       </div>
+
+      <OnboardingStepper />
 
       {/* ── Desktop: two-column top section (stats+chart LEFT, alerts RIGHT) ── */}
       {/* ── Mobile: alerts first, then stats, then chart ── */}

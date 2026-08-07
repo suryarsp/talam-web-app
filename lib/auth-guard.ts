@@ -50,3 +50,22 @@ export const requireTenant = cache(async function requireTenant() {
 
   return { tenantId, subdomain, tier }
 })
+
+// Ops-only allow-list, not a role column — a handful of Talam staff, not worth a schema table.
+export const requireSuperAdmin = cache(async function requireSuperAdmin() {
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const allowList = (process.env.SUPER_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (!user?.email || !allowList.includes(user.email.toLowerCase())) {
+    redirect('/not-found')
+  }
+
+  return user
+})

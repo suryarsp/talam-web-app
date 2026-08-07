@@ -23,7 +23,7 @@ import {
 
 export type CartLine = { productId: string; size?: string | null; quantity: number }
 
-export type PaymentProvider = 'upi_manual' | 'razorpay'
+export type PaymentProvider = 'upi_manual' | 'razorpay' | 'cod'
 
 /**
  * Everything below re-reads prices, stock and coupons from the database. The client

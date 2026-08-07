@@ -17,12 +17,14 @@ export type PaymentGatewayConfig = {
   upi: { enabled: boolean; upiId: string }
   instamojo: { enabled: boolean }
   razorpay: { enabled: boolean; accountId?: string; status?: RazorpayStatus; updatedAt?: string }
+  cod: { enabled: boolean }
 }
 
 export const DEFAULT_PAYMENT_CONFIG: PaymentGatewayConfig = {
   upi: { enabled: true, upiId: '' },
   instamojo: { enabled: false },
   razorpay: { enabled: false },
+  cod: { enabled: false },
 }
 
 /**
@@ -50,6 +52,7 @@ export function normalizePaymentConfig(raw: unknown): PaymentGatewayConfig {
     upi: { ...DEFAULT_PAYMENT_CONFIG.upi, ...s.upi },
     instamojo: { ...DEFAULT_PAYMENT_CONFIG.instamojo, ...s.instamojo },
     razorpay: { ...DEFAULT_PAYMENT_CONFIG.razorpay, ...s.razorpay },
+    cod: { ...DEFAULT_PAYMENT_CONFIG.cod, ...s.cod },
   }
 }
 

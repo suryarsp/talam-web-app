@@ -28,6 +28,7 @@ export type CustomerOrder = {
   total: number
   trackingId: string | null
   createdAt: Date
+  disputeFlaggedAt: Date | null
   address: AdminOrderAddress
   items: CustomerOrderItem[]
 }
@@ -63,6 +64,7 @@ type OrderRow = {
   total: unknown
   trackingId: string | null
   createdAt: Date
+  disputeFlaggedAt: Date | null
   shippingAddress: unknown
   items: {
     id: string
@@ -89,6 +91,7 @@ function toCustomerOrder(order: OrderRow): CustomerOrder {
     total: Number(order.total),
     trackingId: order.trackingId,
     createdAt: order.createdAt,
+    disputeFlaggedAt: order.disputeFlaggedAt,
     address: (order.shippingAddress ?? {}) as AdminOrderAddress,
     items: order.items.map((item) => ({
       id: item.id,

@@ -243,7 +243,7 @@ export function Hero() {
 
             <BlurFade delay={0.15} inView>
               <h1 className="font-marketing font-semibold text-white text-[44px] sm:text-[56px] md:text-[72px] leading-[1.02] tracking-[-0.03em]">
-                Your own store
+                We set up your store
                 <br />
                 <span className="text-white/40">for{' '}</span>
                 <TypingAnimation
@@ -262,8 +262,8 @@ export function Hero() {
 
             <BlurFade delay={0.35} inView>
               <p className="mt-7 text-lg md:text-xl text-white/40 font-body leading-relaxed max-w-[520px]">
-                Stop selling through DMs. Launch a professional online store
-                for your textile business in 14 minutes — from your phone.
+                Payments, setup, everything in between — we handle it end-to-end.
+                You upload products, we do the rest.
               </p>
             </BlurFade>
 
@@ -295,7 +295,7 @@ export function Hero() {
                 {[
                   ['14 days', 'Free trial'],
                   ['₹0', 'Setup cost'],
-                  ['14 min', 'To go live'],
+                  ['0 hrs', 'Work for you'],
                 ].map(([val, label]) => (
                   <div key={label} className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-white/70 font-body">{val}</span>

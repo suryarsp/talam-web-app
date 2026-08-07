@@ -27,7 +27,22 @@ enum PaymentProvider {
   upi_manual
   instamojo
   razorpay
+  cod
   // phonepe — V2 only
+}
+
+enum OnboardingStage {
+  business_setup
+  license
+  razorpay
+  store_live
+}
+
+enum OnboardingStageStatus {
+  not_started
+  in_progress
+  blocked
+  done
 }
 
 enum PublishStatus {
@@ -87,6 +102,9 @@ model Tenant {
   returnWindowDays     Int?            @map("return_window_days")
   trustBadgeText       String?         @map("trust_badge_text")
   sizeGuideUrl         String?         @map("size_guide_url")
+  onboardingStage       OnboardingStage?       @default(business_setup) @map("onboarding_stage")
+  onboardingStageStatus OnboardingStageStatus? @default(not_started) @map("onboarding_stage_status")
+  suspendedAt          DateTime?       @map("suspended_at")
   deletedAt            DateTime?       @map("deleted_at") @db.Timestamptz
   createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz
 
@@ -236,6 +254,8 @@ model Order {
   paymentStatus   PaymentStatus @default(pending) @map("payment_status")
   shippingAddress Json          @map("shipping_address")
   trackingId      String?       @map("tracking_id")
+  disputeFlaggedAt DateTime?    @map("dispute_flagged_at")
+  disputeReason   String?       @map("dispute_reason")
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
   tenant   Tenant      @relation(fields: [tenantId], references: [id])

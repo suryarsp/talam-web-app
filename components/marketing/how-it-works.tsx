@@ -8,22 +8,22 @@ import { BorderBeam } from '@/components/ui/border-beam'
 const STEPS = [
   {
     n: '01',
-    title: 'Name your store',
-    desc: 'Pick a name, choose colours, upload your logo. Takes 2 minutes.',
+    title: 'Tell us about your business',
+    desc: 'Share your store name, products, and a few basic details. That\'s all we need from you.',
     accent: '#c1502e',
     accentGlow: 'shadow-[0_0_60px_-15px_rgba(193,80,46,0.3)]',
   },
   {
     n: '02',
-    title: 'Add your products',
-    desc: 'Photos from your phone, price, fabric details. Each product takes 30 seconds.',
+    title: 'We set everything up',
+    desc: 'Our team gets your payments connected and your store built — branding, products, the works.',
     accent: '#f59e0b',
     accentGlow: 'shadow-[0_0_60px_-15px_rgba(245,158,11,0.3)]',
   },
   {
     n: '03',
-    title: 'Share your link',
-    desc: 'Drop your store link on Instagram, WhatsApp, Google Business. You\'re live.',
+    title: 'Your store goes live',
+    desc: 'We hand you the keys to a store that\'s ready to take orders. You just sell.',
     accent: '#10b981',
     accentGlow: 'shadow-[0_0_60px_-15px_rgba(16,185,129,0.3)]',
   },
@@ -36,11 +36,11 @@ export function HowItWorks() {
         <BlurFade delay={0.1} inView>
           <p className="text-xs uppercase tracking-[0.25em] text-amber font-body font-medium text-center mb-4">How it works</p>
           <h2 className="font-marketing font-semibold text-white text-[34px] md:text-[52px] leading-[1.08] tracking-[-0.02em] text-center max-w-[600px] mx-auto">
-            Live in{' '}
+            We do the{' '}
             <LineShadowText shadowColor="rgba(245, 158, 11, 0.5)" className="text-amber">
-              14 minutes
+              heavy lifting
             </LineShadowText>
-            . Not a typo.
+            . You just sell.
           </h2>
         </BlurFade>
 

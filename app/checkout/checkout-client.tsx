@@ -156,7 +156,7 @@ export function CheckoutClient({
   const savedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null
 
   // ── Payment ──
-  const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : 'razorpay'
+  const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : methods.razorpay ? 'razorpay' : 'cod'
   const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>(firstMethod)
   const [utr, setUtr] = useState('')
   const [placing, setPlacing] = useState(false)
@@ -517,7 +517,17 @@ export function CheckoutClient({
                     </div>
                   )}
 
-                  {!methods.upi && !methods.razorpay && (
+                  {methods.cod && (
+                    <PaymentTile
+                      selected={paymentMethod === 'cod'}
+                      onSelect={() => setPaymentMethod('cod')}
+                      badge="COD"
+                      title="Pay on Delivery"
+                      subtitle="Pay in cash or UPI when your order arrives"
+                    />
+                  )}
+
+                  {!methods.upi && !methods.razorpay && !methods.cod && (
                     <p className="rounded-[10px] border border-border bg-surface p-4 font-body text-sm text-muted-warm">
                       This store hasn&apos;t finished setting up payments yet.
                     </p>
@@ -528,13 +538,13 @@ export function CheckoutClient({
                   <p className="mt-3 font-body text-sm text-danger">{placeError || upiError}</p>
                 )}
 
-                {paymentMethod === 'razorpay' && methods.razorpay && (
+                {((paymentMethod === 'razorpay' && methods.razorpay) || (paymentMethod === 'cod' && methods.cod)) && (
                   <Button
                     onClick={handlePlaceOrder}
                     disabled={placing}
                     className="mt-4 h-12 w-full rounded-[10px] bg-store-primary font-body text-[16px] font-bold text-surface hover:bg-store-primary/90 disabled:opacity-50"
                   >
-                    Pay ₹{total.toLocaleString('en-IN')}
+                    {paymentMethod === 'cod' ? 'Place Order' : `Pay ₹${total.toLocaleString('en-IN')}`}
                   </Button>
                 )}
               </>
@@ -620,7 +630,7 @@ function PaymentTile({
   badge: string
   title: string
   subtitle: string
-  children: React.ReactNode
+  children?: React.ReactNode
 }) {
   return (
     <div className={`rounded-[10px] border-[1.5px] p-4 ${selected ? 'border-store-primary' : 'border-border'}`}>

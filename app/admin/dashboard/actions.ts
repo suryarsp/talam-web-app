@@ -2,10 +2,12 @@
 
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import type { OnboardingStage, OnboardingStageStatus } from '@prisma/client'
 import { requireOwnerSession, requireOwnerTenant } from '@/lib/admin-guard'
 import { prisma } from '@/lib/prisma'
 import { getStoreUrl } from '@/lib/tenant-url'
 import { getMissingStoreConfig, type MissingConfigItem } from '@/lib/data/tenant'
+import { normalizePaymentConfig, type RazorpayStatus } from '@/lib/payments/config'
 import { sendStoreLiveEmail } from '@/lib/resend'
 import { getDashboardData, type DashboardData } from '@/lib/data/dashboard'
 
@@ -57,4 +59,52 @@ export async function goLiveAction(): Promise<{ error?: string }> {
 export async function markSetupTourSeenAction(): Promise<void> {
   const { tenantId } = await requireOwnerTenant()
   await prisma.tenant.update({ where: { id: tenantId }, data: { hasSeenSetupTour: true } })
+}
+
+// ── Onboarding stepper ──
+// The 4 tenant-facing onboarding stages, in order. `razorpay` is a special case: its status
+// comes from paymentConfig.razorpay.status (set by the Razorpay onboarding flow), not from
+// onboardingStageStatus, since that stage's progress lives entirely in Razorpay's own state.
+const ONBOARDING_STAGES: OnboardingStage[] = ['business_setup', 'license', 'razorpay', 'store_live']
+
+const STAGE_LABEL: Record<OnboardingStage, string> = {
+  business_setup: 'Business Setup',
+  license: 'License',
+  razorpay: 'Razorpay',
+  store_live: 'Store Live',
+}
+
+export type OnboardingStepInfo = { stage: OnboardingStage; label: string; status: OnboardingStageStatus }
+
+function razorpayStepStatus(status: RazorpayStatus | undefined): OnboardingStageStatus {
+  if (status === 'activated') return 'done'
+  if (status === 'pending' || status === 'needs_clarification') return 'in_progress'
+  if (status === 'rejected') return 'blocked'
+  return 'not_started'
+}
+
+function otherStepStatus(stage: OnboardingStage, currentStage: OnboardingStage, currentStatus: OnboardingStageStatus): OnboardingStageStatus {
+  const stageIdx = ONBOARDING_STAGES.indexOf(stage)
+  const currentIdx = ONBOARDING_STAGES.indexOf(currentStage)
+  if (stageIdx < currentIdx) return 'done'
+  if (stageIdx === currentIdx) return currentStatus
+  return 'not_started'
+}
+
+export async function getOnboardingStepperAction(): Promise<OnboardingStepInfo[]> {
+  const { tenantId } = await requireOwnerTenant()
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { onboardingStage: true, onboardingStageStatus: true, paymentConfig: true },
+  })
+
+  const currentStage = tenant?.onboardingStage ?? 'business_setup'
+  const currentStatus = tenant?.onboardingStageStatus ?? 'not_started'
+  const razorpayStatus = normalizePaymentConfig(tenant?.paymentConfig).razorpay.status
+
+  return ONBOARDING_STAGES.map((stage) => ({
+    stage,
+    label: STAGE_LABEL[stage],
+    status: stage === 'razorpay' ? razorpayStepStatus(razorpayStatus) : otherStepStatus(stage, currentStage, currentStatus),
+  }))
 }

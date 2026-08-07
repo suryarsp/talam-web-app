@@ -1240,6 +1240,19 @@ function PaymentsTab() {
         <div className="rounded-lg border border-border p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-[#1A1040] text-[9px] font-bold text-amber">COD</span>
+              <div>
+                <p className="text-md font-semibold text-fg">Pay on Delivery</p>
+                <p className="text-xs text-muted-warm">0% fee · Customer pays the courier on arrival</p>
+              </div>
+            </div>
+            <Toggle checked={config.cod.enabled} onChange={(v) => !locked && save({ ...config, cod: { enabled: v } })} />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-[#072654] text-[9px] font-bold text-surface">RZRPAY</span>
               <div>
                 <p className="text-md font-semibold text-fg">Razorpay</p>

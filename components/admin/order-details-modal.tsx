@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Check, ArrowDown, Package, XCircle } from 'lucide-react'
 
 import type { AdminOrder } from '@/lib/data/orders'
-import { updateOrderStatusAction } from '@/app/admin/orders/actions'
+import { updateOrderStatusAction, markOrderPaidAction } from '@/app/admin/orders/actions'
 
 type Order = AdminOrder
 
@@ -79,6 +79,9 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
   const [confirmKey, setConfirmKey] = useState<ActionKey | null>(null)
   const [trackingId, setTrackingId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [markingPaid, setMarkingPaid] = useState(false)
+  const [markPaidError, setMarkPaidError] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -99,6 +102,19 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
     setTrackingId('')
   }
 
+  async function markPaid() {
+    setMarkingPaid(true)
+    setMarkPaidError('')
+    const result = await markOrderPaidAction(order.id)
+    setMarkingPaid(false)
+    if (result.error) {
+      setMarkPaidError(result.error)
+      return
+    }
+    setPaymentStatus('paid')
+  }
+
+  const canMarkPaid = (order.paymentProvider === 'upi_manual' || order.paymentProvider === 'cod') && paymentStatus === 'pending'
   const sc = STATUS_COLOR[order.status] ?? STATUS_COLOR.pending
   const timeline = getTimeline(order.status)
   const address = order.address
@@ -163,6 +179,40 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
                 <p className="text-2xs text-muted-warm">Order Total</p>
                 <p className="text-sm font-bold text-fg">₹{order.total.toLocaleString('en-IN')}</p>
               </div>
+            </div>
+          </div>
+
+          {/* Payment */}
+          <div className="mb-6">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-fg">Payment</p>
+            <div className="rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xs text-muted-warm">Method</p>
+                  <p className="text-sm font-semibold text-fg">
+                    {order.paymentProvider === 'upi_manual' ? 'UPI' : order.paymentProvider === 'cod' ? 'Pay on Delivery' : 'Razorpay'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xs text-muted-warm">Status</p>
+                  <p className={`text-sm font-semibold ${paymentStatus === 'paid' ? 'text-success' : 'text-fg'}`}>
+                    {paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                  </p>
+                </div>
+              </div>
+              {order.paymentProvider === 'upi_manual' && order.paymentId && (
+                <p className="mt-2 text-xs text-muted-warm">UTR entered by customer: <span className="font-mono font-semibold text-fg">{order.paymentId}</span> — cross-check this against your UPI app before confirming.</p>
+              )}
+              {canMarkPaid && (
+                <button
+                  onClick={() => void markPaid()}
+                  disabled={markingPaid}
+                  className="mt-3 w-full cursor-pointer rounded-lg bg-brand-primary p-2.5 text-sm font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-50"
+                >
+                  {markingPaid ? 'Marking Paid…' : 'Mark Paid'}
+                </button>
+              )}
+              {markPaidError && <p className="mt-2 text-xs text-danger">{markPaidError}</p>}
             </div>
           </div>
 
