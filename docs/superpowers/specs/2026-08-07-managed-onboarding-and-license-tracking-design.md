@@ -118,6 +118,47 @@ tenant admin dashboard, sourced from the same two fields plus
 page load, consistent with how the existing Payments tab already shows
 Razorpay status.
 
+### Super-admin access control (new — currently missing entirely)
+
+`proxy.ts` already routes `admin.<ROOT_DOMAIN>` (and `/dev/super-admin`
+locally) to `app/super-admin/`, but `app/super-admin/layout.tsx` is an
+unguarded pass-through — any authenticated user, tenant owner or
+customer, can currently reach it. There is also no role/permission
+column anywhere in the schema. This design adds the minimum needed:
+
+- A `SUPER_ADMIN_EMAILS` env var (comma-separated allow-list) — no new
+  table needed for what's a handful of ops staff.
+- A `requireSuperAdmin()` guard in `lib/auth-guard.ts`, following the
+  existing `requireAuth`/`requireTenant` `cache()` pattern, called at the
+  top of `app/super-admin/layout.tsx`.
+
+### Cross-tenant data access (new pattern, not `withTenant`)
+
+The tenant list and flagged-orders queue are inherently cross-tenant —
+`withTenant(tenantId, …)` structurally can't serve them, since it scopes
+every query to exactly one tenant via `set_config('app.tenant_id', …)`.
+
+Per the existing architecture audit (`docs/2026-07-28-architecture-audit.md`,
+finding A1), the RLS policies behind that scoping are **currently inert**
+— the app connects as `postgres`, which has `BYPASSRLS`, so a plain
+cross-tenant `prisma` query already works today regardless. But that's an
+accident of the current connection role, not a sanctioned bypass. To
+avoid becoming a silent breakage if A1 is ever fixed (switching to a
+non-bypass role), super-admin data access goes through one explicit,
+named function — `withSuperAdmin` in `lib/prisma.ts`, a thin wrapper
+around the bare `prisma` client with a comment documenting that it is an
+intentional, audited cross-tenant escape hatch — rather than scattering
+bare `prisma` calls ad hoc (which `lib/data/tenant.ts` already does in a
+few legitimate single-tenant-lookup cases per audit finding A12, but
+that pattern doesn't fit a query spanning *all* tenants).
+
+### Migration
+
+New fields land on `tenants` and `orders`, both of which already carry
+RLS policies per the audit — no new policy needed, just a standard
+migration through the session-mode pooler (per prior project notes: port
+5432, never `migrate reset` due to pre-existing schema drift).
+
 ## 3. Pay-on-Delivery (manual, pre-Shiprocket)
 
 - `PaymentProvider` enum (`prisma/schema.prisma:26`) gains `cod`.
@@ -190,6 +231,9 @@ reachable so the owner can still see and resolve orders while suspended.
 
 ## Testing
 
+- Unit: `requireSuperAdmin` rejects non-allow-listed users; `withSuperAdmin`
+  is exercised only from `app/super-admin/` code paths (no other module
+  imports it, checked by convention/review, not tooling).
 - Unit: `onboardingStage` auto-advance to `store_live` on Razorpay
   webhook activation.
 - Unit: `markOrderPaidAction` (upi_manual and cod paths, rejects when
