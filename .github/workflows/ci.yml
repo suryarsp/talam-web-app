@@ -10,9 +10,13 @@ env:
   SKIP_ENV_VALIDATION: '1'
 
 jobs:
-  lint-typecheck-unit:
-    name: Lint · Typecheck · Unit Tests
+  lint-typecheck-build-test:
+    name: Lint · Typecheck · Build · Unit Tests
     runs-on: ubuntu-latest
+    env:
+      RESEND_API_KEY: re_ci_dummy_key
+      NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,14 +24,15 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx tsc --noEmit
       - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
       - run: npx vitest run --reporter=github-actions
 
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    needs: lint-typecheck-unit
+    needs: lint-typecheck-build-test
     services:
       postgres:
         image: postgres:16
