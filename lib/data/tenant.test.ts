@@ -26,7 +26,7 @@ function mockTenant(overrides: Record<string, unknown>) {
     },
     product: { count: vi.fn().mockResolvedValue(3) },
   }
-  vi.mocked(withTenant).mockImplementation((_tenantId, fn) => Promise.resolve(fn(db)))
+  vi.mocked(withTenant).mockImplementation((_tenantId, fn) => Promise.resolve(fn(db as never)))
   return db
 }
 

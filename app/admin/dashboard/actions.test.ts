@@ -32,7 +32,14 @@ vi.mock('@/lib/tenant-url', () => ({ getStoreUrl: (slug: string, local: boolean)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Map([['host', 'localhost:3000']])) }))
 
-import { getDashboardDataAction, getLiveStoreUrl, getTenantLiveStateAction, goLiveAction, markSetupTourSeenAction } from './actions'
+import {
+  getDashboardDataAction,
+  getLiveStoreUrl,
+  getOnboardingStepperAction,
+  getTenantLiveStateAction,
+  goLiveAction,
+  markSetupTourSeenAction,
+} from './actions'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -88,6 +95,51 @@ describe('goLiveAction', () => {
     mockTenantUpdate.mockResolvedValue({ name: 'Silk', slug: 'silk', contactEmail: null })
     await goLiveAction()
     expect(mockSendStoreLiveEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe('getOnboardingStepperAction', () => {
+  it('defaults every stage to not_started for a brand-new tenant', async () => {
+    mockTenantFindUnique.mockResolvedValue(null)
+    const steps = await getOnboardingStepperAction()
+    expect(steps).toEqual([
+      { stage: 'business_setup', label: 'Business Setup', status: 'not_started' },
+      { stage: 'license', label: 'License', status: 'not_started' },
+      { stage: 'razorpay', label: 'Razorpay', status: 'not_started' },
+      { stage: 'store_live', label: 'Store Live', status: 'not_started' },
+    ])
+  })
+
+  it('marks stages before the current one done and the current one in_progress', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      onboardingStage: 'license',
+      onboardingStageStatus: 'in_progress',
+      paymentConfig: null,
+    })
+    const steps = await getOnboardingStepperAction()
+    expect(steps.find((s) => s.stage === 'business_setup')?.status).toBe('done')
+    expect(steps.find((s) => s.stage === 'license')?.status).toBe('in_progress')
+    expect(steps.find((s) => s.stage === 'store_live')?.status).toBe('not_started')
+  })
+
+  it("derives the razorpay stage from paymentConfig.razorpay.status, not onboardingStage", async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      onboardingStage: 'business_setup',
+      onboardingStageStatus: 'not_started',
+      paymentConfig: { razorpay: { enabled: true, accountId: 'acc_1', status: 'activated' } },
+    })
+    const steps = await getOnboardingStepperAction()
+    expect(steps.find((s) => s.stage === 'razorpay')?.status).toBe('done')
+  })
+
+  it('maps a rejected razorpay status to blocked', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      onboardingStage: 'business_setup',
+      onboardingStageStatus: 'not_started',
+      paymentConfig: { razorpay: { enabled: true, accountId: 'acc_1', status: 'rejected' } },
+    })
+    const steps = await getOnboardingStepperAction()
+    expect(steps.find((s) => s.stage === 'razorpay')?.status).toBe('blocked')
   })
 })
 

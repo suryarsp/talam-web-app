@@ -25,6 +25,24 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // Vendored animation components (magicui-style, copy-pasted not authored): their
+    // ref-during-render and setState-in-effect patterns are intentional perf/init idioms
+    // that predate reactCompiler's stricter hook rules. Rewriting risks visual regressions
+    // for no behavior change, so the rules are scoped off here instead of per-line disabled.
+    files: [
+      "components/ui/carousel.tsx",
+      "components/ui/dot-pattern.tsx",
+      "components/ui/magic-card.tsx",
+      "components/ui/particles.tsx",
+      "components/ui/typing-animation.tsx",
+    ],
+    rules: {
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

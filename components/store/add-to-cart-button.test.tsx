@@ -25,12 +25,12 @@ describe('AddToCartButton', () => {
     const user = userEvent.setup()
     render(<AddToCartButton product={baseProduct} stockBySize={{}} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add to Cart' }))
+    await user.click(screen.getAllByRole('button', { name: 'Add to Cart' })[0])
 
     expect(useCartStore.getState().items).toEqual([
       expect.objectContaining({ productId: 'p1', name: 'Cotton Kurta', quantity: 1, fabric: 'Cotton' }),
     ])
-    expect(await screen.findByRole('button', { name: 'Added to Cart ✓' })).toBeInTheDocument()
+    expect((await screen.findAllByRole('button', { name: 'Added to Cart ✓' }))[0]).toBeInTheDocument()
   })
 
   it('blocks adding to cart when a size is required but not selected', async () => {
@@ -38,7 +38,7 @@ describe('AddToCartButton', () => {
     const product = { ...baseProduct, sizes: ['S', 'M'] }
     render(<AddToCartButton product={product} stockBySize={{ S: 5, M: 5 }} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add to Cart' }))
+    await user.click(screen.getAllByRole('button', { name: 'Add to Cart' })[0])
 
     expect(await screen.findByText('Please select a size')).toBeInTheDocument()
     expect(useCartStore.getState().items).toEqual([])
@@ -50,7 +50,7 @@ describe('AddToCartButton', () => {
     render(<AddToCartButton product={product} stockBySize={{ S: 5, M: 5 }} />)
 
     await user.click(screen.getByRole('button', { name: 'M' }))
-    await user.click(screen.getByRole('button', { name: 'Add to Cart' }))
+    await user.click(screen.getAllByRole('button', { name: 'Add to Cart' })[0])
 
     expect(useCartStore.getState().items).toEqual([
       expect.objectContaining({ productId: 'p1', size: 'M', quantity: 1 }),

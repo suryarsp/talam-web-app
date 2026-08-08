@@ -72,8 +72,8 @@ export function AdminNavShell({ children, user }: { children: React.ReactNode; u
   // Server has no access to localStorage, so the sidebar always renders expanded on first
   // paint and flips to the persisted state right after mount — matches the SSR HTML, then
   // applies the user's preference a frame later instead of causing a hydration mismatch.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
   }, [])
 

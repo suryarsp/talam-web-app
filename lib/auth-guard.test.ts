@@ -26,6 +26,12 @@ vi.mock('next/headers', () => ({
 
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 
+vi.mock('@/lib/prisma', () => ({
+  withTenant: vi.fn((_tenantId: string, fn: (db: unknown) => unknown) =>
+    fn({ customer: { upsert: vi.fn() } })
+  ),
+}))
+
 import { requireTenant, requireAuth } from './auth-guard'
 
 describe('requireTenant', () => {

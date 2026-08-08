@@ -30,7 +30,7 @@ export function CtaBand() {
 
         <BlurFade delay={0.4} inView>
           <p className="mt-6 text-lg text-white/35 font-body max-w-[480px] mx-auto">
-            Join hundreds of textile retailers across India who've moved their business online with Talam.
+            Join hundreds of textile retailers across India who&apos;ve moved their business online with Talam.
           </p>
         </BlurFade>
 

@@ -33,6 +33,7 @@ const PAYMENT_LABEL: Record<Order['paymentMethod'], string> = {
 export default function OrderConfirmedPage() {
   const router = useRouter()
   const [order, setOrder] = useState<Order | null>(null)
+  const [estimatedDelivery, setEstimatedDelivery] = useState('')
 
   useEffect(() => {
     const raw = sessionStorage.getItem('talam-last-order')
@@ -40,12 +41,12 @@ export default function OrderConfirmedPage() {
       router.replace('/')
       return
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrder(JSON.parse(raw))
+    setEstimatedDelivery(new Date(Date.now() + 4 * 86400_000).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }))
   }, [router])
 
   if (!order) return null
-
-  const estimatedDelivery = new Date(Date.now() + 4 * 86400_000).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 
   return (
     <div className="min-h-screen bg-bg pb-10">
