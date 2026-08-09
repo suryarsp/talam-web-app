@@ -30,6 +30,13 @@
   --color-bg-dark: #1a1a1a;
   --color-border-light: #f0f0f0;
   --color-store-primary: #e8577e;
+  /* ponytail: derived from --color-store-primary via a single global mix ratio (~3% max
+     channel deviation from the 3 Claude-Design theme hexes) rather than a per-theme lookup
+     table — works for any tenant's custom accent too. See docs/superpowers/plans/2026-08-09-
+     storefront-theme-tokens.md for the exact-hex upgrade path if fidelity ever matters. */
+  --color-store-primary-ink: color-mix(in srgb, var(--color-store-primary) 72%, black);
+  --color-store-primary-soft: color-mix(in srgb, var(--color-store-primary) 10%, white);
+  --color-store-primary-tint: color-mix(in srgb, var(--color-store-primary) 4%, white);
   --color-amber: #f59e0b;
   --color-danger: #ef4444;
   --color-success: #10b981;
