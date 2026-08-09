@@ -53,7 +53,7 @@ export const STORE_TYPES = [
   'Other',
 ] as const
 
-export const BRAND_COLORS = ['#4F3FF0', '#EC4899', '#06B6D4', '#8B5CF6'] as const
+export { STORE_THEMES } from '@/lib/store-themes'
 
 export const PAYMENTS = [
   {
@@ -85,5 +85,5 @@ export const PAYMENTS = [
 // Common PSP handles shown as autocomplete chips once the merchant types "@" in the UPI field.
 export const UPI_HANDLES = ['@okhdfcbank', '@ybl', '@oksbi', '@paytm', '@okaxis', '@upi'] as const
 
-export type BrandColor = (typeof BRAND_COLORS)[number]
+export type { StoreThemeColor as BrandColor } from '@/lib/store-themes'
 export type PaymentId = (typeof PAYMENTS)[number]['id']
