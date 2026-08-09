@@ -65,3 +65,45 @@ export function timelineFor(status: OrderStatus): { steps: OrderStatus[]; curren
   if (status === 'returned') return { steps: ['delivered', 'returned'], currentIndex: 1 }
   return { steps: HAPPY_PATH, currentIndex: HAPPY_PATH.indexOf(status) }
 }
+
+/** One timestamp per status a step actually reached — 'pending' has no event row (it's implicit
+ *  at order creation), so callers should fall back to the order's createdAt for that step.
+ *  Orders placed before order_status_events existed have no rows for later steps either;
+ *  those steps just render without a timestamp rather than guessing one. */
+export function timestampsFor(events: { status: OrderStatus; changedAt: Date }[]): Partial<Record<OrderStatus, Date>> {
+  const map: Partial<Record<OrderStatus, Date>> = {}
+  for (const e of events) map[e.status] = e.changedAt
+  return map
+}
+
+/** Valid next statuses an order can move to from its current status. Single source of truth for
+ *  both the admin UI (which actions to show) and the server-side guard in updateOrderStatus. */
+const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['shipped', 'cancelled'],
+  shipped: ['delivered'],
+  delivered: [],
+  cancelled: [],
+  returned: [],
+}
+
+export function getAvailableActions(status: OrderStatus): OrderStatus[] {
+  return NEXT_STATUSES[status]
+}
+
+export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return NEXT_STATUSES[from].includes(to)
+}
+
+/** Default list — not exhaustive of every real-world reason, but common enough to cover most
+ *  cancellations; "Other" always lets the tenant type something specific. */
+export const CANCEL_REASONS = [
+  'Customer requested cancellation',
+  'Item out of stock',
+  'Payment not received',
+  'Duplicate order',
+  'Unable to deliver to address',
+  'Suspected fraudulent order',
+  'Pricing/listing error',
+  'Other',
+] as const

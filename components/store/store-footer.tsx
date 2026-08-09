@@ -176,14 +176,14 @@ export function StoreFooter({ tenant, categories }: Props) {
             <div className="mb-5 text-[10px] leading-3 font-bold tracking-[0.12em] text-white/30 uppercase">Shop</div>
             <div className="flex flex-col gap-[13px]">
               {categories.map((category) => (
-                <StoreLink key={category.id} href={`/?category=${category.slug}`} className="text-md/snug text-white/75">
+                <StoreLink key={category.id} href={`/category/${category.slug}`} className="text-md/snug text-white/75">
                   {category.name}
                 </StoreLink>
               ))}
               <StoreLink href="/" className="text-md/snug text-white/75">
                 New Arrivals
               </StoreLink>
-              <StoreLink href="/?category=sale" className="text-md/snug font-semibold text-store-primary">
+              <StoreLink href="/offers" className="text-md/snug font-semibold text-store-primary">
                 Sale Items
               </StoreLink>
             </div>

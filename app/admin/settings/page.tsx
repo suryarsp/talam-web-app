@@ -19,6 +19,12 @@ import {
   createPromotionAction,
   togglePromotionAction,
   deletePromotionAction,
+  getBannersAction,
+  getActiveProductsForBannerAction,
+  createBannerAction,
+  toggleBannerAction,
+  deleteBannerAction,
+  moveBannerAction,
   getSubscriptionAction,
   getPaymentsSettingsAction,
   updatePaymentsSettingsAction,
@@ -31,6 +37,7 @@ import {
   type NotificationPreferences,
   type PromotionItem,
   type CreatePromotionInput,
+  type BannerItem,
   type SubscriptionInfo,
   type PaymentGatewayConfig,
 } from './actions'
@@ -44,7 +51,7 @@ import type { SocialLink } from '@/lib/data/tenant'
 import { ContactInfoTab } from './contact-info-tab'
 import { Toggle, SectionLabel, useSavedFlash, isValidIndianMobile, isValidUpiId } from './settings-shared'
 
-const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Subscription', 'Payments', 'Contact Info'] as const
+const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Carousel', 'Subscription', 'Payments', 'Contact Info'] as const
 type Tab = (typeof TABS)[number] | 'Delete Store'
 
 const COLOR_PRESETS = ['#C1502E', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#0EA5E9']
@@ -1018,6 +1025,155 @@ function PromotionsTab() {
   )
 }
 
+function CreateBannerDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([])
+  const [productId, setProductId] = useState('')
+  const [headline, setHeadline] = useState('')
+  const [subtitle, setSubtitle] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open) getActiveProductsForBannerAction().then(setProducts)
+  }, [open])
+
+  function reset() {
+    setProductId('')
+    setHeadline('')
+    setSubtitle('')
+    setError('')
+  }
+
+  async function handleCreate() {
+    setSaving(true)
+    setError('')
+    const result = await createBannerAction({ productId, headline: headline || undefined, subtitle: subtitle || undefined })
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    reset()
+    onCreated()
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} position="center">
+      <div className="p-6">
+        <h2 className="font-marketing text-lg font-semibold text-fg">Feature a Product</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-semibold text-fg">Product</span>
+            <select
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              className="rounded-lg border border-border bg-surface px-3 py-[11px] text-md text-fg outline-none focus:border-brand-primary"
+            >
+              <option value="">Select a product</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+          <Input label="Headline (optional)" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Defaults to the product name" />
+          <Input label="Subtitle (optional)" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Defaults to the category" />
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" onClick={() => { reset(); onClose() }} className="rounded-lg px-4 py-2 font-body text-sm font-semibold text-muted-warm hover:bg-bg">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving || !productId}
+            onClick={handleCreate}
+            className="rounded-lg bg-brand-primary px-4 py-2 font-body text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {saving ? 'Adding…' : 'Add to Carousel'}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+function CarouselTab() {
+  const [banners, setBanners] = useState<BannerItem[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const reload = useCallback(() => {
+    getBannersAction().then((b) => {
+      setBanners(b)
+      setLoaded(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  async function handleToggle(id: string, active: boolean) {
+    setBanners((prev) => prev.map((b) => (b.id === id ? { ...b, isActive: active } : b)))
+    await toggleBannerAction(id, active)
+  }
+
+  async function handleDelete(id: string) {
+    setBanners((prev) => prev.filter((b) => b.id !== id))
+    await deleteBannerAction(id)
+  }
+
+  async function handleMove(id: string, direction: 'up' | 'down') {
+    await moveBannerAction(id, direction)
+    reload()
+  }
+
+  if (!loaded) return <p className="py-12 text-center text-sm text-muted-warm">Loading…</p>
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-warm">Homepage Carousel</p>
+          <button type="button" onClick={() => setDialogOpen(true)} className="rounded-lg border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary">
+            + Feature a Product
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-muted-warm">
+          Products featured here appear in the homepage hero. If none are active, the storefront shows your most recent active products instead.
+        </p>
+        {banners.length === 0 && <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-warm">No products featured yet.</p>}
+        {banners.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {banners.map((b, i) => (
+              <div key={b.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+                <div className="flex flex-col gap-0.5">
+                  <button type="button" disabled={i === 0} onClick={() => handleMove(b.id, 'up')} className="text-muted-warm hover:text-fg disabled:opacity-30">
+                    <ChevronLeft className="size-3.5 rotate-90" />
+                  </button>
+                  <button type="button" disabled={i === banners.length - 1} onClick={() => handleMove(b.id, 'down')} className="text-muted-warm hover:text-fg disabled:opacity-30">
+                    <ChevronLeft className="size-3.5 -rotate-90" />
+                  </button>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-fg">{b.headline || b.productName}</p>
+                  <p className="truncate text-xs text-muted-warm">{b.productName}{b.subtitle ? ` · ${b.subtitle}` : ''}</p>
+                </div>
+                <Toggle checked={b.isActive} onChange={(v) => handleToggle(b.id, v)} />
+                <button type="button" onClick={() => handleDelete(b.id)} className="text-muted-warm hover:text-danger">
+                  <X className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <CreateBannerDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreated={reload} />
+    </div>
+  )
+}
+
 // ── Subscription Tab (read-only: no billing provider wired up yet) ──
 // `trial` and `growth` stay here so existing tenants on those tiers still render correctly —
 // only `starter`/`pro` are offered as picks (see AVAILABLE_PLAN_KEYS below), matching the
@@ -1418,6 +1574,7 @@ export default function AdminSettingsPage() {
         {activeTab === 'Store' && <StoreTab />}
         {activeTab === 'Alerts' && <AlertsTab />}
         {activeTab === 'Promotions' && <PromotionsTab />}
+        {activeTab === 'Carousel' && <CarouselTab />}
         {activeTab === 'Subscription' && <SubscriptionTab />}
         {activeTab === 'Payments' && <PaymentsTab />}
         {activeTab === 'Contact Info' && <ContactInfoTab />}

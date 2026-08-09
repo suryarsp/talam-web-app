@@ -11,9 +11,18 @@ export async function getOrdersAction(): Promise<AdminOrder[]> {
   return listOrdersForAdmin(tenantId)
 }
 
-export async function updateOrderStatusAction(orderId: string, status: OrderStatus, trackingId?: string): Promise<{ error?: string }> {
+export async function updateOrderStatusAction(
+  orderId: string,
+  status: OrderStatus,
+  trackingId?: string,
+  cancelReason?: string
+): Promise<{ error?: string }> {
   const { tenantId } = await requireOwnerTenant()
-  await updateOrderStatus(tenantId, orderId, status, trackingId)
+  try {
+    await updateOrderStatus(tenantId, orderId, status, trackingId, cancelReason)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not update this order.' }
+  }
   revalidatePath('/admin/orders')
   revalidatePath('/admin/dashboard')
   return {}

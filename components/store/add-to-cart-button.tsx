@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { SizePicker } from './size-picker'
-import { ShinyButton } from '@/components/ui/shiny-button'
+import { Button } from '@/components/ui/button'
 import { useCartStore } from '@/lib/store/cart'
 import { showCartToast } from './cart-toast'
 
@@ -56,12 +56,12 @@ export function AddToCartButton({ product, stockBySize }: Props) {
       )}
       {error && <p className="font-body text-sm text-danger">{error}</p>}
       <div className="hidden gap-3 sm:flex">
-        <ShinyButton
+        <Button
           className="h-12 flex-1 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
           onClick={handleAddToCart}
         >
           {added ? 'Added to Cart ✓' : 'Add to Cart'}
-        </ShinyButton>
+        </Button>
         {/* ponytail: decorative only — wishlist needs a signed-in customer session, wire up once storefront auth + wishlist backend exist */}
         <button
           type="button"
@@ -74,12 +74,12 @@ export function AddToCartButton({ product, stockBySize }: Props) {
 
       {/* Mobile: fixed bottom bar, matches cart page pattern */}
       <div className="fixed bottom-0 left-0 right-0 z-30 flex gap-3 border-t border-border/40 bg-surface/90 px-4 py-3 backdrop-blur-xl sm:hidden">
-        <ShinyButton
+        <Button
           className="h-12 flex-1 rounded-lg bg-store-primary font-body text-md font-semibold text-surface hover:bg-store-primary/90"
           onClick={handleAddToCart}
         >
           {added ? 'Added to Cart ✓' : 'Add to Cart'}
-        </ShinyButton>
+        </Button>
         <button
           type="button"
           aria-label="Add to wishlist"

@@ -13,6 +13,10 @@ type Props = {
   minPrice?: string
   maxPrice?: string
   activeSort?: string
+  /** When set, category chips navigate to `${categoryRouteBase}/${slug}` instead of a `?category=` query param
+   *  — needed on pages where the category is a route segment (e.g. /category/[slug]), since that route param
+   *  always wins over the query string. */
+  categoryRouteBase?: string
 }
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
@@ -25,7 +29,7 @@ const SORTS = [
   { value: 'discount-desc', label: 'Offers: High to Low' },
 ]
 
-export function FilterBar({ basePath, categories, activeCategory, activeSize, minPrice, maxPrice, activeSort }: Props) {
+export function FilterBar({ basePath, categories, activeCategory, activeSize, minPrice, maxPrice, activeSort, categoryRouteBase }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -43,6 +47,15 @@ export function FilterBar({ basePath, categories, activeCategory, activeSize, mi
       params.set(key, value)
     }
     push(params)
+  }
+
+  function selectCategory(slug: string) {
+    if (!categoryRouteBase) return setParam('category', slug)
+    if (activeCategory === slug) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('category')
+    const qs = params.toString()
+    router.push(qs ? `${categoryRouteBase}/${slug}?${qs}` : `${categoryRouteBase}/${slug}`)
   }
 
   function handlePriceSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -66,7 +79,7 @@ export function FilterBar({ basePath, categories, activeCategory, activeSize, mi
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => setParam('category', cat.slug)}
+                onClick={() => selectCategory(cat.slug)}
                 className={
                   activeCategory === cat.slug
                     ? 'rounded-full bg-fg px-4 py-2 font-body text-sm/tight font-semibold text-surface'

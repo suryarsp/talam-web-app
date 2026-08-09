@@ -21,11 +21,14 @@ import type { AddressItem } from '@/lib/data/addresses'
 import type { Quote } from '@/lib/checkout-pricing'
 import {
   createRazorpayOrderAction,
+  getAvailableCouponsAction,
   getQuoteAction,
   getUpiQrAction,
   placeOrderAction,
+  uploadPaymentProofAction,
   validateCouponAction,
   verifyRazorpayPaymentAction,
+  type AvailableCoupon,
   type CartLine,
   type PaymentProvider,
   type QuotedLine,
@@ -107,6 +110,8 @@ export function CheckoutClient({
     { revalidateOnFocus: false }
   )
 
+  const { data: availableCoupons } = useSWR('available-coupons', getAvailableCouponsAction, { revalidateOnFocus: false })
+
   const quote: Quote | null = quoteResult && !('error' in quoteResult) ? quoteResult.quote : null
   const quotedLines: QuotedLine[] = quoteResult && !('error' in quoteResult) ? quoteResult.lines : []
   const quoteError = quoteResult && 'error' in quoteResult ? quoteResult.error : ''
@@ -159,6 +164,9 @@ export function CheckoutClient({
   const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : methods.razorpay ? 'razorpay' : 'cod'
   const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>(firstMethod)
   const [utr, setUtr] = useState('')
+  const [paymentProofUrl, setPaymentProofUrl] = useState('')
+  const [uploadingProof, setUploadingProof] = useState(false)
+  const [proofError, setProofError] = useState('')
   const [placing, setPlacing] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [orderPlaced, setOrderPlaced] = useState(false)
@@ -213,6 +221,7 @@ export function CheckoutClient({
       addressId: usingNewAddress ? undefined : selectedAddressId,
       address: usingNewAddress ? (newAddress as AddressForm) : undefined,
       utr: paymentMethod === 'upi_manual' ? utr : undefined,
+      paymentProofUrl: paymentMethod === 'upi_manual' ? paymentProofUrl || undefined : undefined,
     })
 
     if ('error' in result) {
@@ -269,7 +278,7 @@ export function CheckoutClient({
 
   const total = quote?.total ?? 0
   const payLabel = step === 1 ? `Pay ₹${total.toLocaleString('en-IN')}` : step === 2 ? 'Continue to Payment' : 'Place Order'
-  const canPlaceUpi = utr.length === 12
+  const canPlaceUpi = utr.length === 12 || Boolean(paymentProofUrl)
 
   return (
     <div className="min-h-screen bg-bg pb-28 sm:pb-10">
@@ -478,6 +487,36 @@ export function CheckoutClient({
                           className="h-auto w-full rounded-lg border-[1.5px] border-border px-[13px] py-[11px] font-body text-[15px] text-fg focus-visible:border-store-primary focus-visible:ring-0"
                         />
                         <p className="mt-1 font-body text-xs text-muted-warm">12-digit reference number from your payment app</p>
+
+                        <p className="mt-3 text-center font-body text-xs text-muted-warm">— or —</p>
+                        <label htmlFor="paymentProof" className="mb-1.5 mt-2 block font-body text-[13px] font-bold text-fg">
+                          Upload payment screenshot
+                        </label>
+                        <input
+                          id="paymentProof"
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingProof}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setUploadingProof(true)
+                            setProofError('')
+                            const result = await uploadPaymentProofAction(file)
+                            setUploadingProof(false)
+                            if ('error' in result) {
+                              setProofError(result.error)
+                              return
+                            }
+                            setPaymentProofUrl(result.url)
+                          }}
+                          className="w-full rounded-lg border-[1.5px] border-border px-3.25 py-2.25 font-body text-sm text-fg file:mr-3 file:rounded-md file:border-0 file:bg-bg file:px-3 file:py-1.5 file:font-body file:text-xs file:font-semibold"
+                        />
+                        {uploadingProof && <p className="mt-1 font-body text-xs text-muted-warm">Uploading…</p>}
+                        {proofError && <p className="mt-1 font-body text-xs text-danger">{proofError}</p>}
+                        {paymentProofUrl && !uploadingProof && <p className="mt-1 font-body text-xs text-success">Screenshot uploaded ✓</p>}
+                        <p className="mt-1 font-body text-xs text-muted-warm">Either the UTR number or a payment screenshot is required — we&apos;ll verify it before confirming your order.</p>
+
                         <Button
                           onClick={handlePlaceOrder}
                           disabled={!canPlaceUpi || placing}
@@ -556,6 +595,7 @@ export function CheckoutClient({
                 cartLines={cartLines}
                 applied={appliedCoupon}
                 onApplied={setAppliedCoupon}
+                available={availableCoupons}
               />
               <TrustBar />
             </div>
@@ -563,7 +603,7 @@ export function CheckoutClient({
 
           <div className="hidden w-[360px] shrink-0 space-y-3 sm:block">
             <Summary items={summaryItems} quote={quote} error={quoteError} />
-            <CouponField cartLines={cartLines} applied={appliedCoupon} onApplied={setAppliedCoupon} />
+            <CouponField cartLines={cartLines} applied={appliedCoupon} onApplied={setAppliedCoupon} available={availableCoupons} />
             <TrustBar />
           </div>
         </div>
@@ -653,20 +693,23 @@ function CouponField({
   cartLines,
   applied,
   onApplied,
+  available,
 }: {
   cartLines: CartLine[]
   applied: string | null
   onApplied: (code: string | null) => void
+  available?: AvailableCoupon[]
 }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
 
-  async function apply() {
-    if (!code.trim()) return
+  async function apply(useCode?: string) {
+    const target = useCode ?? code
+    if (!target.trim()) return
     setChecking(true)
     setError('')
-    const result = await validateCouponAction(code, cartLines)
+    const result = await validateCouponAction(target, cartLines)
     setChecking(false)
     if ('error' in result) {
       setError(result.error)
@@ -678,6 +721,20 @@ function CouponField({
   return (
     <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
       <h3 className="mb-2.5 font-heading text-sm font-bold text-fg">Have a coupon?</h3>
+      {!applied && available && available.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {available.map((c) => (
+            <button
+              key={c.code}
+              type="button"
+              onClick={() => { setCode(c.code); void apply(c.code) }}
+              className="rounded-full border border-store-primary/30 bg-store-primary/5 px-2.5 py-1 font-body text-2xs font-semibold text-store-primary hover:bg-store-primary/10"
+            >
+              {c.code} — {c.type === 'percent' ? `${c.value}% off` : `₹${c.value} off`}
+            </button>
+          ))}
+        </div>
+      )}
       {applied ? (
         <div className="flex items-center justify-between">
           <p className="font-body text-xs font-medium text-success">{applied} applied</p>
@@ -701,7 +758,7 @@ function CouponField({
               className="h-10 flex-1 rounded-lg border border-border px-3 font-body text-sm text-fg focus-visible:border-store-primary focus-visible:ring-0"
             />
             <Button
-              onClick={apply}
+              onClick={() => void apply()}
               disabled={checking}
               className="h-10 shrink-0 rounded-lg bg-fg px-4 font-body text-sm font-semibold text-surface hover:opacity-90"
             >

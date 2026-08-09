@@ -19,6 +19,7 @@ function baseInput(overrides: Partial<ProductInput> = {}): ProductInput {
     comparePrice: null,
     categoryId: 'cat-1',
     sizes: ['S'],
+    unit: 'piece',
     images: ['https://example.com/img.jpg'],
     stockBySize: { S: 5 },
     specifications: [],

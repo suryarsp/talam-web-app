@@ -200,12 +200,21 @@ describe('placeOrderAction', () => {
     )
   })
 
-  it('rejects a UPI order without a 12-digit reference number', async () => {
+  it('rejects a UPI order without a 12-digit reference number or a payment screenshot', async () => {
     seedHappyPath()
     expect(await placeOrderAction({ ...input, utr: '12345' })).toEqual({
-      error: 'Enter the 12-digit UPI reference number.',
+      error: 'Enter the 12-digit UPI reference number, or upload a payment screenshot.',
     })
     expect(mockDb.order.create).not.toHaveBeenCalled()
+  })
+
+  it('accepts a UPI order with a payment screenshot but no UTR', async () => {
+    seedHappyPath()
+    const result = await placeOrderAction({ ...input, utr: undefined, paymentProofUrl: 'https://cdn.example.com/proof.png' })
+    expect(result).toEqual({ orderId: 'order-1' })
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentProofUrl: 'https://cdn.example.com/proof.png' }) })
+    )
   })
 
   it('refuses to create an order when stock ran out between pricing and writing', async () => {

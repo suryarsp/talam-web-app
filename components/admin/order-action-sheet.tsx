@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Check, ArrowDown, Package, X as XIcon, Plus } from 'lucide-react'
 import type { AdminOrder } from '@/lib/data/orders'
 import { updateOrderStatusAction } from '@/app/admin/orders/actions'
+import { getAvailableActions, CANCEL_REASONS } from '@/lib/order-status'
 
 type Props = {
   order: AdminOrder
@@ -24,6 +25,9 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const availableActions = getAvailableActions(order.status)
+  const actions = ACTIONS.filter((a) => a.key === 'details' || availableActions.includes(a.key))
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -34,11 +38,16 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
     setTimeout(onClose, 250)
   }
 
-  async function applyStatus(status: 'confirmed' | 'shipped' | 'delivered' | 'cancelled', trackingId?: string) {
+  async function applyStatus(status: 'confirmed' | 'shipped' | 'delivered' | 'cancelled', trackingId?: string, cancelReason?: string) {
     setSaving(true)
-    await updateOrderStatusAction(order.id, status, trackingId)
+    setSaveError('')
+    const result = await updateOrderStatusAction(order.id, status, trackingId, cancelReason)
     setSaving(false)
-    onUpdated({ ...order, status, trackingId: trackingId ?? order.trackingId })
+    if (result.error) {
+      setSaveError(result.error)
+      return
+    }
+    onUpdated({ ...order, status, trackingId: trackingId ?? order.trackingId, cancelReason: cancelReason ?? order.cancelReason })
     handleClose()
   }
 
@@ -48,11 +57,11 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
       setTimeout(() => onViewDetails(order), 250)
       return
     }
-    if (key === 'shipped') {
+    if (key === 'shipped' || key === 'cancelled') {
       setPendingStatus(key)
       return
     }
-    void applyStatus(key as 'confirmed' | 'delivered' | 'cancelled')
+    void applyStatus(key as 'confirmed' | 'delivered')
   }
 
   return (
@@ -71,8 +80,9 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
         <div className="mb-4 px-5">
           <p className="text-base font-bold text-fg">Order Actions</p>
         </div>
+        {saveError && <p className="mb-3 px-5 text-xs text-danger">{saveError}</p>}
         <div className="flex flex-col">
-          {ACTIONS.map((action) => (
+          {actions.map((action) => (
             <div key={action.key}>
               <button
                 type="button"
@@ -98,6 +108,26 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
                 >
                   <input name="trackingId" required placeholder="Tracking number" className="grow rounded-md border border-border px-2 py-1 text-sm" />
                   <button type="submit" disabled={saving} className="rounded-md bg-brand-primary px-3 py-1 text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-50">Save</button>
+                </form>
+              )}
+              {pendingStatus === action.key && action.key === 'cancelled' && (
+                <form
+                  className="flex flex-col gap-2 border-b border-border bg-bg px-5 py-3"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const data = new FormData(e.currentTarget)
+                    const reason = data.get('reason') as string
+                    const other = (data.get('reasonOther') as string)?.trim()
+                    void applyStatus('cancelled', undefined, reason === 'Other' ? other : reason)
+                  }}
+                >
+                  <select name="reason" defaultValue={CANCEL_REASONS[0]} className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm">
+                    {CANCEL_REASONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <input name="reasonOther" placeholder="Reason (if Other)" className="w-full rounded-md border border-border px-2 py-1.5 text-sm" />
+                  <button type="submit" disabled={saving} className="rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-50">Cancel Order</button>
                 </form>
               )}
             </div>

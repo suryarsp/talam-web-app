@@ -4,7 +4,7 @@ import { StoreLink } from '@/components/store/store-context'
 import { ArrowLeft, CheckCircle, FileText, Package, RotateCcw, Truck, XCircle } from 'lucide-react'
 import { requireAuth, requireTenant } from '@/lib/auth-guard'
 import { getCustomerOrder } from '@/lib/data/storefront-orders'
-import { ORDER_STATUS_LABEL, timelineFor } from '@/lib/order-status'
+import { ORDER_STATUS_LABEL, timelineFor, timestampsFor } from '@/lib/order-status'
 import type { OrderStatus } from '@prisma/client'
 import { BuyAgainButton } from '../buy-again-button'
 import { CopyButton } from './copy-button'
@@ -36,6 +36,10 @@ function formatDate(d: Date) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function formatDateTime(d: Date) {
+  return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+}
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await requireAuth(`/orders/${id}`)
@@ -46,6 +50,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const { steps, currentIndex } = timelineFor(order.status)
   const isTerminalBad = order.status === 'cancelled' || order.status === 'returned'
+  const stepTimestamps = timestampsFor(order.statusEvents)
 
   const canReportProblem = canReportOrderProblem(order)
 
@@ -71,6 +76,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             const done = i <= currentIndex
             const StepIcon = STEP_ICON[step]
             const bad = isTerminalBad && i === currentIndex
+            const timestamp = step === 'pending' ? order.createdAt : stepTimestamps[step]
             return (
               <div key={step} className="flex flex-1 flex-col items-center text-center">
                 <div
@@ -87,6 +93,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 >
                   {ORDER_STATUS_LABEL[step]}
                 </p>
+                {done && timestamp && (
+                  <p className="mt-0.5 font-body text-[9px] leading-tight text-muted-warm sm:text-2xs">{formatDateTime(timestamp)}</p>
+                )}
               </div>
             )
           })}

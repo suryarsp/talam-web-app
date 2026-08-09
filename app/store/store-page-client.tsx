@@ -259,8 +259,8 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
   // ── Filters ──
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set())
-  const [priceMin, setPriceMin] = useState('500')
-  const [priceMax, setPriceMax] = useState('5000')
+  const [priceMin, setPriceMin] = useState('')
+  const [priceMax, setPriceMax] = useState('')
   const sortParam = searchParams.get('sort')
   const [sortBy, setSortBy] = useState<string>('Newest First')
   const [showSortMenu, setShowSortMenu] = useState(false)
@@ -306,9 +306,21 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
   const handleReset = () => {
     setSelectedCategories(new Set())
     setSelectedSizes(new Set())
-    setPriceMin('500')
-    setPriceMax('5000')
+    setPriceMin('')
+    setPriceMax('')
     setVisibleCount(PRODUCTS_PER_PAGE)
+  }
+
+  // Carries the homepage's active price/size filters into the dedicated category page,
+  // which reads minPrice/maxPrice/size from the querystring (lib/parse-listing-params.ts).
+  const categoryHref = (slug: string) => {
+    const params = new URLSearchParams()
+    if (priceMin) params.set('minPrice', priceMin)
+    if (priceMax) params.set('maxPrice', priceMax)
+    const firstSize = selectedSizes.values().next().value
+    if (firstSize) params.set('size', firstSize)
+    const qs = params.toString()
+    return qs ? `/category/${slug}?${qs}` : `/category/${slug}`
   }
 
   const removeFilterChip = (type: 'category' | 'size', val: string) => {
@@ -522,7 +534,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               {categories.map((cat, i) => (
                 <StoreLink
                   key={cat.id}
-                  href={`/?category=${cat.slug}`}
+                  href={categoryHref(cat.slug)}
                   className={`relative w-[150px] shrink-0 overflow-hidden rounded-2xl lg:w-auto ${i === 0 ? 'lg:row-span-2' : ''}`}
                   style={{ backgroundImage: CATEGORY_GRADIENTS[i % CATEGORY_GRADIENTS.length] }}
                 >

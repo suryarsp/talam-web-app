@@ -3,6 +3,7 @@
 import { headers } from 'next/headers'
 import QRCode from 'qrcode'
 import { requireAuth, requireTenant } from '@/lib/auth-guard'
+import { uploadImage } from '@/lib/cloudinary'
 import { prisma, withTenant } from '@/lib/prisma'
 import { createNotification } from '@/lib/data/notifications'
 import { sendNewOrderEmail, sendOrderPlacedEmail, type OrderEmailItem } from '@/lib/resend'
@@ -139,6 +140,28 @@ export async function getQuoteAction(cart: CartLine[], couponCode?: string): Pro
   return isError(priced) ? priced : toQuoteResult(priced)
 }
 
+export type AvailableCoupon = { code: string; type: 'percent' | 'fixed'; value: number }
+
+/** Active, unexpired, not-yet-exhausted codes to promote near the coupon field — not a
+ *  substitute for validateCouponAction, which re-checks everything (incl. minOrder) at apply time. */
+export async function getAvailableCouponsAction(): Promise<AvailableCoupon[]> {
+  const { tenantId } = await requireTenant()
+  const now = new Date()
+  const codes = await withTenant(tenantId, (db) =>
+    db.discountCode.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { code: true, type: true, value: true, usesLimit: true, usesCount: true },
+    })
+  )
+  return codes
+    .filter((c) => c.usesLimit === null || c.usesCount < c.usesLimit)
+    .map((c) => ({ code: c.code, type: c.type, value: Number(c.value) }))
+}
+
 export async function validateCouponAction(
   code: string,
   cart: CartLine[]
@@ -197,6 +220,18 @@ export type PlaceOrderInput = {
   }
   /** UPI reference number, when paying by UPI. */
   utr?: string
+  /** Uploaded payment screenshot URL — accepted as an alternative to a UTR, when paying by UPI. */
+  paymentProofUrl?: string
+}
+
+export async function uploadPaymentProofAction(file: File): Promise<{ url: string } | { error: string }> {
+  const { tenantId } = await requireTenant()
+  try {
+    const url = await uploadImage(file, `talam/${tenantId}/payment-proofs`)
+    return { url }
+  } catch {
+    return { error: 'Upload failed. Please try again.' }
+  }
 }
 
 export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderId: string } | { error: string }> {
@@ -209,8 +244,9 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderI
   const shippingAddress = await resolveAddress(tenantId, user.id, input)
   if (!shippingAddress) return { error: 'A delivery address is required.' }
 
-  if (input.paymentProvider === 'upi_manual' && !/^\d{12}$/.test(input.utr ?? '')) {
-    return { error: 'Enter the 12-digit UPI reference number.' }
+  const hasValidUtr = /^\d{12}$/.test(input.utr ?? '')
+  if (input.paymentProvider === 'upi_manual' && !hasValidUtr && !input.paymentProofUrl) {
+    return { error: 'Enter the 12-digit UPI reference number, or upload a payment screenshot.' }
   }
 
   let orderId: string
@@ -243,7 +279,8 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderI
           discountCode: priced.coupon?.code ?? null,
           total: priced.quote.total,
           paymentProvider: input.paymentProvider,
-          paymentId: input.paymentProvider === 'upi_manual' ? (input.utr ?? null) : null,
+          paymentId: input.paymentProvider === 'upi_manual' ? (input.utr || null) : null,
+          paymentProofUrl: input.paymentProvider === 'upi_manual' ? (input.paymentProofUrl ?? null) : null,
           paymentStatus: 'pending',
           shippingAddress,
           items: {

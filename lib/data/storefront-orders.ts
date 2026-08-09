@@ -31,6 +31,7 @@ export type CustomerOrder = {
   disputeFlaggedAt: Date | null
   address: AdminOrderAddress
   items: CustomerOrderItem[]
+  statusEvents: { status: OrderStatus; changedAt: Date }[]
 }
 
 /** Same `#XXXXXXXX` short code the admin list shows, so both sides name an order identically. */
@@ -49,6 +50,10 @@ const ORDER_INCLUDE = {
       unitPrice: true,
       product: { select: { slug: true, images: true } },
     },
+  },
+  statusEvents: {
+    select: { status: true, changedAt: true },
+    orderBy: { changedAt: 'asc' as const },
   },
 } as const
 
@@ -75,6 +80,7 @@ type OrderRow = {
     unitPrice: unknown
     product: { slug: string; images: string[] } | null
   }[]
+  statusEvents: { status: OrderStatus; changedAt: Date }[]
 }
 
 function toCustomerOrder(order: OrderRow): CustomerOrder {
@@ -105,6 +111,7 @@ function toCustomerOrder(order: OrderRow): CustomerOrder {
       quantity: item.quantity,
       unitPrice: Number(item.unitPrice),
     })),
+    statusEvents: order.statusEvents,
   }
 }
 

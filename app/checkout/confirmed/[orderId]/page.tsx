@@ -80,7 +80,7 @@ export default async function OrderConfirmedPage({ params }: { params: Promise<{
             discount={order.discount}
             shippingFee={order.shippingFee}
             total={order.total}
-            totalLabel={paid ? 'Total Paid' : 'Total Due'}
+            totalLabel={paid ? 'Total Paid' : order.paymentProvider === 'upi_manual' ? 'Total Paid (pending confirmation)' : 'Total Due'}
           />
         </div>
 

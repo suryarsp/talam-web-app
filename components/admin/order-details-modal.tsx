@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Check, ArrowDown, Package, XCircle } from 'lucide-react'
+import { X, Check, ArrowDown, Package, XCircle, ChevronRight } from 'lucide-react'
 
-import type { AdminOrder } from '@/lib/data/orders'
+import type { AdminOrder, OrderStatus } from '@/lib/data/orders'
 import { updateOrderStatusAction, markOrderPaidAction } from '@/app/admin/orders/actions'
+import { getAvailableActions, timestampsFor, CANCEL_REASONS } from '@/lib/order-status'
 
 type Order = AdminOrder
 
@@ -41,23 +42,28 @@ const PROGRESS_WIDTH: Record<string, string> = {
   returned: '100%',
 }
 
-const TIMELINE = [
-  { label: 'Order Placed', done: true },
-  { label: 'Awaiting Confirmation', current: false },
-  { label: 'Order Confirmed', current: false },
-  { label: 'Shipped', current: false },
-  { label: 'Out for Delivery', current: false },
-  { label: 'Delivered', current: false },
+// statusKey is null for steps with no real OrderStatus of their own ("Awaiting Confirmation" is
+// just pending's "current" label; "Out for Delivery" doesn't exist in the schema) — those never
+// get their own timestamp.
+const TIMELINE: { label: string; statusKey: OrderStatus | null }[] = [
+  { label: 'Order Placed', statusKey: null },
+  { label: 'Awaiting Confirmation', statusKey: null },
+  { label: 'Order Confirmed', statusKey: 'confirmed' },
+  { label: 'Shipped', statusKey: 'shipped' },
+  { label: 'Out for Delivery', statusKey: null },
+  { label: 'Delivered', statusKey: 'delivered' },
 ]
 
-function getTimeline(status: string) {
+function getTimeline(status: string, createdAt: Date, events: { status: OrderStatus; changedAt: Date }[]) {
   const statusIdx: Record<string, number> = { pending: 1, confirmed: 2, shipped: 3, delivered: 5 }
   const currentIdx = statusIdx[status] ?? 1
+  const timestamps = timestampsFor(events)
   return TIMELINE.map((step, i) => ({
     ...step,
     done: i < currentIdx,
     current: i === currentIdx,
     pending: i > currentIdx,
+    date: i === 0 ? createdAt : step.statusKey ? timestamps[step.statusKey] : undefined,
   }))
 }
 
@@ -78,7 +84,10 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
   const [visible, setVisible] = useState(false)
   const [confirmKey, setConfirmKey] = useState<ActionKey | null>(null)
   const [trackingId, setTrackingId] = useState('')
+  const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
+  const [cancelReasonOther, setCancelReasonOther] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [markingPaid, setMarkingPaid] = useState(false)
   const [markPaidError, setMarkPaidError] = useState('')
   const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus)
@@ -94,12 +103,30 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
 
   async function confirm() {
     if (!confirmAction) return
+    const reason = confirmAction.key === 'cancelled' ? (cancelReason === 'Other' ? cancelReasonOther.trim() : cancelReason) : undefined
     setSaving(true)
-    await updateOrderStatusAction(order.id, confirmAction.key, confirmAction.key === 'shipped' ? trackingId : undefined)
+    setSaveError('')
+    const result = await updateOrderStatusAction(
+      order.id,
+      confirmAction.key,
+      confirmAction.key === 'shipped' ? trackingId : undefined,
+      reason
+    )
     setSaving(false)
-    onUpdated({ ...order, status: confirmAction.key, trackingId: confirmAction.key === 'shipped' ? trackingId : order.trackingId })
+    if (result.error) {
+      setSaveError(result.error)
+      return
+    }
+    onUpdated({
+      ...order,
+      status: confirmAction.key,
+      trackingId: confirmAction.key === 'shipped' ? trackingId : order.trackingId,
+      cancelReason: reason ?? order.cancelReason,
+    })
     setConfirmKey(null)
     setTrackingId('')
+    setCancelReason(CANCEL_REASONS[0])
+    setCancelReasonOther('')
   }
 
   async function markPaid() {
@@ -116,9 +143,11 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
 
   const canMarkPaid = (order.paymentProvider === 'upi_manual' || order.paymentProvider === 'cod') && paymentStatus === 'pending'
   const sc = STATUS_COLOR[order.status] ?? STATUS_COLOR.pending
-  const timeline = getTimeline(order.status)
+  const timeline = getTimeline(order.status, order.createdAt, order.statusEvents)
   const address = order.address
   const confirmAction = ACTIONS.find((a) => a.key === confirmKey)
+  const availableActions = getAvailableActions(order.status)
+  const actions = ACTIONS.filter((a) => availableActions.includes(a.key))
 
   return (
     <div
@@ -203,6 +232,13 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
               {order.paymentProvider === 'upi_manual' && order.paymentId && (
                 <p className="mt-2 text-xs text-muted-warm">UTR entered by customer: <span className="font-mono font-semibold text-fg">{order.paymentId}</span> — cross-check this against your UPI app before confirming.</p>
               )}
+              {order.paymentProvider === 'upi_manual' && order.paymentProofUrl && (
+                <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={order.paymentProofUrl} alt="Payment screenshot" className="h-12 w-12 rounded-md border border-border object-cover" />
+                  <span className="text-xs font-semibold text-brand-primary">View payment screenshot</span>
+                </a>
+              )}
               {canMarkPaid && (
                 <button
                   onClick={() => void markPaid()}
@@ -269,18 +305,23 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
               {timeline.map((step, i) => (
                 <div key={step.label} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div
-                      className={`size-5 shrink-0 rounded-full border-2 ${
-                        step.done
-                          ? 'border-brand-primary bg-brand-primary'
-                          : step.current
-                            ? 'border-[#FB923C] bg-[#FB923C]'
-                            : 'border-border bg-surface'
-                      }`}
-                    >
-                      {step.done && (
-                        <svg viewBox="0 0 20 20" className="size-full text-surface"><path d="M6 10l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <div className="relative flex size-5 shrink-0 items-center justify-center">
+                      {step.current && (
+                        <span className="absolute inline-flex size-5 animate-ping rounded-full bg-[#FB923C] opacity-60" />
                       )}
+                      <div
+                        className={`relative size-5 shrink-0 rounded-full border-2 ${
+                          step.done
+                            ? 'border-brand-primary bg-brand-primary'
+                            : step.current
+                              ? 'border-[#FB923C] bg-[#FB923C]'
+                              : 'border-border bg-surface'
+                        }`}
+                      >
+                        {step.done && (
+                          <svg viewBox="0 0 20 20" className="size-full text-surface"><path d="M6 10l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        )}
+                      </div>
                     </div>
                     {i < timeline.length - 1 && (
                       <div className={`h-6 w-[2px] ${step.done ? 'bg-brand-primary' : 'bg-border'}`} />
@@ -289,7 +330,7 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
                   <div className="-mt-[2px] pb-4">
                     <p className={`text-sm font-semibold ${step.pending ? 'text-muted-warm/50' : 'text-fg'}`}>{step.label}</p>
                     <p className={`text-xs ${step.pending ? 'text-muted-warm/40' : 'text-muted-warm'}`}>
-                      {step.done ? formatDate(order.createdAt) : step.current ? 'Waiting for merchant action' : 'Pending'}
+                      {step.done && step.date ? formatDate(step.date) : step.current ? 'Waiting for merchant action' : step.done ? '' : 'Pending'}
                     </p>
                     {step.current && <span className="mt-1 inline-block text-2xs font-bold uppercase tracking-wide text-[#FB923C]">Current</span>}
                   </div>
@@ -301,6 +342,7 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
           {/* Order Actions */}
           <div>
             <p className="mb-3 text-xs font-bold uppercase tracking-wide text-fg">Order Actions</p>
+            {saveError && <p className="mb-2 text-xs text-danger">{saveError}</p>}
             {confirmAction ? (
               <div className="rounded-xl border border-border p-4">
                 <p className="text-sm font-semibold text-fg">
@@ -317,15 +359,41 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
                     className="mt-3 w-full rounded-md border border-border px-3 py-2 text-sm"
                   />
                 )}
+                {confirmAction.key === 'cancelled' && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <select
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="w-full rounded-md border border-border px-3 py-2 text-sm"
+                    >
+                      {CANCEL_REASONS.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    {cancelReason === 'Other' && (
+                      <input
+                        autoFocus
+                        value={cancelReasonOther}
+                        onChange={(e) => setCancelReasonOther(e.target.value)}
+                        placeholder="Reason for cancellation"
+                        className="w-full rounded-md border border-border px-3 py-2 text-sm"
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="mt-3 flex gap-2">
                   <button
-                    onClick={() => { setConfirmKey(null); setTrackingId('') }}
+                    onClick={() => { setConfirmKey(null); setTrackingId(''); setCancelReason(CANCEL_REASONS[0]); setCancelReasonOther('') }}
                     className="grow cursor-pointer rounded-lg border border-border p-2.5 text-sm font-semibold text-fg transition-colors active:bg-bg"
                   >
                     Cancel
                   </button>
                   <button
-                    disabled={saving || (confirmAction.key === 'shipped' && !trackingId.trim())}
+                    disabled={
+                      saving ||
+                      (confirmAction.key === 'shipped' && !trackingId.trim()) ||
+                      (confirmAction.key === 'cancelled' && cancelReason === 'Other' && !cancelReasonOther.trim())
+                    }
                     onClick={() => void confirm()}
                     className="grow cursor-pointer rounded-lg bg-brand-primary p-2.5 text-sm font-semibold text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
                   >
@@ -333,21 +401,24 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
                   </button>
                 </div>
               </div>
+            ) : actions.length === 0 ? (
+              <p className="rounded-xl border border-border p-4 text-sm text-muted-warm">No further actions — this order is {STATUS_LABEL[order.status].toLowerCase()}.</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {ACTIONS.map((action) => (
+                {actions.map((action) => (
                   <button
                     key={action.key}
                     onClick={() => setConfirmKey(action.key)}
-                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors active:bg-bg"
+                    className="group flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-brand-primary/40 hover:bg-brand-primary/3 active:bg-bg"
                   >
-                    <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${action.color}`}>
-                      <action.icon className="size-[14px] text-surface" strokeWidth={2.5} />
+                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${action.color}`}>
+                      <action.icon className="size-4 text-surface" strokeWidth={2.5} />
                     </span>
-                    <span>
+                    <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold text-fg">{action.label}</span>
                       <span className="block text-xs text-muted-warm">{action.sub}</span>
                     </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-warm transition-transform group-hover:translate-x-0.5" />
                   </button>
                 ))}
               </div>

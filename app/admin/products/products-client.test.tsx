@@ -45,6 +45,7 @@ function product(overrides: Partial<AdminProduct> = {}): AdminProduct {
     categoryId: 'cat-1',
     categoryName: 'Sarees',
     sizes: ['M'],
+    unit: 'piece',
     images: [],
     stockBySize: { M: 5 },
     specifications: [],

@@ -1,4 +1,7 @@
 import { withTenant } from '@/lib/prisma'
+import type { ProductUnit } from '@prisma/client'
+
+export type { ProductUnit }
 
 export type ProductSort = 'newest' | 'price-asc' | 'price-desc' | 'popular' | 'discount-desc'
 
@@ -27,6 +30,7 @@ export type AdminProduct = {
   categoryId: string | null
   categoryName: string | null
   sizes: string[]
+  unit: ProductUnit
   images: string[]
   stockBySize: Record<string, number>
   specifications: ProductSpec[]
@@ -41,6 +45,7 @@ export type ProductInput = {
   comparePrice: number | null
   categoryId: string | null
   sizes: string[]
+  unit: ProductUnit
   images: string[]
   stockBySize: Record<string, number>
   specifications: ProductSpec[]
@@ -84,6 +89,7 @@ export async function listProductsForAdmin(tenantId: string): Promise<AdminProdu
     categoryId: p.categoryId,
     categoryName: p.category?.name ?? null,
     sizes: p.sizes,
+    unit: p.unit,
     images: p.images,
     stockBySize: p.stockBySize as Record<string, number>,
     specifications: p.specifications as ProductSpec[],
@@ -112,6 +118,7 @@ export async function createProduct(tenantId: string, input: ProductInput) {
         comparePrice: input.comparePrice,
         categoryId: input.categoryId,
         sizes: input.sizes,
+        unit: input.unit,
         images: input.images,
         stockBySize: input.stockBySize,
         specifications: input.specifications,
@@ -138,6 +145,7 @@ export async function updateProduct(tenantId: string, id: string, input: Product
         comparePrice: input.comparePrice,
         categoryId: input.categoryId,
         sizes: input.sizes,
+        unit: input.unit,
         images: input.images,
         stockBySize: input.stockBySize,
         specifications: input.specifications,

@@ -1,12 +1,17 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import CartPage from './page'
+import { CartClient } from './cart-client'
 import { useCartStore } from '@/lib/store/cart'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
+
+const tenant = { name: 'Test Store', freeDeliveryAbove: 999, shippingFee: 99 }
+function CartPage() {
+  return <CartClient tenant={tenant} />
+}
 
 function summary() {
   return screen.getByText('Order Summary').closest('div') as HTMLElement

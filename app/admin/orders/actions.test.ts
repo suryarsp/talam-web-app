@@ -31,7 +31,7 @@ describe('updateOrderStatusAction', () => {
     mockUpdateStatus.mockResolvedValue(undefined)
     const result = await updateOrderStatusAction('o1', 'shipped', 'TRACK123')
     expect(result).toEqual({})
-    expect(mockUpdateStatus).toHaveBeenCalledWith('t1', 'o1', 'shipped', 'TRACK123')
+    expect(mockUpdateStatus).toHaveBeenCalledWith('t1', 'o1', 'shipped', 'TRACK123', undefined)
   })
 })
 

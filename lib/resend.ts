@@ -208,6 +208,32 @@ export async function sendNewOrderEmail(
   }
 }
 
+export async function sendPendingOrderReminderEmail(
+  to: string,
+  params: { storeName: string; orderCode: string; adminOrdersUrl: string }
+): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `Order ${params.orderCode} still needs confirmation`,
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: 'An order is waiting on you',
+          paragraphs: [
+            `Order <strong>${escapeHtml(params.orderCode)}</strong> on ${escapeHtml(params.storeName)} was placed over 6 hours ago and still hasn't been confirmed.`,
+            'Confirm the payment and move it forward so the customer isn’t left waiting.',
+          ],
+          ctas: [{ label: 'View order →', href: params.adminOrdersUrl }],
+          signature: 'The Talam Team',
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendPendingOrderReminderEmail failed:', err)
+  }
+}
+
 export async function sendOnboardingCompleteEmail(
   to: string,
   params: { storeName: string; storeUrl: string; adminUrl: string }

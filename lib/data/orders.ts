@@ -1,5 +1,6 @@
 import { withTenant } from '@/lib/prisma'
 import type { OrderStatus, PaymentStatus } from '@prisma/client'
+import { isValidTransition } from '@/lib/order-status'
 
 export type { OrderStatus }
 
@@ -27,9 +28,12 @@ export type AdminOrder = {
   paymentProvider: string | null
   paymentStatus: PaymentStatus
   paymentId: string | null
+  paymentProofUrl: string | null
   trackingId: string | null
+  cancelReason: string | null
   createdAt: Date
   address: AdminOrderAddress
+  statusEvents: { status: OrderStatus; changedAt: Date }[]
 }
 
 function summarizeItems(items: { productName: string; size: string | null; quantity: number }[]) {
@@ -49,6 +53,7 @@ export async function listOrdersForAdmin(tenantId: string): Promise<AdminOrder[]
       include: {
         customer: { select: { name: true, email: true, phone: true } },
         items: { select: { productName: true, size: true, quantity: true } },
+        statusEvents: { select: { status: true, changedAt: true }, orderBy: { changedAt: 'asc' } },
       },
     })
   )
@@ -69,18 +74,37 @@ export async function listOrdersForAdmin(tenantId: string): Promise<AdminOrder[]
       paymentProvider: order.paymentProvider,
       paymentStatus: order.paymentStatus,
       paymentId: order.paymentId,
+      paymentProofUrl: order.paymentProofUrl,
       trackingId: order.trackingId,
+      cancelReason: order.cancelReason,
       createdAt: order.createdAt,
       address: (order.shippingAddress ?? {}) as AdminOrderAddress,
+      statusEvents: order.statusEvents,
     }
   })
 }
 
-export async function updateOrderStatus(tenantId: string, orderId: string, status: OrderStatus, trackingId?: string): Promise<void> {
-  await withTenant(tenantId, (db) =>
-    db.order.update({
+export async function updateOrderStatus(
+  tenantId: string,
+  orderId: string,
+  status: OrderStatus,
+  trackingId?: string,
+  cancelReason?: string
+): Promise<void> {
+  await withTenant(tenantId, async (db) => {
+    const current = await db.order.findFirst({ where: { id: orderId, tenantId }, select: { status: true } })
+    if (!current) throw new Error('Order not found.')
+    if (!isValidTransition(current.status, status)) {
+      throw new Error(`Cannot move an order from "${current.status}" to "${status}".`)
+    }
+    await db.order.update({
       where: { id: orderId, tenantId },
-      data: { status, ...(trackingId ? { trackingId } : {}) },
+      data: {
+        status,
+        ...(trackingId ? { trackingId } : {}),
+        ...(status === 'cancelled' && cancelReason ? { cancelReason } : {}),
+      },
     })
-  )
+    await db.orderStatusEvent.create({ data: { tenantId, orderId, status } })
+  })
 }

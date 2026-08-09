@@ -17,7 +17,7 @@ import {
   AttachmentAction,
   AttachmentTrigger,
 } from '@/components/ui/attachment'
-import type { AdminProduct, CategoryMeta, ProductInput, ProductSpec } from '@/lib/data/products'
+import type { AdminProduct, CategoryMeta, ProductInput, ProductSpec, ProductUnit } from '@/lib/data/products'
 import {
   createProductAction,
   updateProductAction,
@@ -307,8 +307,16 @@ function ProductEditorForm({
   onClose: () => void; editProduct: AdminProduct | null; categories: CategoryMeta[]; occasions: OccasionOption[]
 }) {
   const router = useRouter()
+  const [unit, setUnit] = useState<ProductUnit>(editProduct?.unit ?? 'piece')
   const [selectedSizes, setSelectedSizes] = useState<string[]>(editProduct?.sizes ?? [])
+  // Default on for new products (most items — sarees, unstitched fabric — are one-size);
+  // an existing product already carrying real sizes starts unchecked so editing doesn't wipe them.
+  const [noSize, setNoSize] = useState(() => !editProduct || editProduct.sizes.every((s) => s === 'Free Size'))
+  const [sizeQuantities, setSizeQuantities] = useState<Record<string, string>>(
+    () => Object.fromEntries((editProduct?.sizes ?? []).map((s) => [s, String(editProduct?.stockBySize[s] ?? '')]))
+  )
   const [images, setImages] = useState<string[]>(editProduct?.images ?? [])
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [selectedOccasions, setSelectedOccasions] = useState<string[]>(editProduct?.occasionIds ?? [])
   const [specs, setSpecs] = useState<ProductSpec[]>(editProduct?.specifications ?? [])
   const [saving, setSaving] = useState(false)
@@ -347,11 +355,15 @@ function ProductEditorForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const quantity = Number(formData.get('quantity') ?? 0)
     // No sizes selected → unstitched/one-size item (e.g. sarees, sold by length). Matches the
     // 'Free Size' convention prisma/seed.ts and onboarding already use for sizeless products,
     // so the storefront's existing sizeless handling (add-to-cart-button, checkout-pricing) just works.
-    const hasSizes = selectedSizes.length > 0
+    // Sold-by-meter items are inherently one-size, regardless of the checkbox state.
+    const hasSizes = unit === 'piece' && !noSize && selectedSizes.length > 0
+    const freeSizeQuantity = Number(formData.get('quantity') ?? 0)
+    const stockBySize = hasSizes
+      ? Object.fromEntries(selectedSizes.map((s) => [s, Number(sizeQuantities[s] ?? 0)]))
+      : { 'Free Size': freeSizeQuantity }
     const input: ProductInput = {
       name: String(formData.get('name') ?? '').trim(),
       description: String(formData.get('description') ?? '').trim() || null,
@@ -359,8 +371,9 @@ function ProductEditorForm({
       comparePrice: formData.get('comparePrice') ? Number(formData.get('comparePrice')) : null,
       categoryId: String(formData.get('categoryId') ?? '') || null,
       sizes: hasSizes ? selectedSizes : ['Free Size'],
+      unit,
       images,
-      stockBySize: hasSizes ? Object.fromEntries(selectedSizes.map((s) => [s, quantity])) : { 'Free Size': quantity },
+      stockBySize,
       specifications: specs.filter((s) => s.label.trim() || s.value.trim()),
     }
 
@@ -372,8 +385,8 @@ function ProductEditorForm({
       setError('Discount price must be less than the price.')
       return
     }
-    if (quantity <= 0) {
-      setError('Quantity must be at least 1.')
+    if (hasSizes ? selectedSizes.some((s) => Number(sizeQuantities[s] ?? 0) <= 0) : freeSizeQuantity <= 0) {
+      setError(hasSizes ? 'Enter a quantity for every selected size.' : 'Quantity must be at least 1.')
       return
     }
 
@@ -462,17 +475,38 @@ function ProductEditorForm({
               </label>
             </div>
 
-            <label className="flex flex-col gap-1.5 md:w-1/2 md:pr-1.5">
-              <span className="text-sm font-bold text-fg">{selectedSizes.length > 0 ? 'Quantity per size' : 'Quantity'} *</span>
-              <input name="quantity" required type="number" min="1" defaultValue={isEdit ? (editProduct.sizes[0] ? editProduct.stockBySize[editProduct.sizes[0]] : '') : ''} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="e.g., 25" />
-            </label>
+            {!noSize && selectedSizes.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-fg">Quantity per size *</span>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {selectedSizes.map((size) => (
+                    <label key={size} className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold text-muted-warm">{size}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={sizeQuantities[size] ?? ''}
+                        onChange={(e) => setSizeQuantities((prev) => ({ ...prev, [size]: e.target.value }))}
+                        className="rounded-lg border border-border bg-bg px-3 py-2.25 text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface"
+                        placeholder="25"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col gap-1.5 md:w-1/2 md:pr-1.5">
+                <span className="text-sm font-bold text-fg">Quantity *</span>
+                <input name="quantity" required type="number" min="1" defaultValue={isEdit ? (editProduct.sizes[0] ? editProduct.stockBySize[editProduct.sizes[0]] : '') : ''} className="rounded-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="e.g., 25" />
+              </label>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-bold text-fg">Product Pictures * (Min 1, Max 5)</span>
               <AttachmentGroup>
                 {images.map((src, i) => (
-                  <Attachment key={i} orientation="vertical" size="sm">
-                    <AttachmentMedia variant="image">
+                  <Attachment key={i} orientation="vertical" size="sm" className="w-28">
+                    <AttachmentMedia variant="image" onClick={() => setPreviewSrc(src)} className="cursor-pointer">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={src} alt="" />
                     </AttachmentMedia>
@@ -484,7 +518,7 @@ function ProductEditorForm({
                   </Attachment>
                 ))}
                 {images.length < 5 && (
-                  <Attachment orientation="vertical" size="sm" state={uploading ? 'uploading' : 'idle'}>
+                  <Attachment orientation="vertical" size="sm" className="w-28" state={uploading ? 'uploading' : 'idle'}>
                     <AttachmentTrigger
                       render={<label />}
                       aria-disabled={uploading}
@@ -501,37 +535,86 @@ function ProductEditorForm({
                   </Attachment>
                 )}
               </AttachmentGroup>
-            </div>
-
-            <div className="relative flex flex-col gap-1.5" ref={sizesRef}>
-              <span className="text-sm font-bold text-fg">Sizes Available</span>
-              <span className="text-xs text-muted-warm">Leave empty for one-size items like sarees or unstitched fabric.</span>
-              <button
-                type="button"
-                onClick={() => setSizesOpen((v) => !v)}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-bg px-3 py-[11px] text-md text-fg outline-none transition-colors focus:border-brand-primary focus:bg-surface"
-              >
-                <span className={selectedSizes.length === 0 ? 'text-muted-warm' : ''}>
-                  {selectedSizes.length === 0 ? 'Select sizes' : selectedSizes.join(', ')}
-                </span>
-                <ChevronDown className={`size-4 shrink-0 text-muted-warm transition-transform ${sizesOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {sizesOpen && (
-                <div className="absolute top-full z-20 mt-1 w-full rounded-lg border border-border bg-surface p-2 shadow-lg">
-                  <div className="mb-1 flex items-center justify-between px-1">
-                    <button type="button" onClick={() => setSelectedSizes(ALL_SIZES)} className="cursor-pointer text-xs font-semibold text-brand-primary">Select all</button>
-                    <button type="button" onClick={() => setSelectedSizes([])} className="cursor-pointer text-xs font-semibold text-muted-warm">Clear</button>
-                  </div>
-                  {ALL_SIZES.map((size) => (
-                    <label key={size} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg hover:bg-bg">
-                      <input type="checkbox" checked={selectedSizes.includes(size)} onChange={() => setSelectedSizes((prev) => prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size])} className="size-4 rounded border-border accent-brand-primary" />
-                      {size}
-                    </label>
-                  ))}
-                </div>
+              {previewSrc && (
+                <Dialog open onClose={() => setPreviewSrc(null)} className="max-w-2xl" position="center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewSrc} alt="" className="max-h-[80vh] w-full rounded-2xl object-contain" />
+                </Dialog>
               )}
             </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-bold text-fg">Sold As</span>
+              <div className="flex gap-2">
+                {(['piece', 'meter'] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setUnit(u)}
+                    className={`rounded-lg border px-4 py-2 text-sm font-semibold capitalize transition-colors ${
+                      unit === u ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-border text-muted-warm'
+                    }`}
+                  >
+                    {u === 'piece' ? 'Pieces' : 'Meters'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {unit === 'meter' ? (
+              <p className="rounded-lg bg-bg px-3 py-2.5 text-xs text-muted-warm">
+                Sold as one continuous piece, measured in meters — no sizes needed.
+              </p>
+            ) : (
+            <div className="relative flex flex-col gap-1.5" ref={sizesRef}>
+              <span className="text-sm font-bold text-fg">Sizes Available</span>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
+                <input
+                  type="checkbox"
+                  checked={noSize}
+                  onChange={(e) => {
+                    setNoSize(e.target.checked)
+                    if (e.target.checked) {
+                      setSelectedSizes([])
+                      setSizesOpen(false)
+                    }
+                  }}
+                  className="size-4 rounded border-border accent-brand-primary"
+                />
+                No size (one-size item, e.g. sarees or unstitched fabric)
+              </label>
+
+              {!noSize && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSizesOpen((v) => !v)}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-bg px-3 py-[11px] text-md text-fg outline-none transition-colors focus:border-brand-primary focus:bg-surface"
+                  >
+                    <span className={selectedSizes.length === 0 ? 'text-muted-warm' : ''}>
+                      {selectedSizes.length === 0 ? 'Select sizes' : selectedSizes.join(', ')}
+                    </span>
+                    <ChevronDown className={`size-4 shrink-0 text-muted-warm transition-transform ${sizesOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {sizesOpen && (
+                    <div className="absolute top-full z-20 mt-1 w-full rounded-lg border border-border bg-surface p-2 shadow-lg">
+                      <div className="mb-1 flex items-center justify-between px-1">
+                        <button type="button" onClick={() => setSelectedSizes(ALL_SIZES)} className="cursor-pointer text-xs font-semibold text-brand-primary">Select all</button>
+                        <button type="button" onClick={() => setSelectedSizes([])} className="cursor-pointer text-xs font-semibold text-muted-warm">Clear</button>
+                      </div>
+                      {ALL_SIZES.map((size) => (
+                        <label key={size} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg hover:bg-bg">
+                          <input type="checkbox" checked={selectedSizes.includes(size)} onChange={() => setSelectedSizes((prev) => prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size])} className="size-4 rounded border-border accent-brand-primary" />
+                          {size}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-bold text-fg">Occasions</span>

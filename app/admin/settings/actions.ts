@@ -459,6 +459,103 @@ export async function deletePromotionAction(id: string): Promise<void> {
   updateTag(storefrontTag(tenantId))
 }
 
+// ── Carousel Tab (homepage hero banners) ──
+export type BannerItem = {
+  id: string
+  productId: string
+  productName: string
+  headline: string | null
+  subtitle: string | null
+  sortOrder: number
+  isActive: boolean
+}
+
+export async function getBannersAction(): Promise<BannerItem[]> {
+  const { tenantId } = await requireOwnerTenant()
+  const banners = await withTenant(tenantId, (db) =>
+    db.storeBanner.findMany({ where: { tenantId }, orderBy: { sortOrder: 'asc' }, include: { product: { select: { name: true } } } })
+  )
+  return banners
+    .filter((b) => b.productId && b.product)
+    .map((b) => ({
+      id: b.id,
+      productId: b.productId!,
+      productName: b.product!.name,
+      headline: b.headline,
+      subtitle: b.subtitle,
+      sortOrder: b.sortOrder,
+      isActive: b.isActive,
+    }))
+}
+
+export async function getActiveProductsForBannerAction(): Promise<{ id: string; name: string }[]> {
+  const { tenantId } = await requireOwnerTenant()
+  return withTenant(tenantId, (db) =>
+    db.product.findMany({
+      where: { tenantId, isActive: true, status: 'published', deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
+  )
+}
+
+export type CreateBannerInput = { productId: string; headline?: string; subtitle?: string }
+
+export async function createBannerAction(input: CreateBannerInput): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  if (!input.productId) return { error: 'Choose a product to feature.' }
+
+  const count = await withTenant(tenantId, (db) => db.storeBanner.count({ where: { tenantId } }))
+  await withTenant(tenantId, (db) =>
+    db.storeBanner.create({
+      data: {
+        tenantId,
+        productId: input.productId,
+        headline: input.headline?.trim() || null,
+        subtitle: input.subtitle?.trim() || null,
+        sortOrder: count,
+      },
+    })
+  )
+  revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
+  return {}
+}
+
+export async function toggleBannerAction(id: string, isActive: boolean): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, (db) => db.storeBanner.updateMany({ where: { id, tenantId }, data: { isActive } }))
+  revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
+}
+
+export async function deleteBannerAction(id: string): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  await withTenant(tenantId, (db) => db.storeBanner.deleteMany({ where: { id, tenantId } }))
+  revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
+}
+
+/** Swaps sortOrder with the adjacent banner — the simplest reorder UI that doesn't need drag-and-drop. */
+export async function moveBannerAction(id: string, direction: 'up' | 'down'): Promise<void> {
+  const { tenantId } = await requireOwnerTenant()
+  const banners = await withTenant(tenantId, (db) => db.storeBanner.findMany({ where: { tenantId }, orderBy: { sortOrder: 'asc' } }))
+  const index = banners.findIndex((b) => b.id === id)
+  const swapWith = direction === 'up' ? index - 1 : index + 1
+  if (index === -1 || swapWith < 0 || swapWith >= banners.length) return
+
+  const a = banners[index]
+  const b = banners[swapWith]
+  await withTenant(tenantId, (db) =>
+    Promise.all([
+      db.storeBanner.update({ where: { id: a.id }, data: { sortOrder: b.sortOrder } }),
+      db.storeBanner.update({ where: { id: b.id }, data: { sortOrder: a.sortOrder } }),
+    ])
+  )
+  revalidatePath('/admin/settings')
+  updateTag(storefrontTag(tenantId))
+}
+
 // ── Subscription Tab (read-only — no billing provider wired up yet) ──
 export type SubscriptionInfo = { tier: Tier; trialEndsAt: string | null }
 

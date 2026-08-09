@@ -44,6 +44,15 @@ function relativeDate(date: Date): string {
   return `${days} days ago`
 }
 
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000
+function isOverdue(order: AdminOrder): boolean {
+  return order.status === 'pending' && Date.now() - order.createdAt.getTime() > SIX_HOURS_MS
+}
+
+function OverdueBadge() {
+  return <span className="rounded-full bg-danger/10 px-2 py-0.75 text-2xs font-bold uppercase tracking-wide text-danger">Overdue</span>
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,7 +77,7 @@ export default function AdminOrdersPage() {
   const filtered = orders
     .filter((o) => activeFilter === 'All' || o.status === activeFilter)
     .filter((o) => !search || o.customerName.toLowerCase().includes(search.toLowerCase()) || o.code.toLowerCase().includes(search.toLowerCase()))
-  const sorted = sortAsc ? [...filtered].reverse() : filtered
+  const sorted = [...(sortAsc ? [...filtered].reverse() : filtered)].sort((a, b) => Number(isOverdue(b)) - Number(isOverdue(a)))
 
   const totalValue = orders.reduce((s, o) => s + o.total, 0)
   const pendingCount = orders.filter((o) => o.status === 'pending').length
@@ -154,6 +163,7 @@ export default function AdminOrdersPage() {
                     <p className="mt-0.5 text-xs text-muted-warm">{order.code} · {relativeDate(order.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {isOverdue(order) && <OverdueBadge />}
                     <span className="size-2 rounded-full" style={{ backgroundColor: STATUS_DOT[order.status] }} />
                     <span className="text-xs font-medium text-muted-warm">{STATUS_LABEL[order.status]}</span>
                   </div>
@@ -195,6 +205,7 @@ export default function AdminOrdersPage() {
                 <p className="truncate text-sm text-muted-warm">{order.itemsSummary}</p>
                 <p className="font-marketing min-w-[72px] text-right text-[15px] font-semibold text-fg">₹{order.total.toLocaleString('en-IN')}</p>
                 <div className="flex min-w-[90px] items-center justify-center gap-1.5">
+                  {isOverdue(order) && <OverdueBadge />}
                   <span className="size-2 rounded-full" style={{ backgroundColor: STATUS_DOT[order.status] }} />
                   <span className="text-xs font-medium text-fg">{STATUS_LABEL[order.status]}</span>
                 </div>

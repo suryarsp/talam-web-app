@@ -82,6 +82,26 @@ export default async function StorePage() {
     isNew: p.isNew,
   }))
 
+  // No banners configured (e.g. a tenant onboarded with zero products never got a seeded one) —
+  // fall back to featuring active products instead of an empty hero.
+  const heroBanners =
+    bannersWithReviews.length > 0
+      ? bannersWithReviews
+      : productData
+          .filter((p) => p.images.length > 0)
+          .slice(0, 3)
+          .map((p) => ({
+            headline: p.name,
+            subtitle: p.category,
+            slug: p.slug,
+            price: p.price,
+            comparePrice: p.comparePrice,
+            sizes: p.sizes,
+            images: p.images,
+            reviewCount: p.reviewCount,
+            averageRating: p.averageRating,
+          }))
+
   const categoryData = categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))
 
   const offerData = offerProducts
@@ -117,7 +137,7 @@ export default async function StorePage() {
 
   return (
     <StorePageClient
-      banners={bannersWithReviews}
+      banners={heroBanners}
       promotions={promotionData}
       countdownTarget={soonestEnd}
       tags={tagData}

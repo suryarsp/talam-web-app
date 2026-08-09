@@ -71,6 +71,11 @@ enum DiscountType {
   fixed
 }
 
+enum ProductUnit {
+  piece
+  meter
+}
+
 model Tenant {
   id                   String          @id @default(uuid()) @db.Uuid
   ownerId              String          @unique @map("owner_id") @db.Uuid
@@ -112,6 +117,7 @@ model Tenant {
   customers     Customer[]
   orders        Order[]
   orderItems    OrderItem[]
+  orderStatusEvents OrderStatusEvent[]
   wishlists     Wishlist[]
   discountCodes DiscountCode[]
   categories    ProductCategory[]
@@ -139,6 +145,7 @@ model Product {
   comparePrice Decimal?      @map("compare_price") @db.Decimal(10, 2)
   categoryId   String?       @map("category_id") @db.Uuid
   sizes        String[]
+  unit         ProductUnit   @default(piece)
   images       String[]
   stockBySize  Json          @default("{}") @map("stock_by_size")
   specifications Json        @default("[]")
@@ -256,13 +263,33 @@ model Order {
   trackingId      String?       @map("tracking_id")
   disputeFlaggedAt DateTime?    @map("dispute_flagged_at")
   disputeReason   String?       @map("dispute_reason")
+  cancelReason    String?       @map("cancel_reason")
+  paymentProofUrl String?       @map("payment_proof_url")
+  reminderSentAt  DateTime?     @map("reminder_sent_at") @db.Timestamptz
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
-  tenant   Tenant      @relation(fields: [tenantId], references: [id])
-  customer Customer    @relation(fields: [customerId], references: [id])
-  items    OrderItem[]
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  customer     Customer            @relation(fields: [customerId], references: [id])
+  items        OrderItem[]
+  statusEvents OrderStatusEvent[]
 
   @@map("orders")
+}
+
+/** Written once per status transition (see lib/data/orders.ts:updateOrderStatus) so both the
+ *  admin and customer-facing order timelines can show a real date/time per completed step. */
+model OrderStatusEvent {
+  id        String      @id @default(uuid()) @db.Uuid
+  tenantId  String      @map("tenant_id") @db.Uuid
+  orderId   String      @map("order_id") @db.Uuid
+  status    OrderStatus
+  changedAt DateTime    @default(now()) @map("changed_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, changedAt])
+  @@map("order_status_events")
 }
 
 model OrderItem {

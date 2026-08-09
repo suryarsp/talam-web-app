@@ -44,6 +44,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
         <FilterBar
           basePath={`/category/${categorySlug}`}
+          categoryRouteBase="/category"
           categories={categories}
           activeCategory={categorySlug}
           activeSize={typeof sp.size === 'string' ? sp.size : undefined}
