@@ -20,7 +20,7 @@ export function AboutHero({ tenant }: Props) {
   return (
     <section className="flex flex-col gap-8 sm:flex-row sm:gap-16">
       <div className="flex flex-col items-center gap-1 sm:w-[360px] sm:shrink-0 sm:items-start">
-        <div className="mb-4 flex size-[120px] items-center justify-center rounded-full bg-store-primary/10 font-heading text-4xl font-bold text-store-primary sm:size-[140px]">
+        <div className="mb-4 flex size-[120px] items-center justify-center rounded-full bg-store-primary-soft font-heading text-4xl font-bold text-store-primary-ink sm:size-[140px]">
           {initial}
         </div>
         <h1 className="font-heading text-xl font-bold text-fg sm:text-2xl">{tenant.name}</h1>

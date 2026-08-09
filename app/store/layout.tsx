@@ -46,7 +46,7 @@ export default async function StoreLayout({
 
   return (
     <StoreBaseProvider base={storeBase}>
-      <div style={tenant.brandColor ? ({ '--color-store-primary': tenant.brandColor } as React.CSSProperties) : undefined}>
+      <div style={tenant.brandColor ? ({ '--store-primary': tenant.brandColor } as React.CSSProperties) : undefined}>
         <StoreHeader tenant={tenant} departments={departments} />
         <div className="pb-20 sm:pb-0">
           {children}

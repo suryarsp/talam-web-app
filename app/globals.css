@@ -29,14 +29,22 @@
   --color-bg: #f9f9f9;
   --color-bg-dark: #1a1a1a;
   --color-border-light: #f0f0f0;
-  --color-store-primary: #e8577e;
-  /* ponytail: derived from --color-store-primary via a single global mix ratio (~3% max
-     channel deviation from the 3 Claude-Design theme hexes) rather than a per-theme lookup
-     table — works for any tenant's custom accent too. See docs/superpowers/plans/2026-08-09-
-     storefront-theme-tokens.md for the exact-hex upgrade path if fidelity ever matters. */
-  --color-store-primary-ink: color-mix(in srgb, var(--color-store-primary) 72%, black);
-  --color-store-primary-soft: color-mix(in srgb, var(--color-store-primary) 10%, white);
-  --color-store-primary-tint: color-mix(in srgb, var(--color-store-primary) 4%, white);
+  /* var() indirection (matching --color-background/--color-foreground above) so
+     bg-store-primary/text-store-primary/etc. stay runtime-overridable per tenant —
+     a bare literal here gets baked into compiled utility CSS by @theme inline and
+     silently ignores the --store-primary override app/store/layout.tsx sets. */
+  --color-store-primary: var(--store-primary);
+  /* ponytail: derived from --store-primary (not --color-store-primary) via a single
+     global mix ratio (~3% max channel deviation from the 3 Claude-Design theme hexes)
+     rather than a per-theme lookup table — works for any tenant's custom accent too.
+     Reads --store-primary directly, one indirection level, not --color-store-primary
+     (which is itself a var() indirection) — nesting color-mix() two levels deep through
+     another var()-wrapped custom property left it stuck on the CSS default in testing.
+     See docs/superpowers/plans/2026-08-09-storefront-theme-tokens.md for the exact-hex
+     upgrade path if fidelity ever matters. */
+  --color-store-primary-ink: color-mix(in srgb, var(--store-primary) 72%, black);
+  --color-store-primary-soft: color-mix(in srgb, var(--store-primary) 10%, white);
+  --color-store-primary-tint: color-mix(in srgb, var(--store-primary) 4%, white);
   --color-amber: #f59e0b;
   --color-danger: #ef4444;
   --color-success: #10b981;
@@ -190,6 +198,7 @@
 
 :root {
   --font-admin: system-ui, sans-serif;
+  --store-primary: #e8577e;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
