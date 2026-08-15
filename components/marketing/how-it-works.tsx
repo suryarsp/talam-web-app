@@ -3,7 +3,6 @@
 import { motion } from 'motion/react'
 import { BlurFade } from '@/components/ui/blur-fade'
 import { LineShadowText } from '@/components/ui/line-shadow-text'
-import { BorderBeam } from '@/components/ui/border-beam'
 
 const STEPS = [
   {
@@ -52,7 +51,6 @@ export function HowItWorks() {
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 className={`relative rounded-2xl bg-white/[0.03] border border-white/[0.08] overflow-hidden h-full ${step.accentGlow}`}
               >
-                <BorderBeam size={80} duration={8} colorFrom={step.accent} colorTo="#ffffff20" borderWidth={1.5} />
                 <div className="p-8 md:p-10">
                   <span
                     className="font-marketing font-bold text-[64px] leading-none block mb-6"

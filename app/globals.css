@@ -295,6 +295,21 @@
   0%, 33.333% { opacity: 1; z-index: 1; }
   33.334%, 100% { opacity: 0; z-index: 0; }
 }
+@keyframes blur-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(var(--bf-blur, 6px));
+    transform: translate3d(var(--bf-x, 0), var(--bf-y, 0), 0);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes border-beam-travel {
+  to { offset-distance: 100%; }
+}
 
 @layer base {
   * {
@@ -384,6 +399,16 @@
     animation-delay: 8s;
   }
 
+  /* CSS-only replacement for the old motion/react BlurFade: paints without
+     waiting for hydration, so it never holds up LCP. */
+  .blur-fade {
+    animation: blur-fade-in var(--bf-duration, 0.4s) ease-out var(--bf-delay, 0s) backwards;
+  }
+
+  .border-beam {
+    animation: border-beam-travel var(--beam-duration, 6s) linear infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .marketing-hero-line,
     .marketing-fade-in,
@@ -392,7 +417,9 @@
     .marketing-blob-two,
     .marketing-phone,
     .marketing-store-card,
-    .tour-hand-beacon {
+    .tour-hand-beacon,
+    .blur-fade,
+    .border-beam {
       animation: none;
       opacity: 1;
       transform: none;

@@ -4,13 +4,11 @@ import Link from 'next/link'
 import { motion } from 'motion/react'
 import { BlurFade } from '@/components/ui/blur-fade'
 import { ShimmerButton } from '@/components/ui/shimmer-button'
-import { Particles } from '@/components/ui/particles'
 import { TextAnimate } from '@/components/ui/text-animate'
 
 export function CtaBand() {
   return (
     <section className="relative bg-bg-dark py-36 md:py-48 overflow-hidden">
-      <Particles className="absolute inset-0 z-0" quantity={35} color="#f59e0b" size={0.4} staticity={50} />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full bg-brand-primary/6 blur-[150px] pointer-events-none" />
 
       <div className="relative z-10 max-w-[800px] mx-auto px-6 md:px-16 text-center">

@@ -5,7 +5,6 @@ import { motion } from 'motion/react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BlurFade } from '@/components/ui/blur-fade'
-import { BorderBeam } from '@/components/ui/border-beam'
 import { ShimmerButton } from '@/components/ui/shimmer-button'
 
 const PLANS = [
@@ -66,7 +65,6 @@ export function Pricing() {
               >
                 {plan.popular && (
                   <>
-                    <BorderBeam size={80} duration={8} colorFrom="#c1502e" colorTo="#f59e0b" borderWidth={1.5} />
                     <span className="absolute -top-px left-8 px-3 py-1 rounded-b-lg bg-brand-primary text-white text-[10px] font-semibold font-body tracking-wide uppercase">
                       Popular
                     </span>

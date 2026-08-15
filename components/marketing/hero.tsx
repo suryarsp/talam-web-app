@@ -5,9 +5,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useState, useEffect } from 'react'
 import { ShimmerButton } from '@/components/ui/shimmer-button'
 import { BlurFade } from '@/components/ui/blur-fade'
-import { Particles } from '@/components/ui/particles'
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text'
-import { BorderBeam } from '@/components/ui/border-beam'
 import { TypingAnimation } from '@/components/ui/typing-animation'
 import { PhoneFrame } from '@/components/marketing/phone-frame'
 import { ArrowRight, ShoppingBag, Star, CreditCard, Package, Bell, Search, User, Home } from 'lucide-react'
@@ -180,7 +178,6 @@ function CyclingPhone() {
 
   return (
     <PhoneFrame className="w-[260px] md:w-[300px] mx-auto">
-      <BorderBeam size={150} duration={10} colorFrom="#c1502e" colorTo="#f59e0b" borderWidth={2} />
       {/* Status bar */}
       <div className="flex items-center justify-between px-5 pt-3 pb-1">
         <span className="text-[10px] font-medium text-fg/60 font-body">9:41</span>
@@ -224,7 +221,6 @@ function CyclingPhone() {
 export function Hero() {
   return (
     <section className="relative min-h-dvh bg-bg-dark overflow-hidden flex items-center">
-      <Particles className="absolute inset-0 z-0" quantity={50} color="#c1502e" size={0.5} staticity={40} />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full bg-brand-primary/8 blur-[160px] pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-amber/6 blur-[120px] pointer-events-none" />
 
