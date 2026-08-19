@@ -53,3 +53,6 @@ next-env.d.ts
 
 # Agent skills
 .agents/skills/*
+
+# git worktrees
+/.worktrees/
