@@ -14,6 +14,7 @@ jobs:
     name: Lint · Typecheck · Build · Unit Tests
     runs-on: ubuntu-latest
     env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/talam_ci
       RESEND_API_KEY: re_ci_dummy_key
       NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
