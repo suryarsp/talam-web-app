@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockRequireOwnerTenant, mockListOrders, mockUpdateStatus, mockDb } = vi.hoisted(() => ({
+const { mockRequireOwnerTenant, mockListOrders, mockUpdateStatus, mockDb, mockCreateShipment } = vi.hoisted(() => ({
   mockRequireOwnerTenant: vi.fn(async () => ({ userId: 'u1', tenantId: 't1' })),
   mockListOrders: vi.fn(),
   mockUpdateStatus: vi.fn(),
   mockDb: { order: { findFirst: vi.fn(), update: vi.fn() } },
+  mockCreateShipment: vi.fn(),
 }))
 
 vi.mock('@/lib/admin-guard', () => ({ requireOwnerTenant: mockRequireOwnerTenant }))
@@ -12,9 +13,10 @@ vi.mock('@/lib/data/orders', () => ({ listOrdersForAdmin: mockListOrders, update
 vi.mock('@/lib/prisma', () => ({
   withTenant: (_tenantId: string, fn: (db: typeof mockDb) => unknown) => fn(mockDb),
 }))
+vi.mock('@/lib/shipping/shiprocket', () => ({ createShiprocketShipment: mockCreateShipment }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { getOrdersAction, updateOrderStatusAction, markOrderPaidAction } from './actions'
+import { getOrdersAction, updateOrderStatusAction, markOrderPaidAction, shipViaShiprocketAction } from './actions'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -69,5 +71,72 @@ describe('markOrderPaidAction', () => {
     const result = await markOrderPaidAction('missing')
     expect(result.error).toBeTruthy()
     expect(mockDb.order.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('shipViaShiprocketAction', () => {
+  const baseOrder = {
+    id: 'o1',
+    status: 'confirmed',
+    createdAt: new Date('2026-08-19T10:00:00Z'),
+    total: '1200.00',
+    paymentProvider: 'upi_manual',
+    shippingAddress: { name: 'Asha Rao', line1: '12 MG Road', city: 'Bengaluru', state: 'Karnataka', pincode: '560001', phone: '9876543210' },
+    customer: { email: 'asha@example.com' },
+    items: [{ productId: 'p1', productName: 'Silk Saree', quantity: 1, unitPrice: '1200.00' }],
+  }
+
+  it('creates a shipment and moves the order to shipped with the real AWB', async () => {
+    mockDb.order.findFirst.mockResolvedValue(baseOrder)
+    mockCreateShipment.mockResolvedValue({ awbCode: 'AWB123', courierName: 'Delhivery', shipmentId: 999 })
+
+    const result = await shipViaShiprocketAction('o1')
+
+    expect(result).toEqual({ trackingId: 'AWB123' })
+    expect(mockCreateShipment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'o1',
+        paymentMethod: 'Prepaid',
+        subTotal: 1200,
+        billing: expect.objectContaining({ name: 'Asha Rao', pincode: '560001', email: 'asha@example.com' }),
+        items: [{ name: 'Silk Saree', sku: 'p1', units: 1, sellingPrice: 1200 }],
+      })
+    )
+    expect(mockUpdateStatus).toHaveBeenCalledWith('t1', 'o1', 'shipped', 'AWB123')
+  })
+
+  it('uses COD as the payment method for cash-on-delivery orders', async () => {
+    mockDb.order.findFirst.mockResolvedValue({ ...baseOrder, paymentProvider: 'cod' })
+    mockCreateShipment.mockResolvedValue({ awbCode: 'AWB1', courierName: 'X', shipmentId: 1 })
+    await shipViaShiprocketAction('o1')
+    expect(mockCreateShipment).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'COD' }))
+  })
+
+  it('refuses an order that is not confirmed', async () => {
+    mockDb.order.findFirst.mockResolvedValue({ ...baseOrder, status: 'pending' })
+    const result = await shipViaShiprocketAction('o1')
+    expect(result.error).toBeTruthy()
+    expect(mockCreateShipment).not.toHaveBeenCalled()
+  })
+
+  it('refuses an order with an incomplete shipping address', async () => {
+    mockDb.order.findFirst.mockResolvedValue({ ...baseOrder, shippingAddress: { name: 'Asha Rao' } })
+    const result = await shipViaShiprocketAction('o1')
+    expect(result.error).toBeTruthy()
+    expect(mockCreateShipment).not.toHaveBeenCalled()
+  })
+
+  it('returns an error when the order does not exist', async () => {
+    mockDb.order.findFirst.mockResolvedValue(null)
+    const result = await shipViaShiprocketAction('missing')
+    expect(result.error).toBeTruthy()
+  })
+
+  it('surfaces the Shiprocket error message without updating order status', async () => {
+    mockDb.order.findFirst.mockResolvedValue(baseOrder)
+    mockCreateShipment.mockRejectedValue(new Error('Shiprocket order creation failed (422): bad pincode'))
+    const result = await shipViaShiprocketAction('o1')
+    expect(result.error).toBe('Shiprocket order creation failed (422): bad pincode')
+    expect(mockUpdateStatus).not.toHaveBeenCalled()
   })
 })

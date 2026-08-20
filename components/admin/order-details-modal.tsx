@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Check, ArrowDown, Package, XCircle, ChevronRight } from 'lucide-react'
 
 import type { AdminOrder, OrderStatus } from '@/lib/data/orders'
-import { updateOrderStatusAction, markOrderPaidAction } from '@/app/admin/orders/actions'
+import { updateOrderStatusAction, markOrderPaidAction, shipViaShiprocketAction } from '@/app/admin/orders/actions'
 import { getAvailableActions, timestampsFor, CANCEL_REASONS } from '@/lib/order-status'
 
 type Order = AdminOrder
@@ -127,6 +127,20 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
     setTrackingId('')
     setCancelReason(CANCEL_REASONS[0])
     setCancelReasonOther('')
+  }
+
+  async function shipViaShiprocket() {
+    setSaving(true)
+    setSaveError('')
+    const result = await shipViaShiprocketAction(order.id)
+    setSaving(false)
+    if (result.error) {
+      setSaveError(result.error)
+      return
+    }
+    onUpdated({ ...order, status: 'shipped', trackingId: result.trackingId ?? order.trackingId })
+    setConfirmKey(null)
+    setTrackingId('')
   }
 
   async function markPaid() {
@@ -300,7 +314,19 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
 
           {/* Order Tracking Timeline */}
           <div className="mb-6">
-            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-fg">Order Tracking Timeline</p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-fg">Order Tracking Timeline</p>
+              {order.trackingId && (
+                <a
+                  href={`https://shiprocket.co/tracking/${order.trackingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-brand-primary underline"
+                >
+                  Track {order.trackingId} →
+                </a>
+              )}
+            </div>
             <div className="flex flex-col">
               {timeline.map((step, i) => (
                 <div key={step.label} className="flex gap-3">
@@ -351,13 +377,23 @@ export function OrderDetailsModal({ order, onClose, onUpdated }: Props) {
                     : `Confirm: ${confirmAction.label}?`}
                 </p>
                 {confirmAction.key === 'shipped' && (
-                  <input
-                    autoFocus
-                    value={trackingId}
-                    onChange={(e) => setTrackingId(e.target.value)}
-                    placeholder="Tracking number"
-                    className="mt-3 w-full rounded-md border border-border px-3 py-2 text-sm"
-                  />
+                  <div className="mt-3 flex flex-col gap-2">
+                    <input
+                      autoFocus
+                      value={trackingId}
+                      onChange={(e) => setTrackingId(e.target.value)}
+                      placeholder="Tracking number"
+                      className="w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void shipViaShiprocket()}
+                      disabled={saving}
+                      className="w-full cursor-pointer rounded-lg border border-border p-2 text-sm font-semibold text-fg transition-colors active:bg-bg disabled:opacity-50"
+                    >
+                      Or ship via Shiprocket (auto-fills tracking)
+                    </button>
+                  </div>
                 )}
                 {confirmAction.key === 'cancelled' && (
                   <div className="mt-3 flex flex-col gap-2">

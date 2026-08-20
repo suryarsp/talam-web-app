@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Check, ArrowDown, Package, X as XIcon, Plus } from 'lucide-react'
 import type { AdminOrder } from '@/lib/data/orders'
-import { updateOrderStatusAction } from '@/app/admin/orders/actions'
+import { updateOrderStatusAction, shipViaShiprocketAction } from '@/app/admin/orders/actions'
 import { getAvailableActions, CANCEL_REASONS } from '@/lib/order-status'
 
 type Props = {
@@ -48,6 +48,19 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
       return
     }
     onUpdated({ ...order, status, trackingId: trackingId ?? order.trackingId, cancelReason: cancelReason ?? order.cancelReason })
+    handleClose()
+  }
+
+  async function shipViaShiprocket() {
+    setSaving(true)
+    setSaveError('')
+    const result = await shipViaShiprocketAction(order.id)
+    setSaving(false)
+    if (result.error) {
+      setSaveError(result.error)
+      return
+    }
+    onUpdated({ ...order, status: 'shipped', trackingId: result.trackingId ?? order.trackingId })
     handleClose()
   }
 
@@ -98,17 +111,27 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
                 </span>
               </button>
               {pendingStatus === action.key && action.key === 'shipped' && (
-                <form
-                  className="flex gap-2 border-b border-border bg-bg px-5 py-3"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    const trackingId = new FormData(e.currentTarget).get('trackingId') as string
-                    void applyStatus('shipped', trackingId)
-                  }}
-                >
-                  <input name="trackingId" required placeholder="Tracking number" className="grow rounded-md border border-border px-2 py-1 text-sm" />
-                  <button type="submit" disabled={saving} className="rounded-md bg-brand-primary px-3 py-1 text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-50">Save</button>
-                </form>
+                <div className="flex flex-col gap-2 border-b border-border bg-bg px-5 py-3">
+                  <form
+                    className="flex gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      const trackingId = new FormData(e.currentTarget).get('trackingId') as string
+                      void applyStatus('shipped', trackingId)
+                    }}
+                  >
+                    <input name="trackingId" required placeholder="Tracking number" className="grow rounded-md border border-border px-2 py-1 text-sm" />
+                    <button type="submit" disabled={saving} className="rounded-md bg-brand-primary px-3 py-1 text-sm font-semibold text-surface transition-transform active:scale-95 disabled:opacity-50">Save</button>
+                  </form>
+                  <button
+                    type="button"
+                    onClick={() => void shipViaShiprocket()}
+                    disabled={saving}
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-fg transition-colors active:bg-border disabled:opacity-50"
+                  >
+                    Or ship via Shiprocket (auto-fills tracking)
+                  </button>
+                </div>
               )}
               {pendingStatus === action.key && action.key === 'cancelled' && (
                 <form
