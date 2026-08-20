@@ -50,11 +50,10 @@ import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
 import { ContactInfoTab } from './contact-info-tab'
 import { Toggle, SectionLabel, useSavedFlash, isValidIndianMobile, isValidUpiId } from './settings-shared'
+import { STORE_THEMES } from '@/lib/store-themes'
 
 const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Carousel', 'Subscription', 'Payments', 'Contact Info'] as const
 type Tab = (typeof TABS)[number] | 'Delete Store'
-
-const COLOR_PRESETS = ['#C1502E', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#0EA5E9']
 
 function Input({ label, defaultValue, type = 'text', ...props }: { label: string; defaultValue?: string; type?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -552,32 +551,22 @@ function StoreTab() {
           </div>
         </div>
         <div className="mt-4">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-warm">Primary Colour</p>
-          <div className="flex flex-wrap items-center gap-3">
-            {COLOR_PRESETS.map((color) => (
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-warm">Store theme</p>
+          <div className="flex flex-wrap items-center gap-4">
+            {STORE_THEMES.map((theme) => (
               <button
-                key={color}
+                key={theme.id}
                 type="button"
-                onClick={() => save({ brandColor: color })}
-                className={`size-10 shrink-0 rounded-full transition-transform active:scale-90 ${color === settings.brandColor ? 'ring-[3px] ring-fg ring-offset-2' : ''}`}
-                style={{ backgroundColor: color }}
-              />
+                onClick={() => save({ brandColor: theme.color })}
+                className="flex flex-col items-center gap-1"
+              >
+                <span
+                  className={`size-10 shrink-0 rounded-full transition-transform active:scale-90 ${theme.color === settings.brandColor ? 'ring-[3px] ring-fg ring-offset-2' : ''}`}
+                  style={{ backgroundColor: theme.color }}
+                />
+                <span className="text-2xs font-medium text-muted-warm">{theme.name}</span>
+              </button>
             ))}
-            <label
-              title="Custom colour"
-              className={`relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-border text-muted-warm transition-transform active:scale-90 ${
-                settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor) ? 'border-solid ring-[3px] ring-fg ring-offset-2' : ''
-              }`}
-              style={settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor) ? { backgroundColor: settings.brandColor, borderColor: settings.brandColor } : undefined}
-            >
-              {!(settings.brandColor && !COLOR_PRESETS.includes(settings.brandColor)) && <span className="text-lg leading-none">+</span>}
-              <input
-                type="color"
-                value={settings.brandColor ?? '#000000'}
-                onChange={(e) => save({ brandColor: e.target.value })}
-                className="absolute inset-0 size-full cursor-pointer opacity-0"
-              />
-            </label>
           </div>
         </div>
       </div>

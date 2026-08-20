@@ -19,7 +19,7 @@ import {
 import { BrandStep } from './brand-step'
 import { ContactStep } from './contact-step'
 import { LaunchOverlay } from './launch-overlay'
-import { STEP_ACCENTS, STEPS, type BrandColor, type PaymentId } from './onboarding-data'
+import { STEP_ACCENTS, STEPS, STORE_THEMES, type BrandColor, type PaymentId } from './onboarding-data'
 import { onboardingSchema, STEP_FIELDS, type OnboardingValues } from './onboarding-schema'
 import { PaymentStep } from './payment-step'
 import { StoreStep } from './store-step'
@@ -73,7 +73,7 @@ export function OnboardingWizard({
       storeName: initialTenant?.name ?? "Priya's Boutique",
       categories: initialTenant?.storeType ? initialTenant.storeType.split(', ').filter(Boolean) : [],
       customCategory: '',
-      brandColor: ((initialTenant?.brandColor as BrandColor) ?? '#4F3FF0') as string,
+      brandColor: ((initialTenant?.brandColor as BrandColor) ?? STORE_THEMES[0].color) as string,
       brandLogo: undefined as unknown as File,
       contactPhone: initialTenant?.contactPhone ?? '',
       contactEmail: initialTenant?.contactEmail ?? userEmail ?? '',

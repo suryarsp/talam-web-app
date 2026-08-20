@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Controller, type Control, useWatch } from 'react-hook-form'
 import { ImagePlus } from 'lucide-react'
 
-import { BRAND_COLORS } from './onboarding-data'
+import { STORE_THEMES } from './onboarding-data'
 import { StepTitle } from './onboarding-fields'
 import type { OnboardingValues } from './onboarding-schema'
 import { Attachment, AttachmentMedia, AttachmentContent, AttachmentTitle, AttachmentDescription, AttachmentTrigger } from '@/components/ui/attachment'
@@ -31,27 +31,28 @@ export function BrandStep({
           />
         </div>
         <div>
-          <p className="font-body text-sm font-medium leading-[18px] text-[#374151]">Brand color</p>
+          <p className="font-body text-sm font-medium leading-[18px] text-[#374151]">Store theme</p>
           <p className="mt-0.5 font-body text-xs leading-tight text-[#6B7280]">
-            Used for buttons, links, and highlights across your store.
+            Sets the accent color for buttons, links, and highlights across your store.
           </p>
           <Controller
             control={control}
             name="brandColor"
             render={({ field }) => (
               <div className="mt-2.5 flex gap-3">
-                {BRAND_COLORS.map((color) => (
+                {STORE_THEMES.map((theme) => (
                   <button
-                    key={color}
+                    key={theme.id}
                     type="button"
                     className={[
-                      'size-[52px] shrink-0 cursor-pointer rounded-xl transition-colors',
-                      color === field.value ? 'border-[3px] border-brand-primary' : 'border-2 border-[#E5E7EB]',
+                      'flex w-21 shrink-0 cursor-pointer flex-col items-center gap-2 rounded-xl border-2 py-3 transition-colors',
+                      theme.color === field.value ? 'border-brand-primary bg-[#F3F4F6]' : 'border-[#E5E7EB]',
                     ].join(' ')}
-                    style={{ backgroundColor: color }}
-                    onClick={() => field.onChange(color)}
-                    aria-label={`Use ${color}`}
-                  />
+                    onClick={() => field.onChange(theme.color)}
+                  >
+                    <span className="size-8 shrink-0 rounded-full" style={{ backgroundColor: theme.color }} />
+                    <span className="font-body text-xs font-medium leading-tight text-[#374151]">{theme.name}</span>
+                  </button>
                 ))}
               </div>
             )}
@@ -60,7 +61,9 @@ export function BrandStep({
         <div className="flex items-center gap-3 rounded-xl bg-[#F3F4F6] p-4">
           <span className="size-10 shrink-0 rounded-lg" style={{ backgroundColor: brandColor }} />
           <div className="flex flex-col gap-0.5">
-            <span className="font-body text-2xs font-medium uppercase tracking-[0.04em] text-[#6B7280]">Primary</span>
+            <span className="font-body text-2xs font-medium uppercase tracking-[0.04em] text-[#6B7280]">
+              {STORE_THEMES.find((theme) => theme.color === brandColor)?.name ?? 'Custom'}
+            </span>
             <span className="font-body text-sm font-semibold leading-tight text-brand-primary">{brandColor}</span>
           </div>
         </div>

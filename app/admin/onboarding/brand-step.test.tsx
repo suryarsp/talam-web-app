@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
 import { BrandStep } from './brand-step'
+import { STORE_THEMES } from './onboarding-data'
 import type { OnboardingValues } from './onboarding-schema'
 
 beforeAll(() => {
@@ -35,5 +36,21 @@ describe('BrandStep logo upload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(input, file)
     expect(container.querySelector('img')).toHaveAttribute('src', 'blob:mock-url')
+  })
+})
+
+describe('BrandStep theme picker', () => {
+  it('renders the 3 named storefront themes', () => {
+    render(<Harness />)
+    for (const theme of STORE_THEMES) {
+      expect(screen.getByText(theme.name)).toBeInTheDocument()
+    }
+  })
+
+  it('selects a theme color on click', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByText('Indigo'))
+    expect(screen.getByText('#2C3E6B')).toBeInTheDocument()
   })
 })
