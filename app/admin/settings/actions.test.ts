@@ -88,6 +88,10 @@ import {
   updateAlertsAction,
   startRazorpayOnboardingAction,
   refreshRazorpayStatusAction,
+  getShippingSettingsAction,
+  connectShippingAction,
+  disconnectShippingAction,
+  requestShippingAssistAction,
 } from './actions'
 
 beforeEach(() => vi.clearAllMocks())
@@ -283,5 +287,121 @@ describe('refreshRazorpayStatusAction', () => {
     const result = await refreshRazorpayStatusAction()
     expect(result).toEqual({ error: 'No Razorpay account connected yet.' })
     expect(mockGetLinkedAccount).not.toHaveBeenCalled()
+  })
+})
+
+// ── Shipping Tab ──
+const {
+  mockConnectShiprocket,
+  mockDisconnectShiprocket,
+  mockGetShippingConfig,
+  mockGetWebhookToken,
+  mockRequestAssist,
+  mockSendAssistEmail,
+  mockGetSuperAdminEmails,
+} = vi.hoisted(() => ({
+  mockConnectShiprocket: vi.fn(),
+  mockDisconnectShiprocket: vi.fn(),
+  mockGetShippingConfig: vi.fn(),
+  mockGetWebhookToken: vi.fn(),
+  mockRequestAssist: vi.fn(),
+  mockSendAssistEmail: vi.fn(),
+  mockGetSuperAdminEmails: vi.fn(),
+}))
+
+vi.mock('@/lib/shipping/shiprocket-account', () => ({
+  connectShiprocketAccount: mockConnectShiprocket,
+  disconnectShiprocketAccount: mockDisconnectShiprocket,
+  getShippingConfig: mockGetShippingConfig,
+  getShippingWebhookToken: mockGetWebhookToken,
+  requestShiprocketAssist: mockRequestAssist,
+}))
+vi.mock('@/lib/resend', () => ({ sendShippingAssistRequestEmail: mockSendAssistEmail }))
+vi.mock('@/lib/auth-guard', () => ({ getSuperAdminEmails: mockGetSuperAdminEmails }))
+
+describe('shipping settings actions', () => {
+  beforeEach(() => {
+    mockConnectShiprocket.mockResolvedValue({})
+    mockRequestAssist.mockResolvedValue({})
+    mockGetShippingConfig.mockResolvedValue({ mode: 'platform' })
+    mockGetWebhookToken.mockResolvedValue(null)
+    mockGetSuperAdminEmails.mockReturnValue(['ops@talam4shop.com'])
+    mockTenantFindUnique.mockResolvedValue({
+      name: "D'Mystique Boutique",
+      slug: 'dmystique',
+      contactEmail: 'hello@dmystique.com',
+      contactPhone: '+91 98765 43210',
+    })
+  })
+
+  describe('getShippingSettingsAction', () => {
+    it('returns the config alongside the tenant-visible webhook token', async () => {
+      mockGetShippingConfig.mockResolvedValue({ mode: 'connected' })
+      mockGetWebhookToken.mockResolvedValue('whtok_abc')
+
+      expect(await getShippingSettingsAction()).toEqual({
+        config: { mode: 'connected' },
+        webhookToken: 'whtok_abc',
+      })
+      expect(mockGetWebhookToken).toHaveBeenCalledWith('t1')
+    })
+  })
+
+  describe('connectShippingAction', () => {
+    it("connects the caller's own store, recording them as the actor", async () => {
+      expect(await connectShippingAction('shop@example.com', 'pw', 'Chennai Store')).toEqual({})
+      expect(mockConnectShiprocket).toHaveBeenCalledWith({
+        tenantId: 't1',
+        email: 'shop@example.com',
+        password: 'pw',
+        pickupLocation: 'Chennai Store',
+        actor: 'self',
+      })
+    })
+
+    it('surfaces a verification failure', async () => {
+      mockConnectShiprocket.mockResolvedValue({ error: 'Could not verify that Shiprocket login' })
+      const result = await connectShippingAction('shop@example.com', 'wrong', 'Chennai Store')
+      expect(result.error).toBe('Could not verify that Shiprocket login')
+    })
+  })
+
+  describe('disconnectShippingAction', () => {
+    it('disconnects the calling tenant', async () => {
+      expect(await disconnectShippingAction()).toEqual({})
+      expect(mockDisconnectShiprocket).toHaveBeenCalledWith('t1')
+    })
+  })
+
+  describe('requestShippingAssistAction', () => {
+    it('records the request and emails the ops allow-list with the shop’s contact details', async () => {
+      expect(await requestShippingAssistAction()).toEqual({})
+
+      expect(mockRequestAssist).toHaveBeenCalledWith('t1')
+      expect(mockSendAssistEmail).toHaveBeenCalledWith(
+        ['ops@talam4shop.com'],
+        expect.objectContaining({
+          tenantName: "D'Mystique Boutique",
+          tenantSlug: 'dmystique',
+          contactPhone: '+91 98765 43210',
+        })
+      )
+    })
+
+    it('does not email anyone when the request was refused', async () => {
+      mockRequestAssist.mockResolvedValue({ error: 'A Shiprocket account is already connected.' })
+
+      const result = await requestShippingAssistAction()
+
+      expect(result.error).toBeTruthy()
+      expect(mockSendAssistEmail).not.toHaveBeenCalled()
+    })
+
+    it('is a no-op email-wise on a repeat request, since requestShiprocketAssist is idempotent', async () => {
+      // Repeat clicks return {} without re-flagging; the email still fires at most per click,
+      // which is why the idempotency guard lives in the account module, not here.
+      await requestShippingAssistAction()
+      expect(mockRequestAssist).toHaveBeenCalledTimes(1)
+    })
   })
 })

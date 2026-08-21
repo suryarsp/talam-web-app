@@ -12,8 +12,19 @@ import { createServerClient } from '@/lib/supabase/server'
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import { storefrontTag } from '@/lib/storefront-cache'
 import { normalizePaymentConfig, type PaymentGatewayConfig, type RazorpayStatus } from '@/lib/payments/config'
+import {
+  connectShiprocketAccount,
+  disconnectShiprocketAccount,
+  getShippingConfig,
+  getShippingWebhookToken,
+  requestShiprocketAssist,
+} from '@/lib/shipping/shiprocket-account'
+import type { ShippingConfig } from '@/lib/shipping/shipping-config'
+import { sendShippingAssistRequestEmail } from '@/lib/resend'
+import { getSuperAdminEmails } from '@/lib/auth-guard'
 
 export type { PaymentGatewayConfig } from '@/lib/payments/config'
+export type { ShippingConfig } from '@/lib/shipping/shipping-config'
 
 function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
@@ -662,4 +673,79 @@ export async function refreshRazorpayStatusAction(): Promise<{ status: RazorpayS
 
   revalidatePath('/admin/settings')
   return { status }
+}
+
+// ── Shipping Tab ──
+// Model A: each shop connects its own Shiprocket account, so shipments go out under the
+// shop's own KYC, bank and COD remittance. All the real work lives in
+// lib/shipping/shiprocket-account.ts, shared with the staff-assisted path in super-admin.
+
+export async function getShippingSettingsAction(): Promise<{
+  config: ShippingConfig
+  webhookToken: string | null
+}> {
+  const { tenantId } = await requireOwnerTenant()
+  const [config, webhookToken] = await Promise.all([
+    getShippingConfig(tenantId),
+    getShippingWebhookToken(tenantId),
+  ])
+  return { config, webhookToken }
+}
+
+export async function connectShippingAction(
+  email: string,
+  password: string,
+  pickupLocation: string
+): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+
+  const result = await connectShiprocketAccount({
+    tenantId,
+    email,
+    password,
+    pickupLocation,
+    actor: 'self',
+  })
+  if (result.error) return result
+
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+export async function disconnectShippingAction(): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+  await disconnectShiprocketAccount(tenantId)
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+/**
+ * Flags the shop for Talam support and emails the ops allow-list. The email is
+ * fire-and-forget: sendShippingAssistRequestEmail swallows its own failures, and a Resend
+ * outage must not stop the request being recorded — the super-admin badge still shows it.
+ */
+export async function requestShippingAssistAction(): Promise<{ error?: string }> {
+  const { tenantId } = await requireOwnerTenant()
+
+  const tenant = await withTenant(tenantId, (db) =>
+    db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true, slug: true, contactEmail: true, contactPhone: true },
+    })
+  )
+  if (!tenant) return { error: 'Store not found.' }
+
+  const result = await requestShiprocketAssist(tenantId)
+  if (result.error) return result
+
+  await sendShippingAssistRequestEmail(getSuperAdminEmails(), {
+    tenantName: tenant.name,
+    tenantSlug: tenant.slug,
+    contactEmail: tenant.contactEmail,
+    contactPhone: tenant.contactPhone,
+    tenantAdminUrl: `${process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : ''}/super-admin`,
+  })
+
+  revalidatePath('/admin/settings')
+  return {}
 }
