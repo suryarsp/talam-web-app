@@ -30,6 +30,7 @@ export default async function SuperAdminTenantsPage() {
             <TableHead>Onboarding Stage</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Razorpay</TableHead>
+            <TableHead>Shipping</TableHead>
             <TableHead>Suspended</TableHead>
           </TableRow>
         </TableHeader>
@@ -49,6 +50,18 @@ export default async function SuperAdminTenantsPage() {
                 </Badge>
               </TableCell>
               <TableCell>{tenant.razorpayStatus ?? '—'}</TableCell>
+              <TableCell>
+                {tenant.shippingMode === 'assist_requested' ? (
+                  // The one state that needs someone to act — has to be scannable down the list.
+                  <Badge variant="destructive">Needs help</Badge>
+                ) : tenant.shippingMode === 'assist_in_progress' ? (
+                  <Badge variant="secondary">In progress</Badge>
+                ) : tenant.shippingMode === 'connected' ? (
+                  <Badge variant="secondary">Connected</Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
               <TableCell>
                 {tenant.suspendedAt ? <Badge variant="destructive">Suspended</Badge> : <span className="text-muted-foreground">—</span>}
               </TableCell>

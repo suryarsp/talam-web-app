@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { SuperAdminTenant } from '@/lib/data/super-admin'
 import { updateOnboardingStageAction, suspendTenantAction, unsuspendTenantAction } from '../../actions'
+import { ShippingConnectForm } from './shipping-connect-form'
 
 const STAGES: { value: OnboardingStage; label: string }[] = [
   { value: 'business_setup', label: 'Business Setup' },
@@ -102,6 +103,8 @@ export function TenantDetailClient({ tenant }: { tenant: SuperAdminTenant }) {
           <Badge variant="secondary">{tenant.razorpayStatus ?? 'not connected'}</Badge>
         </div>
       </section>
+
+      <ShippingConnectForm tenant={tenant} />
 
       <section className="rounded-lg border border-border p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">Store Access</h2>
