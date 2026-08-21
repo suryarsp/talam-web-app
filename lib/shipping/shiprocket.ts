@@ -1,6 +1,7 @@
 import {
   assignShiprocketAwb,
   createShiprocketOrder,
+  ShiprocketLoginError,
   shiprocketLogin,
   type ShiprocketOrderInput,
   type ShiprocketShipment,
@@ -38,13 +39,16 @@ export async function createShiprocketShipment(
   try {
     token = await shiprocketLogin(credential.email, credential.password)
   } catch (err) {
-    // Almost always means the shop rotated their Shiprocket password. Nothing else notices
-    // until a shipment is attempted, so record it here: Settings then shows a reconnect
-    // prompt and shipViaShiprocketAction blocks further attempts with a useful message.
-    await markShiprocketCredentialStale(tenantId, err instanceof Error ? err.message : 'Login failed')
-    throw new Error(
-      'Your Shiprocket account could not be authenticated — reconnect it in Settings → Shipping.'
-    )
+    // Only an actual 401/403 means the shop rotated their Shiprocket password — anything
+    // else (5xx, rate limit, network hiccup) is transient and must not flip a working
+    // credential to "needs reconnect", or block every retry with the wrong message.
+    if (err instanceof ShiprocketLoginError && (err.status === 401 || err.status === 403)) {
+      await markShiprocketCredentialStale(tenantId, err.message)
+      throw new Error(
+        'Your Shiprocket account could not be authenticated — reconnect it in Settings → Shipping.'
+      )
+    }
+    throw new Error('Shiprocket could not be reached right now — try shipping this order again shortly.')
   }
 
   const { shipmentId } = await createShiprocketOrder(token, config.pickupLocation, input)

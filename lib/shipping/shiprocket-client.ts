@@ -30,6 +30,21 @@ export type ShiprocketOrderInput = {
 
 export type ShiprocketShipment = { awbCode: string; courierName: string; shipmentId: number }
 
+/**
+ * Thrown by shiprocketLogin on a non-2xx response. Carries the HTTP status so callers can
+ * tell an actual credential rejection (401/403) apart from a transient upstream problem
+ * (5xx, 429, ...) instead of treating every failure as "wrong password".
+ */
+export class ShiprocketLoginError extends Error {
+  readonly status: number
+
+  constructor(status: number, body: string) {
+    super(`Shiprocket login failed (${status}): ${body}`)
+    this.name = 'ShiprocketLoginError'
+    this.status = status
+  }
+}
+
 function formatShiprocketDate(date: Date): string {
   return date.toISOString().slice(0, 19).replace('T', ' ')
 }
@@ -47,7 +62,7 @@ export async function shiprocketLogin(email: string, password: string): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
-  if (!res.ok) throw new Error(`Shiprocket login failed (${res.status}): ${await res.text()}`)
+  if (!res.ok) throw new ShiprocketLoginError(res.status, await res.text())
 
   const json = (await res.json()) as { token: string }
   return json.token

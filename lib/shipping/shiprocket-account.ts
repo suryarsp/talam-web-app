@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { withTenant } from '@/lib/prisma'
 import { decrypt, encrypt } from '@/lib/crypto'
-import { shiprocketLogin } from './shiprocket-client'
+import { ShiprocketLoginError, shiprocketLogin } from './shiprocket-client'
 import {
   DEFAULT_SHIPPING_CONFIG,
   normalizeShippingConfig,
@@ -28,6 +28,14 @@ const MAX_PICKUP_LOCATION_LENGTH = 100
 /** Deliberately vague: Shiprocket's raw response must never reach a tenant-facing screen. */
 const LOGIN_FAILED_MESSAGE =
   'Could not verify that Shiprocket login — double-check the email and password and try again.'
+
+/**
+ * Shown for anything that isn't an actual 401/403 credential rejection — a 5xx, a rate
+ * limit, or a network hiccup on Shiprocket's side. Telling a tenant their correct
+ * credentials are wrong is worse than telling them to retry.
+ */
+const LOGIN_UNAVAILABLE_MESSAGE =
+  'Could not reach Shiprocket to verify that login — try again in a few minutes.'
 
 export type ConnectShiprocketInput = {
   tenantId: string
@@ -101,7 +109,8 @@ export async function connectShiprocketAccount(
     // Logged for ops, not surfaced: the thrown message is "(status): body" and never
     // contains the password, but it is still upstream text we don't show tenants.
     console.error('[shiprocket] credential verification failed', err)
-    return { error: LOGIN_FAILED_MESSAGE }
+    const isBadCredentials = err instanceof ShiprocketLoginError && (err.status === 401 || err.status === 403)
+    return { error: isBadCredentials ? LOGIN_FAILED_MESSAGE : LOGIN_UNAVAILABLE_MESSAGE }
   }
 
   const emailCipher = encrypt(email)

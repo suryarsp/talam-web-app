@@ -1,19 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogin, mockCreateOrder, mockAssignAwb, mockGetCredential, mockGetConfig, mockMarkStale } =
-  vi.hoisted(() => ({
-    mockLogin: vi.fn(),
-    mockCreateOrder: vi.fn(),
-    mockAssignAwb: vi.fn(),
-    mockGetCredential: vi.fn(),
-    mockGetConfig: vi.fn(),
-    mockMarkStale: vi.fn(),
-  }))
+const { mockLogin, mockCreateOrder, mockAssignAwb, mockGetCredential, mockGetConfig, mockMarkStale, MockShiprocketLoginError } =
+  vi.hoisted(() => {
+    class MockShiprocketLoginError extends Error {
+      status: number
+      constructor(status: number, body: string) {
+        super(`Shiprocket login failed (${status}): ${body}`)
+        this.status = status
+      }
+    }
+    return {
+      mockLogin: vi.fn(),
+      mockCreateOrder: vi.fn(),
+      mockAssignAwb: vi.fn(),
+      mockGetCredential: vi.fn(),
+      mockGetConfig: vi.fn(),
+      mockMarkStale: vi.fn(),
+      MockShiprocketLoginError,
+    }
+  })
 
 vi.mock('./shiprocket-client', () => ({
   shiprocketLogin: mockLogin,
   createShiprocketOrder: mockCreateOrder,
   assignShiprocketAwb: mockAssignAwb,
+  ShiprocketLoginError: MockShiprocketLoginError,
 }))
 vi.mock('./shiprocket-account', () => ({
   getDecryptedShiprocketCredential: mockGetCredential,
@@ -92,8 +103,8 @@ describe('createShiprocketShipment', () => {
     expect(mockLogin).not.toHaveBeenCalled()
   })
 
-  it('marks the credential stale and returns a reconnect message when the login fails', async () => {
-    mockLogin.mockRejectedValue(new Error('Shiprocket login failed (403): invalid'))
+  it('marks the credential stale and returns a reconnect message on an actual 401/403', async () => {
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(403, 'invalid'))
 
     await expect(createShiprocketShipment('t1', VALID_INPUT)).rejects.toThrow(
       'Your Shiprocket account could not be authenticated — reconnect it in Settings → Shipping.'
@@ -104,9 +115,21 @@ describe('createShiprocketShipment', () => {
 
   it('does not leak raw Shiprocket text on a login failure', async () => {
     // shipViaShiprocketAction returns err.message verbatim to the tenant's screen.
-    mockLogin.mockRejectedValue(new Error('Shiprocket login failed (403): invalid'))
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(403, 'invalid'))
 
     await expect(createShiprocketShipment('t1', VALID_INPUT)).rejects.not.toThrow(/403/)
+  })
+
+  it('does not mark the credential stale on a transient failure (5xx/rate limit/network)', async () => {
+    // A working credential must not be flipped to "needs reconnect" by an upstream hiccup —
+    // that's the same class of bug as the misleading "wrong password" message on connect.
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(429, 'rate limited'))
+
+    await expect(createShiprocketShipment('t1', VALID_INPUT)).rejects.toThrow(
+      'Shiprocket could not be reached right now — try shipping this order again shortly.'
+    )
+    expect(mockMarkStale).not.toHaveBeenCalled()
+    expect(mockCreateOrder).not.toHaveBeenCalled()
   })
 
   it('still surfaces order-creation failures verbatim', async () => {

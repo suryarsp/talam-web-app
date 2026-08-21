@@ -1,19 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDb, mockWithTenant, mockLogin } = vi.hoisted(() => {
+const { mockDb, mockWithTenant, mockLogin, MockShiprocketLoginError } = vi.hoisted(() => {
   const db = {
     tenant: { findUnique: vi.fn(), update: vi.fn() },
     shippingCredential: { upsert: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
+  }
+  class MockShiprocketLoginError extends Error {
+    status: number
+    constructor(status: number, body: string) {
+      super(`Shiprocket login failed (${status}): ${body}`)
+      this.status = status
+    }
   }
   return {
     mockDb: db,
     mockWithTenant: vi.fn(async (_tenantId: string, fn: (d: typeof db) => unknown) => fn(db)),
     mockLogin: vi.fn(),
+    MockShiprocketLoginError,
   }
 })
 
 vi.mock('@/lib/prisma', () => ({ withTenant: mockWithTenant }))
-vi.mock('./shiprocket-client', () => ({ shiprocketLogin: mockLogin }))
+vi.mock('./shiprocket-client', () => ({
+  shiprocketLogin: mockLogin,
+  ShiprocketLoginError: MockShiprocketLoginError,
+}))
 
 import { encrypt } from '@/lib/crypto'
 import {
@@ -97,8 +108,8 @@ describe('connectShiprocketAccount — verifying against Shiprocket', () => {
     expect(order).toEqual(['login', 'transaction'])
   })
 
-  it('returns a generic error and writes nothing when the login fails', async () => {
-    mockLogin.mockRejectedValue(new Error('Shiprocket login failed (403): invalid credentials'))
+  it('returns the credentials error and writes nothing on an actual 401/403 rejection', async () => {
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(403, 'invalid credentials'))
 
     const result = await connectShiprocketAccount(VALID)
 
@@ -107,6 +118,31 @@ describe('connectShiprocketAccount — verifying against Shiprocket', () => {
     )
     expect(result.error).not.toMatch(/403/)
     expect(mockWithTenant).not.toHaveBeenCalled()
+  })
+
+  it('returns a distinct "try again" error for a non-credentials failure, not the wrong-password message', async () => {
+    // A 5xx, a rate limit, or a bare network error must not be reported to the tenant as
+    // "your password is wrong" — that's the exact bug: correct credentials getting rejected
+    // by an unrelated upstream hiccup and mislabeled.
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(429, 'rate limited'))
+
+    const result = await connectShiprocketAccount(VALID)
+
+    expect(result.error).toBeTruthy()
+    expect(result.error).not.toBe(
+      'Could not verify that Shiprocket login — double-check the email and password and try again.'
+    )
+    expect(mockWithTenant).not.toHaveBeenCalled()
+  })
+
+  it('also treats a plain network/unknown error as unavailable, not bad credentials', async () => {
+    mockLogin.mockRejectedValue(new Error('fetch failed'))
+
+    const result = await connectShiprocketAccount(VALID)
+
+    expect(result.error).not.toBe(
+      'Could not verify that Shiprocket login — double-check the email and password and try again.'
+    )
   })
 })
 
