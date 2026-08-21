@@ -1,6 +1,16 @@
 # Shiprocket Integration — Minimal Proof of Concept
 
-Status: approved for implementation (2026-08-19)
+Status: **superseded (2026-08-21)** — implemented, then replaced by per-tenant accounts
+("Model A"). Kept for the API-shape and error-handling detail, which still hold.
+
+What changed: the platform-level account described below never went live. Each tenant now
+connects their own Shiprocket account (Settings → Shipping, or via Talam support), so the
+shop is the shipper of record — their KYC, bank, COD remittance and RTO liability. The
+`SHIPROCKET_EMAIL`/`PASSWORD`/`PICKUP_LOCATION`/`WEBHOOK_TOKEN` env vars below are gone;
+credentials live encrypted in `shipping_credentials`, and the webhook token is per-tenant
+(a single shared one would have let any shop mark another shop's order delivered).
+
+Original status: approved for implementation (2026-08-19)
 
 ## Goal
 
