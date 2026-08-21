@@ -103,14 +103,22 @@ function ConnectForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <div className="bg-muted rounded-md p-3 text-sm">
+          <p className="font-medium">Don&apos;t use your main Shiprocket login here.</p>
+          <p className="text-muted-foreground mt-1">
+            In Shiprocket, go to Settings → API → Configure → Create an API user, and use that
+            email and password instead. If you ever need to cut Talam off, you can delete that
+            API user without touching your real account.
+          </p>
+        </div>
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Shiprocket email</FormLabel>
+              <FormLabel>API user email</FormLabel>
               <FormControl>
-                <Input type="email" autoComplete="off" placeholder="you@yourshop.com" {...field} />
+                <Input type="email" autoComplete="off" placeholder="orders@yourshop.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -121,7 +129,7 @@ function ConnectForm({
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Shiprocket password</FormLabel>
+              <FormLabel>API user password</FormLabel>
               <FormControl>
                 <Input type="password" autoComplete="off" {...field} />
               </FormControl>

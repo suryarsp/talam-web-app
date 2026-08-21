@@ -35,7 +35,7 @@ describe('ShippingTab — not yet connected', () => {
   it('offers both the self-serve form and the assisted option', async () => {
     render(<ShippingTab />)
 
-    expect(await screen.findByLabelText(/shiprocket email/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/api user email/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /connect shiprocket/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /let talam set this up/i })).toBeInTheDocument()
   })
@@ -44,8 +44,8 @@ describe('ShippingTab — not yet connected', () => {
     const user = userEvent.setup()
     render(<ShippingTab />)
 
-    await user.type(await screen.findByLabelText(/shiprocket email/i), 'shop@example.com')
-    await user.type(screen.getByLabelText(/shiprocket password/i), 'pw')
+    await user.type(await screen.findByLabelText(/api user email/i), 'shop@example.com')
+    await user.type(screen.getByLabelText(/api user password/i), 'pw')
     await user.type(screen.getByLabelText(/pickup location/i), 'Main Store')
     await user.click(screen.getByRole('button', { name: /connect shiprocket/i }))
 
@@ -60,7 +60,7 @@ describe('ShippingTab — not yet connected', () => {
 
     await user.click(await screen.findByRole('button', { name: /connect shiprocket/i }))
 
-    expect(await screen.findByText(/enter the email you use/i)).toBeInTheDocument()
+    expect(await screen.findByText(/enter the api user email/i)).toBeInTheDocument()
     expect(mockConnect).not.toHaveBeenCalled()
   })
 
@@ -69,8 +69,8 @@ describe('ShippingTab — not yet connected', () => {
     mockConnect.mockResolvedValue({ error: 'Could not verify that Shiprocket login — try again.' })
     render(<ShippingTab />)
 
-    await user.type(await screen.findByLabelText(/shiprocket email/i), 'shop@example.com')
-    await user.type(screen.getByLabelText(/shiprocket password/i), 'wrong')
+    await user.type(await screen.findByLabelText(/api user email/i), 'shop@example.com')
+    await user.type(screen.getByLabelText(/api user password/i), 'wrong')
     await user.type(screen.getByLabelText(/pickup location/i), 'Main Store')
     await user.click(screen.getByRole('button', { name: /connect shiprocket/i }))
 
@@ -110,7 +110,7 @@ describe('ShippingTab — awaiting Talam support', () => {
     render(<ShippingTab />)
 
     expect(await screen.findByText(/talam is on it/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/shiprocket email/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/api user email/i)).not.toBeInTheDocument()
   })
 
   it('still lets the shop switch to doing it themselves', async () => {
@@ -119,7 +119,7 @@ describe('ShippingTab — awaiting Talam support', () => {
 
     await user.click(await screen.findByRole('button', { name: /do it myself/i }))
 
-    expect(await screen.findByLabelText(/shiprocket email/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/api user email/i)).toBeInTheDocument()
   })
 
   it('shows the same panel once staff have picked the request up', async () => {
@@ -151,7 +151,7 @@ describe('ShippingTab — connected', () => {
 
     expect(await screen.findByText('Connected')).toBeInTheDocument()
     expect(screen.getByText('Main Store')).toBeInTheDocument()
-    expect(screen.queryByLabelText(/shiprocket password/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/api user password/i)).not.toBeInTheDocument()
   })
 
   it("shows the shop's own webhook token so they can finish setup unassisted", async () => {

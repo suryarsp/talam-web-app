@@ -4,9 +4,9 @@ export const shippingConnectSchema = z.object({
   email: z
     .string()
     .trim()
-    .min(1, 'Enter the email you use to sign in to Shiprocket.')
+    .min(1, 'Enter the API user email from your Shiprocket dashboard.')
     .email('Enter a valid email address.'),
-  password: z.string().min(1, 'Enter your Shiprocket password.'),
+  password: z.string().min(1, 'Enter the API user password.'),
   pickupLocation: z
     .string()
     .trim()

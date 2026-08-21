@@ -92,9 +92,11 @@ export function ShippingConnectForm({ tenant }: { tenant: SuperAdminTenant }) {
       </div>
 
       <p className="text-muted-foreground mb-3 text-sm">
-        Enter the store&apos;s own Shiprocket credentials after walking them through signup. Set the webhook
-        up in their dashboard while you have them on the call — their token is shown in their Settings →
-        Shipping tab.
+        Walk them through Shiprocket signup, then have them create an API user for Talam —
+        Settings → API → Configure → Create an API user, a separate email and password from
+        their main login. Never ask for their main Shiprocket password. Set the webhook up in
+        their dashboard while you have them on the call — their token is shown in their
+        Settings → Shipping tab once this form succeeds.
       </p>
 
       <Form {...form}>
@@ -104,7 +106,7 @@ export function ShippingConnectForm({ tenant }: { tenant: SuperAdminTenant }) {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Shiprocket email</FormLabel>
+                <FormLabel>API user email</FormLabel>
                 <FormControl>
                   <Input type="email" autoComplete="off" {...field} />
                 </FormControl>
@@ -117,11 +119,11 @@ export function ShippingConnectForm({ tenant }: { tenant: SuperAdminTenant }) {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Shiprocket password</FormLabel>
+                <FormLabel>API user password</FormLabel>
                 <FormControl>
                   <Input type="password" autoComplete="off" {...field} />
                 </FormControl>
-                <FormDescription>Encrypted before it is stored.</FormDescription>
+                <FormDescription>Encrypted before it is stored. Not the store&apos;s main login.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

@@ -292,7 +292,7 @@ export async function sendShippingAssistRequestEmail(
           heading: 'A shop needs help connecting Shiprocket',
           paragraphs: [
             `<strong>${escapeHtml(params.tenantName)}</strong> (${escapeHtml(params.tenantSlug)}) asked Talam to set up their Shiprocket account for them.`,
-            'Walk them through signup, KYC and adding a pickup location, then enter their credentials from the super-admin tenant page.',
+            'Walk them through signup, KYC and adding a pickup location, then have them create a Shiprocket API user (Settings → API → Configure) — never their main login — and enter that from the super-admin tenant page.',
           ],
           list: [
             `Phone: ${escapeHtml(params.contactPhone ?? 'not provided')}`,
