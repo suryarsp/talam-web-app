@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockRequireOwnerTenant, mockListOrders, mockUpdateStatus, mockDb, mockCreateShipment } = vi.hoisted(() => ({
+const { mockRequireOwnerTenant, mockListOrders, mockUpdateStatus, mockDb, mockCreateShipment, mockGetShippingConfig } = vi.hoisted(() => ({
   mockRequireOwnerTenant: vi.fn(async () => ({ userId: 'u1', tenantId: 't1' })),
   mockListOrders: vi.fn(),
   mockUpdateStatus: vi.fn(),
   mockDb: { order: { findFirst: vi.fn(), update: vi.fn() } },
   mockCreateShipment: vi.fn(),
+  mockGetShippingConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/admin-guard', () => ({ requireOwnerTenant: mockRequireOwnerTenant }))
@@ -14,11 +15,16 @@ vi.mock('@/lib/prisma', () => ({
   withTenant: (_tenantId: string, fn: (db: typeof mockDb) => unknown) => fn(mockDb),
 }))
 vi.mock('@/lib/shipping/shiprocket', () => ({ createShiprocketShipment: mockCreateShipment }))
+vi.mock('@/lib/shipping/shiprocket-account', () => ({ getShippingConfig: mockGetShippingConfig }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { getOrdersAction, updateOrderStatusAction, markOrderPaidAction, shipViaShiprocketAction } from './actions'
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // Most tests exercise a store that has already connected its own Shiprocket account.
+  mockGetShippingConfig.mockResolvedValue({ mode: 'connected', pickupLocation: 'Chennai Store' })
+})
 
 describe('getOrdersAction', () => {
   it('delegates to listOrdersForAdmin', async () => {
@@ -94,6 +100,7 @@ describe('shipViaShiprocketAction', () => {
 
     expect(result).toEqual({ trackingId: 'AWB123' })
     expect(mockCreateShipment).toHaveBeenCalledWith(
+      't1',
       expect.objectContaining({
         orderId: 'o1',
         paymentMethod: 'Prepaid',
@@ -109,7 +116,27 @@ describe('shipViaShiprocketAction', () => {
     mockDb.order.findFirst.mockResolvedValue({ ...baseOrder, paymentProvider: 'cod' })
     mockCreateShipment.mockResolvedValue({ awbCode: 'AWB1', courierName: 'X', shipmentId: 1 })
     await shipViaShiprocketAction('o1')
-    expect(mockCreateShipment).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'COD' }))
+    expect(mockCreateShipment).toHaveBeenCalledWith('t1', expect.objectContaining({ paymentMethod: 'COD' }))
+  })
+
+  it('refuses to ship when the store has not connected its own Shiprocket account', async () => {
+    mockGetShippingConfig.mockResolvedValue({ mode: 'platform', pickupLocation: null })
+
+    const result = await shipViaShiprocketAction('o1')
+
+    expect(result.error).toBe('Connect your own Shiprocket account in Settings → Shipping before shipping orders.')
+    expect(mockCreateShipment).not.toHaveBeenCalled()
+    // Checked before the order is loaded, so the tenant gets the actionable error first.
+    expect(mockDb.order.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('refuses to ship while a Talam-assisted setup is still pending', async () => {
+    mockGetShippingConfig.mockResolvedValue({ mode: 'assist_requested', pickupLocation: null })
+
+    const result = await shipViaShiprocketAction('o1')
+
+    expect(result.error).toBeTruthy()
+    expect(mockCreateShipment).not.toHaveBeenCalled()
   })
 
   it('refuses an order that is not confirmed', async () => {
