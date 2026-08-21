@@ -308,8 +308,11 @@ export function ShippingTab() {
   }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    getShippingSettingsAction().then((result) => {
+      setConfig(result.config)
+      setWebhookToken(result.webhookToken)
+    })
+  }, [])
 
   if (!config) {
     return (
