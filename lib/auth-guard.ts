@@ -51,6 +51,18 @@ export const requireTenant = cache(async function requireTenant() {
   return { tenantId, subdomain, tier }
 })
 
+/**
+ * The Talam ops allow-list. Doubles as the recipient list for staff notifications
+ * (lib/resend.ts), so an empty value silently means both "nobody can reach /super-admin"
+ * and "nobody is told when a shop asks for help" — see .env.example.
+ */
+export function getSuperAdminEmails(): string[] {
+  return (process.env.SUPER_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+}
+
 // Ops-only allow-list, not a role column — a handful of Talam staff, not worth a schema table.
 export const requireSuperAdmin = cache(async function requireSuperAdmin() {
   const supabase = await createServerClient()
@@ -58,10 +70,7 @@ export const requireSuperAdmin = cache(async function requireSuperAdmin() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const allowList = (process.env.SUPER_ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
+  const allowList = getSuperAdminEmails()
 
   if (!user?.email || !allowList.includes(user.email.toLowerCase())) {
     redirect('/not-found')

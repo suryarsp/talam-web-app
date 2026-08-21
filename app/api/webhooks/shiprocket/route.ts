@@ -2,17 +2,32 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { updateOrderStatus } from '@/lib/data/orders'
-import { verifyShiprocketWebhookToken } from '@/lib/shipping/shiprocket'
+import { timingSafeEqualStr } from '@/lib/crypto'
 
 /**
- * Shiprocket has no concept of tenants, so this is not tenant-scoped via withTenant —
- * same reasoning as app/api/webhooks/razorpay/route.ts. The AWB (trackingId) is globally
- * unique, so it alone identifies the order. Shiprocket retries failed deliveries, so this
- * must be idempotent.
+ * Shiprocket delivery webhook.
+ *
+ * Not tenant-scoped via withTenant — the AWB lookup is inherently cross-tenant, same
+ * reasoning as app/api/webhooks/razorpay/route.ts. The AWB is assigned by the courier
+ * (Delhivery, Bluedart, …) and is unique within that courier's numbering regardless of
+ * which Shiprocket account requested it, so it alone identifies the order.
+ *
+ * Authentication is per-tenant, which is why the order lookup has to come first: under
+ * Model A every shop configures this webhook in *their own* Shiprocket dashboard, so a
+ * single shared secret would be handed to every shop — and since orders are found by AWB
+ * alone, any shop holding it could mark a competitor's order delivered. We resolve the
+ * order, read its tenant, then check the token belonging to that tenant.
+ *
+ * Accepted trade-off: an unknown AWB returns 200 while a known AWB with a bad token returns
+ * 401, which reveals whether an AWB exists in our system. Low value to an attacker (they
+ * would need the AWB already), and answering 401 to unknown AWBs would make Shiprocket
+ * retry no-op deliveries indefinitely.
+ *
+ * Shiprocket retries failed deliveries, so this must stay idempotent.
  */
 export async function POST(request: NextRequest) {
-  const token = request.headers.get('x-shiprocket-token')
-  if (!verifyShiprocketWebhookToken(token)) {
+  const received = request.headers.get('x-shiprocket-token')
+  if (!received) {
     return NextResponse.json({ error: 'invalid token' }, { status: 401 })
   }
 
@@ -31,6 +46,14 @@ export async function POST(request: NextRequest) {
   if (!order) {
     console.info('[shiprocket webhook] no order for awb', payload.awb)
     return NextResponse.json({ ok: true })
+  }
+
+  const credential = await prisma.shippingCredential.findUnique({
+    where: { tenantId: order.tenantId },
+    select: { webhookToken: true },
+  })
+  if (!credential || !timingSafeEqualStr(credential.webhookToken, received)) {
+    return NextResponse.json({ error: 'invalid token' }, { status: 401 })
   }
 
   if (order.status === 'shipped') {

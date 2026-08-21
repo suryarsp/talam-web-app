@@ -6,6 +6,7 @@ import { requireOwnerTenant } from '@/lib/admin-guard'
 import { withTenant } from '@/lib/prisma'
 import { listOrdersForAdmin, updateOrderStatus, type AdminOrder, type AdminOrderAddress } from '@/lib/data/orders'
 import { createShiprocketShipment } from '@/lib/shipping/shiprocket'
+import { getShippingConfig } from '@/lib/shipping/shiprocket-account'
 
 export async function getOrdersAction(): Promise<AdminOrder[]> {
   const { tenantId } = await requireOwnerTenant()
@@ -61,6 +62,13 @@ export async function markOrderPaidAction(orderId: string): Promise<{ error?: st
 export async function shipViaShiprocketAction(orderId: string): Promise<{ error?: string; trackingId?: string }> {
   const { tenantId } = await requireOwnerTenant()
 
+  // Checked before the order is even loaded: a store with no Shiprocket account of its own
+  // gets the one error it can act on, rather than an address complaint it can't fix yet.
+  const shipping = await getShippingConfig(tenantId)
+  if (shipping.mode !== 'connected') {
+    return { error: 'Connect your own Shiprocket account in Settings → Shipping before shipping orders.' }
+  }
+
   const order = await withTenant(tenantId, (db) =>
     db.order.findFirst({
       where: { id: orderId, tenantId },
@@ -80,7 +88,7 @@ export async function shipViaShiprocketAction(orderId: string): Promise<{ error?
 
   let shipment
   try {
-    shipment = await createShiprocketShipment({
+    shipment = await createShiprocketShipment(tenantId, {
       orderId: order.id,
       orderDate: order.createdAt,
       paymentMethod: order.paymentProvider === 'cod' ? 'COD' : 'Prepaid',

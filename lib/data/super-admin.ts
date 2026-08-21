@@ -1,6 +1,7 @@
 import type { OnboardingStage, OnboardingStageStatus } from '@prisma/client'
 import { withSuperAdmin } from '@/lib/prisma'
 import { normalizePaymentConfig, type RazorpayStatus } from '@/lib/payments/config'
+import { normalizeShippingConfig, type ShippingMode } from '@/lib/shipping/shipping-config'
 
 const tenantSelect = {
   id: true,
@@ -9,6 +10,7 @@ const tenantSelect = {
   onboardingStage: true,
   onboardingStageStatus: true,
   paymentConfig: true,
+  shippingConfig: true,
   suspendedAt: true,
 } as const
 
@@ -19,6 +21,7 @@ type TenantRow = {
   onboardingStage: OnboardingStage | null
   onboardingStageStatus: OnboardingStageStatus | null
   paymentConfig: unknown
+  shippingConfig: unknown
   suspendedAt: Date | null
 }
 
@@ -29,10 +32,16 @@ export type SuperAdminTenant = {
   onboardingStage: OnboardingStage | null
   onboardingStageStatus: OnboardingStageStatus | null
   razorpayStatus: RazorpayStatus | undefined
+  shippingMode: ShippingMode
+  // Unlike razorpayStatus, these carry timestamps: "how long has this shop been waiting
+  // for us" is the thing staff actually need off the assist queue.
+  shippingRequestedAt: string | null
+  shippingConnectedAt: string | null
   suspendedAt: Date | null
 }
 
 function toSuperAdminTenant(t: TenantRow): SuperAdminTenant {
+  const shipping = normalizeShippingConfig(t.shippingConfig)
   return {
     id: t.id,
     name: t.name,
@@ -40,6 +49,11 @@ function toSuperAdminTenant(t: TenantRow): SuperAdminTenant {
     onboardingStage: t.onboardingStage,
     onboardingStageStatus: t.onboardingStageStatus,
     razorpayStatus: normalizePaymentConfig(t.paymentConfig).razorpay.status,
+    // Only the derived fields cross into the client component — the raw config stays here,
+    // same as paymentConfig above.
+    shippingMode: shipping.mode,
+    shippingRequestedAt: shipping.requestedAt,
+    shippingConnectedAt: shipping.connectedAt,
     suspendedAt: t.suspendedAt,
   }
 }

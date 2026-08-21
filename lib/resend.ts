@@ -258,3 +258,52 @@ export async function sendOnboardingCompleteEmail(
     console.error('[Resend] sendOnboardingCompleteEmail failed:', err)
   }
 }
+
+/**
+ * Tells Talam staff that a shop wants help setting up Shiprocket — the only push signal for
+ * the assisted-onboarding path (the super-admin badge is the backstop). Carries the shop's
+ * phone and email so whoever picks it up can call without opening the app.
+ *
+ * Recipients come from SUPER_ADMIN_EMAILS. Unlike every other function here, `to` is a list
+ * of Talam staff rather than a tenant or customer.
+ */
+export async function sendShippingAssistRequestEmail(
+  to: string[],
+  params: {
+    tenantName: string
+    tenantSlug: string
+    contactEmail: string | null
+    contactPhone: string | null
+    tenantAdminUrl: string
+  }
+): Promise<void> {
+  if (to.length === 0) {
+    console.error('[Resend] sendShippingAssistRequestEmail: no SUPER_ADMIN_EMAILS configured')
+    return
+  }
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `Shiprocket setup requested — ${params.tenantName}`,
+      html: renderEmailShell(
+        renderEmailBody({
+          heading: 'A shop needs help connecting Shiprocket',
+          paragraphs: [
+            `<strong>${escapeHtml(params.tenantName)}</strong> (${escapeHtml(params.tenantSlug)}) asked Talam to set up their Shiprocket account for them.`,
+            'Walk them through signup, KYC and adding a pickup location, then have them create a Shiprocket API user (Settings → API → Configure) — never their main login — and enter that from the super-admin tenant page.',
+          ],
+          list: [
+            `Phone: ${escapeHtml(params.contactPhone ?? 'not provided')}`,
+            `Email: ${escapeHtml(params.contactEmail ?? 'not provided')}`,
+          ],
+          ctas: [{ label: 'Open tenant →', href: params.tenantAdminUrl }],
+          signature: 'Talam',
+        })
+      ),
+    })
+  } catch (err) {
+    console.error('[Resend] sendShippingAssistRequestEmail failed:', err)
+  }
+}

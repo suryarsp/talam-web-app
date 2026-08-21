@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { sendMock } = vi.hoisted(() => ({
   sendMock: vi.fn().mockResolvedValue({ data: { id: 'email-1' }, error: null }),
@@ -17,7 +17,9 @@ import {
   sendOnboardingReminderEmail,
   sendOnboardingWelcomeEmail,
   sendOrderPlacedEmail,
+  sendShippingAssistRequestEmail,
 } from './resend'
+import { getSuperAdminEmails } from './auth-guard'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -185,5 +187,73 @@ describe('order emails', () => {
       sendMock.mockRejectedValueOnce(new Error('Resend down'))
       await expect(sendNewOrderEmail('owner@example.com', params)).resolves.not.toThrow()
     })
+  })
+})
+
+describe('sendShippingAssistRequestEmail', () => {
+  const params = {
+    tenantName: "D'Mystique Boutique",
+    tenantSlug: 'dmystique',
+    contactEmail: 'hello@dmystique.com',
+    contactPhone: '+91 98765 43210',
+    tenantAdminUrl: 'https://talam4shop.com/super-admin/tenants/t1',
+  }
+
+  it('emails the whole ops allow-list in one send', async () => {
+    await sendShippingAssistRequestEmail(['ops@talam4shop.com', 'founder@talam4shop.com'], params)
+
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    expect(sendMock.mock.calls[0][0].to).toEqual(['ops@talam4shop.com', 'founder@talam4shop.com'])
+  })
+
+  it("names the shop in the subject so staff can triage without opening it", async () => {
+    await sendShippingAssistRequestEmail(['ops@talam4shop.com'], params)
+    expect(sendMock.mock.calls[0][0].subject).toBe("Shiprocket setup requested — D'Mystique Boutique")
+  })
+
+  it('includes the phone number so staff can call straight away', async () => {
+    await sendShippingAssistRequestEmail(['ops@talam4shop.com'], params)
+    expect(sendMock.mock.calls[0][0].html).toContain('+91 98765 43210')
+  })
+
+  it('says so rather than breaking when the shop has no contact details', async () => {
+    await sendShippingAssistRequestEmail(['ops@talam4shop.com'], {
+      ...params,
+      contactEmail: null,
+      contactPhone: null,
+    })
+    expect(sendMock.mock.calls[0][0].html).toContain('not provided')
+  })
+
+  it('skips the send entirely when no ops emails are configured', async () => {
+    await sendShippingAssistRequestEmail([], params)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('swallows a Resend failure like every other sender here', async () => {
+    sendMock.mockRejectedValueOnce(new Error('resend down'))
+    await expect(sendShippingAssistRequestEmail(['ops@talam4shop.com'], params)).resolves.toBeUndefined()
+  })
+})
+
+describe('getSuperAdminEmails', () => {
+  const original = process.env.SUPER_ADMIN_EMAILS
+  afterEach(() => {
+    process.env.SUPER_ADMIN_EMAILS = original
+  })
+
+  it('splits, trims and lowercases the allow-list', () => {
+    process.env.SUPER_ADMIN_EMAILS = ' Ops@Talam4shop.com , founder@talam4shop.com '
+    expect(getSuperAdminEmails()).toEqual(['ops@talam4shop.com', 'founder@talam4shop.com'])
+  })
+
+  it('drops empty entries from a trailing comma', () => {
+    process.env.SUPER_ADMIN_EMAILS = 'ops@talam4shop.com,,'
+    expect(getSuperAdminEmails()).toEqual(['ops@talam4shop.com'])
+  })
+
+  it('returns an empty list when unset, which disables staff notifications', () => {
+    delete process.env.SUPER_ADMIN_EMAILS
+    expect(getSuperAdminEmails()).toEqual([])
   })
 })
