@@ -49,10 +49,11 @@ import { InstagramIcon, FacebookIcon, YoutubeIcon, WhatsappIcon } from '@/compon
 import { DEPARTMENTS, type Department } from '@/lib/departments'
 import type { SocialLink } from '@/lib/data/tenant'
 import { ContactInfoTab } from './contact-info-tab'
+import { ShippingTab } from './shipping-tab'
 import { Toggle, SectionLabel, useSavedFlash, isValidIndianMobile, isValidUpiId } from './settings-shared'
 import { STORE_THEMES } from '@/lib/store-themes'
 
-const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Carousel', 'Subscription', 'Payments', 'Contact Info'] as const
+const TABS = ['About', 'Store', 'Alerts', 'Promotions', 'Carousel', 'Subscription', 'Payments', 'Shipping', 'Contact Info'] as const
 type Tab = (typeof TABS)[number] | 'Delete Store'
 
 function Input({ label, defaultValue, type = 'text', ...props }: { label: string; defaultValue?: string; type?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
@@ -1566,6 +1567,7 @@ export default function AdminSettingsPage() {
         {activeTab === 'Carousel' && <CarouselTab />}
         {activeTab === 'Subscription' && <SubscriptionTab />}
         {activeTab === 'Payments' && <PaymentsTab />}
+        {activeTab === 'Shipping' && <ShippingTab />}
         {activeTab === 'Contact Info' && <ContactInfoTab />}
         {activeTab === 'Delete Store' && <DeleteStoreTab />}
       </div>
