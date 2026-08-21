@@ -99,6 +99,7 @@ model Tenant {
   notifyEmailOnOrder   Boolean         @default(true) @map("notify_email_on_order")
   paymentProvider      PaymentProvider @default(upi_manual) @map("payment_provider")
   paymentConfig        Json?           @map("payment_config")
+  shippingConfig       Json?           @map("shipping_config")
   notificationPreferences Json?        @map("notification_preferences")
   storeType            String?         @map("store_type")
   freeDeliveryAbove    Decimal?        @map("free_delivery_above") @db.Decimal(10, 2)
@@ -131,8 +132,32 @@ model Tenant {
   publishLogs   PublishLog[]
   paymentMethods PaymentMethod[]
   notifications Notification[]
+  shippingCredential ShippingCredential?
 
   @@map("tenants")
+}
+
+/// Per-tenant Shiprocket account credentials. Separate from Tenant.shippingConfig on
+/// purpose: Shiprocket has no OAuth, so this holds the shop's real account password
+/// (encrypted via lib/crypto.ts). Keeping it out of the shippingConfig Json means the
+/// spread-then-overwrite pattern every config writer uses can never clobber it, and no
+/// existing tenant query accidentally selects ciphertext.
+model ShippingCredential {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @unique @map("tenant_id") @db.Uuid
+  provider       String   @default("shiprocket")
+  emailCipher    String   @map("email_cipher")
+  passwordCipher String   @map("password_cipher")
+  /// Per-tenant webhook secret. Stored plaintext deliberately — it is displayed to the
+  /// tenant so they can paste it into their own Shiprocket dashboard, so encrypting it
+  /// would buy nothing. Still a secret between Talam and this one tenant: never log it.
+  webhookToken   String   @map("webhook_token")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("shipping_credentials")
 }
 
 model Product {
