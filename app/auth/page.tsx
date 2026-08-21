@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { OtpForm } from '@/components/auth/otp-form'
 import { GoogleButton } from '@/components/auth/google-button'
+import { MicrosoftButton } from '@/components/auth/microsoft-button'
 import { Logo } from '@/components/logo'
 import { createServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
@@ -33,9 +34,7 @@ export default async function AuthPage({
 
   const { error } = await searchParams
   const errorMessage =
-    error === 'oauth_cancelled' || error === 'oauth_failed'
-      ? "Google sign-in didn't complete — please try again."
-      : null
+    error === 'oauth_cancelled' || error === 'oauth_failed' ? "Sign-in didn't complete — please try again." : null
 
   return (
     <div className="min-h-screen flex flex-col bg-surface md:items-center md:justify-center md:bg-bg">
@@ -65,8 +64,9 @@ export default async function AuthPage({
           <span className="grow h-px bg-border-light" />
         </div>
 
-        <div className="pt-5">
+        <div className="pt-5 flex flex-col gap-3">
           <GoogleButton />
+          <MicrosoftButton />
         </div>
 
         <p className="font-body text-fg/50 text-2xs leading-[18px] pt-6">

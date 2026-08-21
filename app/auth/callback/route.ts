@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
+import { syncOwnerUser } from '@/lib/auth/sync-owner-user'
 import { prisma } from '@/lib/prisma'
 import { resolveSignedInDestination } from '@/app/auth/page'
 import { isLocalDevHost } from '@/lib/tenant-url'
@@ -21,20 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   const user = data.user
-  await prisma.user.upsert({
-    where: { id: user.id },
-    create: {
-      id: user.id,
-      email: user.email,
-      name: user.user_metadata.full_name ?? null,
-      avatarUrl: user.user_metadata.avatar_url ?? null,
-    },
-    update: {
-      email: user.email,
-      name: user.user_metadata.full_name ?? null,
-      avatarUrl: user.user_metadata.avatar_url ?? null,
-    },
-  })
+  await syncOwnerUser(user)
 
   let next = explicitNext
   if (!next) {

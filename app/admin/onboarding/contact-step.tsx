@@ -10,7 +10,7 @@ export function ContactStep({
   readonly control: Control<OnboardingValues>
   readonly authProvider?: string | null
 }) {
-  const emailLocked = authProvider === 'google'
+  const emailLocked = authProvider === 'google' || authProvider === 'azure'
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
       <StepTitle step={3} title="Contact & address" description="How customers reach you and where you're based." />
@@ -37,7 +37,9 @@ export function ContactStep({
           name="contactEmail"
           render={({ field, fieldState }) => (
             <Field label="Contact email" error={fieldState.error?.message}>
-              <FieldHint>{emailLocked ? 'Signed in with Google — using your Google account email' : 'Where customers and Talam can reach you'}</FieldHint>
+              <FieldHint>
+                {emailLocked ? `Signed in with ${authProvider === 'google' ? 'Google' : 'Microsoft'} — using your account email` : 'Where customers and Talam can reach you'}
+              </FieldHint>
               <TextInput
                 value={field.value}
                 onChange={field.onChange}

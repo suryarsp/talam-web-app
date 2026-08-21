@@ -303,7 +303,7 @@ export function CheckoutClient({
                   </div>
                 ) : (
                   <>
-                    <OtpForm onVerified={() => router.refresh()} />
+                    <OtpForm onVerified={() => router.refresh()} syncEndpoint={`${storeBase}/api/auth/sync`} />
                     <div className="my-5 flex items-center gap-3">
                       <span className="h-px flex-1 bg-border-light" />
                       <span className="font-body text-[11px] text-muted-warm">or continue with</span>

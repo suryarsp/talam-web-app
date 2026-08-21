@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { OtpForm } from '@/components/auth/otp-form'
 import { GoogleButton } from '@/components/auth/google-button'
+import { MicrosoftButton } from '@/components/auth/microsoft-button'
 import { BackButton } from '@/components/auth/back-button'
 import { Logo } from '@/components/logo'
 
@@ -31,7 +32,7 @@ export default async function AuthPage({
         </div>
 
         <div className="pt-7">
-          <OtpForm />
+          <OtpForm syncEndpoint={`${storeBase}/api/auth/sync`} />
         </div>
 
         <div className="flex items-center gap-3 pt-6">
@@ -40,8 +41,9 @@ export default async function AuthPage({
           <span className="grow h-px bg-border-light" />
         </div>
 
-        <div className="pt-5">
+        <div className="pt-5 flex flex-col gap-3">
           <GoogleButton redirectPath={`${storeBase}/auth/callback`} next={next} />
+          <MicrosoftButton redirectPath={`${storeBase}/auth/callback`} next={next} />
         </div>
 
         <p className="font-body text-muted-warm text-2xs leading-[18px] pt-6">
