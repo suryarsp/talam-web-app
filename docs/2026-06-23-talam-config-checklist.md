@@ -96,6 +96,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 - [ ] **Email:** toggle on, enable password login — fastest way to create a test user without SMS/OAuth setup
 - [ ] **Phone (OTP):** toggle on; choose any SMS provider from the dropdown (Twilio, Messagebird, Textlocal, Vonage, Twilio Verify) — the actual SMS routing is customized via Auth Hooks in §C, so the dropdown choice is secondary
 - [ ] **Google:** leave disabled for now; you'll enable it once OAuth credentials exist (§H) — use email login until then
+- [ ] **Azure:** leave disabled for now; you'll enable it once OAuth credentials exist (§H2)
+
+**Email OTP note:** the app's email sign-in (`NEXT_PUBLIC_EMAIL_OTP_ENABLED`) uses this same Email provider's OTP send, not password login. Supabase's built-in SMTP is heavily rate-limited (~2–4 emails/hour) — before flipping `NEXT_PUBLIC_EMAIL_OTP_ENABLED=true` anywhere real users will hit it, configure a custom SMTP sender under **Authentication → Settings → SMTP Settings** (Resend, already used for transactional email in §E, works here too).
 
 **Test**
 - [ ] Use the app's sign-up form (or Supabase's own test tooling) to create a user with email + password
@@ -267,6 +270,31 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 **Validate**
 - [ ] Sign-in works from `localhost:3000`
 - [ ] User row appears in Supabase **Authentication → Users**
+- [ ] Session persists across page refresh (HttpOnly cookie via `@supabase/ssr`)
+
+---
+
+## §H2. Microsoft Entra ID (Azure AD) — OAuth for Outlook/Microsoft accounts (dev mode)
+
+**Configure**
+- [ ] Go to [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID → App registrations → New registration**
+- [ ] Name it (e.g. "Talam Dev"), leave supported account types at the default ("Accounts in any organizational directory and personal Microsoft accounts") so personal Outlook/Hotmail accounts can sign in, not just work/school accounts
+- [ ] Under **Redirect URI**, select platform **Web** and add: `https://<supabase-project-ref>.supabase.co/auth/v1/callback` (same URI works for dev and prod — it's Supabase's callback, not yours)
+- [ ] Click **Register**, then copy the **Application (client) ID** from the Overview page
+- [ ] Go to **Certificates & secrets → New client secret**, copy the secret **value** immediately (shown once)
+- [ ] In Supabase, go to **Authentication → Providers → Azure**
+- [ ] Paste the Application (client) ID as the Client ID, and the secret value as the Client Secret
+- [ ] Toggle the Azure provider **Enable**
+
+**Test**
+- [ ] From `http://localhost:3000`, click "Continue with Microsoft"
+- [ ] Complete the Microsoft consent screen with an Outlook/Hotmail or work account
+- [ ] Confirm redirect back to localhost with an active session
+- [ ] Refresh the page to confirm the session persists
+
+**Validate**
+- [ ] Sign-in works from `localhost:3000`
+- [ ] User row appears in Supabase **Authentication → Users** with `provider: azure`
 - [ ] Session persists across page refresh (HttpOnly cookie via `@supabase/ssr`)
 
 ---

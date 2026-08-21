@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { withTenant } from '@/lib/prisma'
+import { syncStoreCustomer } from '@/lib/auth/sync-store-customer'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { headers } from 'next/headers'
@@ -19,24 +19,7 @@ export async function GET(request: NextRequest) {
 
     if (!error) {
       const user = data.user
-      const customer = await withTenant(tenantId, (db) =>
-        db.customer.upsert({
-          where: { id: user.id },
-          create: {
-            id: user.id,
-            tenantId,
-            name: user.user_metadata?.full_name ?? null,
-            email: user.email ?? null,
-            phone: user.phone ?? null,
-          },
-          update: {
-            name: user.user_metadata?.full_name ?? null,
-            email: user.email ?? null,
-            phone: user.phone ?? null,
-          },
-          select: { onboardingComplete: true },
-        })
-      )
+      const customer = await syncStoreCustomer(tenantId, user)
 
       const defaultDest = customer.onboardingComplete
         ? `${storeBase}/account/profile`
