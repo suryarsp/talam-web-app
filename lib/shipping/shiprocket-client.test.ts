@@ -81,7 +81,8 @@ describe('createShiprocketOrder', () => {
     expect(body).toMatchObject({
       order_id: 'order-abc',
       pickup_location: 'Chennai Store',
-      billing_customer_name: 'Asha Rao',
+      billing_customer_name: 'Asha',
+      billing_last_name: 'Rao',
       billing_pincode: '560001',
       payment_method: 'Prepaid',
       weight: 0.5,

@@ -73,6 +73,8 @@ export async function createShiprocketOrder(
   pickupLocation: string,
   input: ShiprocketOrderInput
 ): Promise<{ shipmentId: number }> {
+  const [billingFirstName, ...billingLastNameParts] = input.billing.name.trim().split(/\s+/)
+
   const res = await fetch(`${API_BASE}/orders/create/adhoc`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -80,7 +82,8 @@ export async function createShiprocketOrder(
       order_id: input.orderId,
       order_date: formatShiprocketDate(input.orderDate),
       pickup_location: pickupLocation,
-      billing_customer_name: input.billing.name,
+      billing_customer_name: billingFirstName,
+      billing_last_name: billingLastNameParts.join(' '),
       billing_address: input.billing.line1,
       billing_address_2: input.billing.line2 ?? '',
       billing_city: input.billing.city,
