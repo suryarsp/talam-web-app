@@ -69,6 +69,18 @@ describe('proxy host-aware routing', () => {
     expect(response.headers.get('x-tenant-id')).toBe('tenant-silk')
   })
 
+  it('passes API routes through untouched on a tenant subdomain, not rewritten under /store', async () => {
+    // Regression: there is no app/store/api tree, so an API path (e.g. a per-tenant
+    // Shiprocket webhook) hit via the tenant's own subdomain 404ed until this was excluded
+    // from tenant rewriting.
+    const { proxy } = await import('./proxy')
+
+    const response = await proxy(createRequest('silk.talam4shop.com', '/api/webhooks/delivery-status'))
+
+    expect(rewritePath(response)).toBeNull()
+    expect(getTenantBySlugMock).not.toHaveBeenCalled()
+  })
+
   it('rewrites production admin host to super admin routes', async () => {
     const { proxy } = await import('./proxy')
 

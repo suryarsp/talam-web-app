@@ -44,6 +44,11 @@ function needsSessionRefresh(decision: RouteDecision, pathname: string): boolean
 }
 
 function getRouteDecision(host: string, pathname: string): RouteDecision {
+  // API routes resolve tenant context themselves (from a token, payload, or secret) — never
+  // from the proxy's headers — and there is no /store/api tree to rewrite into. Without this,
+  // hitting an API path on a tenant subdomain (e.g. a per-tenant Shiprocket webhook) 404s.
+  if (pathname === '/api' || pathname.startsWith('/api/')) return { kind: 'passThrough' }
+
   const devRoute = getDevRouteDecision(host, pathname)
   if (devRoute) return devRoute
 
