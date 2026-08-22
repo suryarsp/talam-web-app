@@ -18,20 +18,30 @@ import { timingSafeEqualStr } from '@/lib/crypto'
  * alone, any shop holding it could mark a competitor's order delivered. We resolve the
  * order, read its tenant, then check the token belonging to that tenant.
  *
- * Accepted trade-off: an unknown AWB returns 200 while a known AWB with a bad token returns
- * 401, which reveals whether an AWB exists in our system. Low value to an attacker (they
- * would need the AWB already), and answering 401 to unknown AWBs would make Shiprocket
- * retry no-op deliveries indefinitely.
+ * Always answers 200, even on a missing/wrong token or unparseable body: Shiprocket's own
+ * webhook-URL validation requires "open access" and rejects any URL that answers a save-time
+ * probe with a non-2xx. A bad or absent token still means the status update is silently
+ * skipped internally — this only changes what's returned over HTTP, not who can flip an
+ * order to delivered. That's also a smaller information leak than the previous 401, which
+ * told a caller whether a given AWB existed in our system.
  *
  * Shiprocket retries failed deliveries, so this must stay idempotent.
  */
 export async function POST(request: NextRequest) {
   const received = request.headers.get('x-shiprocket-token')
   if (!received) {
-    return NextResponse.json({ error: 'invalid token' }, { status: 401 })
+    // A request with no token can never authenticate a status update either way, so this
+    // doubles as the "open access" probe Shiprocket's webhook-URL validation sends — no
+    // custom header, expects 2xx — without a DB round-trip.
+    return NextResponse.json({ ok: true })
   }
 
-  const payload = (await request.json()) as { awb?: string; current_status?: string }
+  let payload: { awb?: string; current_status?: string }
+  try {
+    payload = await request.json()
+  } catch {
+    return NextResponse.json({ ok: true })
+  }
 
   // Our OrderStatus enum has no "out for delivery"/RTO states, and shipped -> delivered is
   // the only transition currently reachable from "shipped" — every other status is a no-op.
@@ -53,7 +63,8 @@ export async function POST(request: NextRequest) {
     select: { webhookToken: true },
   })
   if (!credential || !timingSafeEqualStr(credential.webhookToken, received)) {
-    return NextResponse.json({ error: 'invalid token' }, { status: 401 })
+    console.info('[shiprocket webhook] token mismatch for tenant', order.tenantId)
+    return NextResponse.json({ ok: true })
   }
 
   if (order.status === 'shipped') {

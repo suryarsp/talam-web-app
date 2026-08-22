@@ -49,29 +49,47 @@ describe('POST /api/webhooks/delivery-status', () => {
     expect(mockUpdateStatus).toHaveBeenCalledWith('tenant-1', 'order-1', 'delivered')
   })
 
-  it("rejects another tenant's token against this tenant's AWB", async () => {
+  it("silently ignores another tenant's token against this tenant's AWB, without marking it delivered", async () => {
     // The regression this whole change exists for: one shared secret would let any shop
-    // flip a competitor's order to delivered, since orders are resolved by AWB alone.
+    // flip a competitor's order to delivered, since orders are resolved by AWB alone. Answers
+    // 200 rather than 401 — Shiprocket's own webhook-URL validation requires "open access"
+    // and rejects a URL that answers with anything other than 2xx — but must still not touch
+    // the order.
     const res = await POST(makeRequest(delivered(), 'whtok_some_other_shop'))
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
     expect(mockUpdateStatus).not.toHaveBeenCalled()
   })
 
-  it('rejects a request with no token at all, without touching the database', async () => {
+  it('answers 200 for a request with no token at all, without touching the database', async () => {
+    // This is what Shiprocket's save-time reachability probe looks like: no custom header,
+    // expects a bare 2xx.
     const res = await POST(makeRequest(delivered(), null))
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
     expect(mockOrderFindFirst).not.toHaveBeenCalled()
   })
 
-  it('rejects when the tenant has no stored credential', async () => {
+  it('answers 200 when the tenant has no stored credential, without marking it delivered', async () => {
     mockCredentialFindUnique.mockResolvedValue(null)
 
     const res = await POST(makeRequest(delivered(), TENANT_TOKEN))
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
     expect(mockUpdateStatus).not.toHaveBeenCalled()
+  })
+
+  it('answers 200 for an unparseable body instead of throwing', async () => {
+    const request = new NextRequest('http://localhost/api/webhooks/delivery-status', {
+      method: 'POST',
+      headers: new Headers({ 'x-shiprocket-token': TENANT_TOKEN }),
+      body: 'not json',
+    })
+
+    const res = await POST(request)
+
+    expect(res.status).toBe(200)
+    expect(mockOrderFindFirst).not.toHaveBeenCalled()
   })
 
   it('ignores non-Delivered statuses before doing any lookup', async () => {
