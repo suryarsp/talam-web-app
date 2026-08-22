@@ -22,7 +22,7 @@ const TENANT_TOKEN = 'whtok_tenant_one'
 function makeRequest(body: unknown, token: string | null) {
   const headers = new Headers()
   if (token) headers.set('x-shiprocket-token', token)
-  return new NextRequest('http://localhost/api/webhooks/shiprocket', {
+  return new NextRequest('http://localhost/api/webhooks/delivery-status', {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -37,7 +37,7 @@ beforeEach(() => {
   mockCredentialFindUnique.mockResolvedValue({ webhookToken: TENANT_TOKEN })
 })
 
-describe('POST /api/webhooks/shiprocket', () => {
+describe('POST /api/webhooks/delivery-status', () => {
   it("marks a shipped order delivered when the owning tenant's token is presented", async () => {
     const res = await POST(makeRequest(delivered(), TENANT_TOKEN))
 

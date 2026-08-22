@@ -20,7 +20,9 @@ import {
 import { shippingConnectSchema, type ShippingConnectValues } from './shipping-schema'
 import { SectionLabel } from './settings-shared'
 
-const WEBHOOK_PATH = '/api/webhooks/shiprocket'
+// Deliberately avoids "shiprocket"/"kartrocket"/"sr"/"kr" in the path: Shiprocket's own
+// webhook-URL field in its dashboard rejects URLs containing those strings.
+const WEBHOOK_PATH = '/api/webhooks/delivery-status'
 
 function formatDate(iso: string | null): string {
   if (!iso) return ''
