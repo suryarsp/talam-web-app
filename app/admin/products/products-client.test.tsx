@@ -148,7 +148,7 @@ describe('AdminProductsClient', () => {
     await user.click(document.querySelector('[data-tour="add-product"]')!)
     await user.type(screen.getByPlaceholderText('e.g., Premium Cotton Kurta Set'), 'Silk Dupatta')
     await user.selectOptions(document.querySelector('select[name="categoryId"]')!, 'cat-1')
-    await user.type(screen.getByPlaceholderText('1,299'), '999')
+    await user.type(screen.getByPlaceholderText('999'), '999')
     await user.type(screen.getByPlaceholderText('e.g., 25'), '5')
     const file = new File(['x'], 'photo.png', { type: 'image/png' })
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -172,7 +172,7 @@ describe('AdminProductsClient', () => {
     await user.click(document.querySelector('[data-tour="add-product"]')!)
     await user.type(screen.getByPlaceholderText('e.g., Premium Cotton Kurta Set'), 'Silk Dupatta')
     await user.selectOptions(document.querySelector('select[name="categoryId"]')!, 'cat-1')
-    await user.type(screen.getByPlaceholderText('1,299'), '999')
+    await user.type(screen.getByPlaceholderText('999'), '999')
     await user.type(screen.getByPlaceholderText('e.g., 25'), '5')
     const file = new File(['x'], 'photo.png', { type: 'image/png' })
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement

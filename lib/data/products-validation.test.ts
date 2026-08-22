@@ -32,14 +32,18 @@ describe('createProduct validation', () => {
     await expect(createProduct('tenant-1', baseInput({ stockBySize: { S: 0 } }))).rejects.toThrow('Quantity must be at least 1.')
   })
 
-  it('rejects a discount price that is not less than the price', async () => {
+  it('rejects an original price that is not greater than the selling price', async () => {
     await expect(createProduct('tenant-1', baseInput({ price: 1000, comparePrice: 1000 }))).rejects.toThrow(
-      'Discount price must be less than the price.'
+      'Original price must be greater than the selling price.'
     )
   })
 
   it('accepts a valid product', async () => {
     await expect(createProduct('tenant-1', baseInput())).resolves.toBeDefined()
+  })
+
+  it('accepts a valid discounted product', async () => {
+    await expect(createProduct('tenant-1', baseInput({ price: 999, comparePrice: 1299 }))).resolves.toBeDefined()
   })
 })
 

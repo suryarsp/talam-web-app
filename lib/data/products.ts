@@ -59,8 +59,8 @@ function slugify(name: string) {
 // through this, so a raw call (bypassing the client form) can't slip an invalid product through.
 function validateProductInput(input: ProductInput) {
   if (input.price <= 0) throw new Error('Price must be greater than ₹0.')
-  if (input.comparePrice !== null && input.comparePrice >= input.price) {
-    throw new Error('Discount price must be less than the price.')
+  if (input.comparePrice !== null && input.comparePrice <= input.price) {
+    throw new Error('Original price must be greater than the selling price.')
   }
   if (Object.values(input.stockBySize).some((qty) => qty <= 0)) {
     throw new Error('Quantity must be at least 1.')

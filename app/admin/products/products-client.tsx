@@ -381,8 +381,8 @@ function ProductEditorForm({
       setError('Product name and at least one photo are required.')
       return
     }
-    if (input.comparePrice !== null && input.comparePrice >= input.price) {
-      setError('Discount price must be less than the price.')
+    if (input.comparePrice !== null && input.comparePrice <= input.price) {
+      setError('Original price must be greater than the selling price.')
       return
     }
     if (hasSizes ? selectedSizes.some((s) => Number(sizeQuantities[s] ?? 0) <= 0) : freeSizeQuantity <= 0) {
@@ -460,17 +460,17 @@ function ProductEditorForm({
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-3">
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-bold text-fg">Price *</span>
+                <span className="text-sm font-bold text-fg">Selling Price *</span>
                 <div className="flex">
                   <span className="flex items-center rounded-l-lg border border-r-0 border-border bg-bg px-3 text-sm text-muted-warm">₹</span>
-                  <input name="price" required type="number" min="0" step="0.01" defaultValue={editProduct?.price ?? ''} className="grow rounded-r-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="1,299" />
+                  <input name="price" required type="number" min="0" step="0.01" defaultValue={editProduct?.price ?? ''} className="grow rounded-r-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="999" />
                 </div>
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-bold text-fg">Price After Discount</span>
+                <span className="text-sm font-bold text-fg">Original Price (MRP)</span>
                 <div className="flex">
                   <span className="flex items-center rounded-l-lg border border-r-0 border-border bg-bg px-3 text-sm text-muted-warm">₹</span>
-                  <input name="comparePrice" type="number" min="0" step="0.01" defaultValue={editProduct?.comparePrice ?? ''} className="grow rounded-r-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="999" />
+                  <input name="comparePrice" type="number" min="0" step="0.01" defaultValue={editProduct?.comparePrice ?? ''} className="grow rounded-r-lg border border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="1,299" />
                 </div>
               </label>
             </div>
