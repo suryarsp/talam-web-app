@@ -26,7 +26,7 @@ vi.mock('@/lib/prisma', () => ({
   }),
 }))
 
-import { getProducts, getProductBySlug, getCategories, getActiveDepartments } from './products'
+import { getProducts, getProductBySlug, getCategories, getCategoriesWithImage, getActiveDepartments } from './products'
 
 describe('getProducts', () => {
   it('returns active products for a tenant', async () => {
@@ -66,6 +66,45 @@ describe('getCategories', () => {
     const cats = await getCategories('tenant-1')
     expect(cats).toHaveLength(1)
     expect(cats[0]).toMatchObject({ id: 'cat-1', name: 'Sarees', slug: 'sarees' })
+  })
+})
+
+describe('getCategoriesWithImage', () => {
+  it('includes a category with a published product image', async () => {
+    const { withTenant } = await import('@/lib/prisma')
+    vi.mocked(withTenant).mockImplementationOnce(async (_tenantId, fn) =>
+      fn({
+        productCategory: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: 'cat-1',
+              name: 'Sarees',
+              slug: 'sarees',
+              department: null,
+              products: [{ images: ['saree-1.jpg'] }],
+            },
+          ]),
+        },
+      } as never)
+    )
+    const cats = await getCategoriesWithImage('tenant-1')
+    expect(cats).toHaveLength(1)
+    expect(cats[0]).toMatchObject({ id: 'cat-1', name: 'Sarees', slug: 'sarees', image: 'saree-1.jpg' })
+  })
+
+  it('excludes a category with no qualifying product image', async () => {
+    const { withTenant } = await import('@/lib/prisma')
+    vi.mocked(withTenant).mockImplementationOnce(async (_tenantId, fn) =>
+      fn({
+        productCategory: {
+          findMany: vi.fn().mockResolvedValue([
+            { id: 'cat-2', name: 'Lehengas', slug: 'lehengas', department: null, products: [] },
+          ]),
+        },
+      } as never)
+    )
+    const cats = await getCategoriesWithImage('tenant-1')
+    expect(cats).toHaveLength(0)
   })
 })
 

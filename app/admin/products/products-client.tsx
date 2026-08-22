@@ -505,7 +505,7 @@ function ProductEditorForm({
               <span className="text-sm font-bold text-fg">Product Pictures * (Min 1, Max 5)</span>
               <AttachmentGroup>
                 {images.map((src, i) => (
-                  <Attachment key={i} orientation="vertical" size="sm" className="w-28">
+                  <Attachment key={i} orientation="vertical" size="default" className="w-40">
                     <AttachmentMedia variant="image" onClick={() => setPreviewSrc(src)} className="cursor-pointer">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={src} alt="" />
@@ -518,7 +518,7 @@ function ProductEditorForm({
                   </Attachment>
                 ))}
                 {images.length < 5 && (
-                  <Attachment orientation="vertical" size="sm" className="w-28" state={uploading ? 'uploading' : 'idle'}>
+                  <Attachment orientation="vertical" size="default" className="w-40" state={uploading ? 'uploading' : 'idle'}>
                     <AttachmentTrigger
                       render={<label />}
                       aria-disabled={uploading}

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getRequestTenantId, getTenantStorefront } from '@/lib/data/tenant'
 import { getStoreBanners, getStorePromotions, getProductTags } from '@/lib/data/storefront'
-import { getCategories, getProducts, getOfferProducts } from '@/lib/data/products'
+import { getCategoriesWithImage, getProducts, getOfferProducts } from '@/lib/data/products'
 import { cacheForTenant } from '@/lib/storefront-cache'
 import { StorePageClient } from './store-page-client'
 
@@ -16,7 +16,7 @@ export default async function StorePage() {
         getStoreBanners(tenantId),
         getStorePromotions(tenantId),
         getProductTags(tenantId),
-        getCategories(tenantId),
+        getCategoriesWithImage(tenantId),
         getProducts(tenantId),
         getOfferProducts(tenantId),
       ]),
@@ -102,7 +102,7 @@ export default async function StorePage() {
             averageRating: p.averageRating,
           }))
 
-  const categoryData = categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))
+  const categoryData = categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, image: c.image }))
 
   const offerData = offerProducts
     .map((p) => {

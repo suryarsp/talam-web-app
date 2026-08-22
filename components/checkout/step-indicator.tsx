@@ -2,7 +2,7 @@ import { Check } from 'lucide-react'
 
 const STEPS = ['Details', 'Address', 'Payment']
 
-export function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
+export function StepIndicator({ current }: { current: 1 | 2 | 3 | 4 }) {
   return (
     <div className="mx-auto flex max-w-[480px] gap-0 px-4 py-4">
       {STEPS.map((label, i) => {

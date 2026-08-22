@@ -34,7 +34,7 @@ type TagData = {
   productCount: number
 }
 
-type CategoryData = { id: string; name: string; slug: string }
+type CategoryData = { id: string; name: string; slug: string; image: string }
 
 type ProductData = {
   name: string
@@ -71,16 +71,6 @@ type StorePageClientProps = {
   policy: PolicyData
   story: StoryData
 }
-
-// ponytail: fixed palette cycled by index for category card backgrounds — no per-category color field in schema.
-const CATEGORY_GRADIENTS = [
-  'linear-gradient(135deg, oklab(53.1% 0.201 0.020), oklab(41.5% 0.160 -0.012))',
-  'linear-gradient(135deg, #1565c0, #0d47a1)',
-  'linear-gradient(135deg, #e65100, #bf360c)',
-  'linear-gradient(135deg, #2e7d32, #1b5e20)',
-  'linear-gradient(135deg, #1565c0, #283593)',
-  'linear-gradient(135deg, #4a148c, #311b92)',
-]
 
 const SORT_OPTIONS = ['Newest First', 'Price: Low to High', 'Price: High to Low', 'Rating'] as const
 
@@ -427,7 +417,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               )}
               <div className="mb-5 flex flex-wrap items-baseline gap-2.5 lg:mb-7">
                 <span className="font-body text-[26px] font-bold text-[#1E1A19] lg:text-[32px]">₹{hero.price.toLocaleString('en-IN')}</span>
-                {hero.comparePrice && (
+                {hero.comparePrice && hero.comparePrice > hero.price && (
                   <span className="font-body text-base text-[#7A6E6A] line-through">₹{hero.comparePrice.toLocaleString('en-IN')}</span>
                 )}
               </div>
@@ -536,9 +526,10 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                   key={cat.id}
                   href={categoryHref(cat.slug)}
                   className={`relative w-[150px] shrink-0 overflow-hidden rounded-2xl lg:w-auto ${i === 0 ? 'lg:row-span-2' : ''}`}
-                  style={{ backgroundImage: CATEGORY_GRADIENTS[i % CATEGORY_GRADIENTS.length] }}
                 >
-                  <div className="h-[190px] w-full lg:h-full" />
+                  <div className="relative h-[190px] w-full lg:h-full">
+                    <Image src={cat.image} alt={cat.name} fill sizes="(min-width: 1024px) 33vw, 40vw" className="object-cover" />
+                  </div>
                   <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(30,26,25,0)_45%,rgba(30,26,25,0.72))]" />
                   <div className="absolute bottom-3.5 left-4 flex flex-col gap-0.5">
                     <span className="font-heading text-base font-semibold text-white lg:text-xl">{cat.name}</span>
@@ -605,7 +596,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                     <h3 className="mb-1.5 line-clamp-1 font-heading text-[15.5px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</h3>
                     <div className="flex items-baseline gap-2">
                       <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
-                      {p.comparePrice && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                      {p.comparePrice && p.comparePrice > p.price && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
                     </div>
                   </div>
                 </StoreLink>
@@ -649,7 +640,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                   <h3 className="mb-2 font-heading text-2xl font-semibold text-white">{featureOffer.name}</h3>
                   <div className="flex items-baseline gap-2.5">
                     <span className="font-body text-lg font-bold text-white">₹{featureOffer.price.toLocaleString('en-IN')}</span>
-                    {featureOffer.comparePrice && <span className="font-body text-sm text-white/55 line-through">₹{featureOffer.comparePrice.toLocaleString('en-IN')}</span>}
+                    {featureOffer.comparePrice && featureOffer.comparePrice > featureOffer.price && <span className="font-body text-sm text-white/55 line-through">₹{featureOffer.comparePrice.toLocaleString('en-IN')}</span>}
                   </div>
                 </div>
               </StoreLink>
@@ -664,7 +655,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                       <span className="line-clamp-2 font-heading text-[15px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</span>
                       <span className="flex items-baseline gap-2">
                         <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
-                        {p.comparePrice && <span className="font-body text-xs text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                        {p.comparePrice && p.comparePrice > p.price && <span className="font-body text-xs text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
                       </span>
                       {discountLabel(p.price, p.comparePrice) && (
                         <span className="mt-0.5 w-fit rounded-md bg-store-primary/10 px-2.5 py-1 font-body text-[11px] font-bold text-store-primary">{discountLabel(p.price, p.comparePrice)}</span>
@@ -786,7 +777,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
                       <h3 className="mb-1.5 line-clamp-1 font-heading text-[15.5px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</h3>
                       <div className="flex items-baseline gap-2">
                         <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
-                        {p.comparePrice && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                        {p.comparePrice && p.comparePrice > p.price && <span className="font-body text-[11.5px] text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
                         {p.averageRating > 0 && <span className="ml-auto font-body text-[11px] text-[#7A6E6A]">★ {p.averageRating.toFixed(1)}</span>}
                       </div>
                     </div>

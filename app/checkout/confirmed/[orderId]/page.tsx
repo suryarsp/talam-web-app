@@ -50,7 +50,7 @@ export default async function OrderConfirmedPage({ params }: { params: Promise<{
   return (
     <div className="min-h-screen bg-bg pb-10">
       <CheckoutHeader storeName={tenant.name} />
-      <StepIndicator current={3} />
+      <StepIndicator current={4} />
 
       <main className="mx-auto max-w-lg px-4 pb-4">
         <div className="relative overflow-hidden rounded-xl bg-success/10 px-6 py-8 text-center">

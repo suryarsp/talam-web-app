@@ -22,7 +22,7 @@ export function ProductCard({ product, priority, saved = false }: Props) {
       ? Math.round((1 - Number(product.price) / Number(product.comparePrice)) * 100)
       : null
 
-  const imageUrl = product.images[0] ? `${product.images[0]}?f_auto,q_auto,w_400` : null
+  const imageUrl = product.images[0] ? `${product.images[0]}?f_auto,q_auto` : null
   const roundedRating = product.averageRating ? Math.round(product.averageRating) : 0
   const stars = '★'.repeat(roundedRating) + '☆'.repeat(5 - roundedRating)
 
@@ -71,7 +71,7 @@ export function ProductCard({ product, priority, saved = false }: Props) {
           <span className="font-body text-md leading-snug font-bold text-fg sm:text-base sm:leading-5">
             {formatCurrency(Number(product.price))}
           </span>
-          {product.comparePrice && (
+          {discount !== null && (
             <span className="font-body text-2xs leading-tight text-muted-warm line-through sm:text-sm">
               {formatCurrency(Number(product.comparePrice))}
             </span>

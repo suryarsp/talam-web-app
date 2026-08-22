@@ -325,6 +325,31 @@ export async function getCategories(tenantId: string, department?: string): Prom
   )
 }
 
+/** Categories with a representative product image, for homepage tile backgrounds — categories with no qualifying product are omitted. */
+export async function getCategoriesWithImage(tenantId: string): Promise<(CategoryMeta & { image: string })[]> {
+  const rows = await withTenant(tenantId, (db) =>
+    db.productCategory.findMany({
+      where: { tenantId },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        department: true,
+        products: {
+          where: { status: 'published', deletedAt: null, isActive: true, images: { isEmpty: false } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { images: true },
+        },
+      },
+    })
+  )
+  return rows
+    .filter((c) => c.products[0]?.images[0])
+    .map(({ products, ...c }) => ({ ...c, image: products[0].images[0] }))
+}
+
 /** Departments that have at least one published product — drives which nav links the storefront header shows. */
 export async function getActiveDepartments(tenantId: string): Promise<string[]> {
   const rows = await withTenant(tenantId, (db) =>
