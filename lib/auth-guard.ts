@@ -3,6 +3,9 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { withTenant } from '@/lib/prisma'
+import { isAdminStaffEmail, getAdminStaffRole, touchAdminStaffLastActive } from '@/lib/data/admin-staff'
+import { canAccessSection, type AdminSection } from '@/lib/data/admin-permissions'
+import type { AdminStaffRole } from '@prisma/client'
 
 // cache(): dedupe repeated calls within one request — layouts, pages, and server
 // actions on the same route each call this, and without memoization every call
@@ -63,18 +66,50 @@ export function getSuperAdminEmails(): string[] {
     .filter(Boolean)
 }
 
-// Ops-only allow-list, not a role column — a handful of Talam staff, not worth a schema table.
+// Access is granted to anyone in the AdminStaff table (managed from /super-admin/staff),
+// unioned with the SUPER_ADMIN_EMAILS env allow-list. The env list stays only as a bootstrap
+// path — without it, an empty AdminStaff table would lock every operator out with no way to
+// add the first row.
 export const requireSuperAdmin = cache(async function requireSuperAdmin() {
   const supabase = await createServerClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const allowList = getSuperAdminEmails()
+  if (!user) {
+    redirect('/super-admin/login')
+  }
 
-  if (!user?.email || !allowList.includes(user.email.toLowerCase())) {
+  const email = user.email?.toLowerCase()
+  const envAllowed = !!email && getSuperAdminEmails().includes(email)
+  const staffAllowed = !!email && (await isAdminStaffEmail(email))
+
+  if (!email || !(envAllowed || staffAllowed)) {
     redirect('/not-found')
   }
 
+  if (staffAllowed) void touchAdminStaffLastActive(email)
+
   return user
 })
+
+/**
+ * This is also the bootstrap story: there's no separate "create the first admin" flow —
+ * an env-listed email always resolves to 'owner', so the first sign-in from
+ * SUPER_ADMIN_EMAILS lands with full access (including Staff management) and can invite
+ * the real AdminStaff rows — themselves included — from there.
+ */
+export async function getSuperAdminRole(email: string): Promise<AdminStaffRole> {
+  if (getSuperAdminEmails().includes(email.toLowerCase())) return 'owner'
+  // requireSuperAdmin() already confirmed this email is either env-listed or has a row —
+  // falling through here means it has one, so 'owner' is just a type-safe, never-hit default.
+  return (await getAdminStaffRole(email)) ?? 'owner'
+}
+
+/** Page-level section guard — redirects if the signed-in staffer's role can't reach `section`. */
+export async function requireSuperAdminSection(section: AdminSection) {
+  const user = await requireSuperAdmin()
+  const role = await getSuperAdminRole(user.email!)
+  if (!canAccessSection(role, section)) redirect('/not-found')
+  return { user, role }
+}

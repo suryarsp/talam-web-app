@@ -17,3 +17,9 @@ export function formatDate(d: Date): string {
     timeZone: 'Asia/Kolkata',
   })
 }
+
+// Plain helper (not a component/hook), so calling Date.now() here doesn't trip the
+// react-hooks/purity rule the way an inline call inside a component body would.
+export function daysUntil(d: Date | null): number | null {
+  return d ? Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000)) : null
+}

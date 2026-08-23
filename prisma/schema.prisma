@@ -160,6 +160,30 @@ model ShippingCredential {
   @@map("shipping_credentials")
 }
 
+/// Platform staff who can access /super-admin. Replaces the old SUPER_ADMIN_EMAILS
+/// env-var allow-list as the source of truth for access, so ops staff can be
+/// added/removed from the Staff screen instead of an env var + redeploy.
+model AdminStaff {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  name         String
+  role         AdminStaffRole @default(support_agent)
+  addedAt      DateTime  @default(now()) @map("added_at") @db.Timestamptz
+  lastActiveAt DateTime? @map("last_active_at") @db.Timestamptz
+
+  @@map("admin_staff")
+}
+
+/// Owner gets every console section plus staff management. The other three are
+/// section-scoped: see ROLE_SECTIONS in lib/data/admin-staff.ts for exactly what
+/// each grants — kept in code, not the DB, so adjusting scope needs no migration.
+enum AdminStaffRole {
+  owner
+  support_agent
+  billing_manager
+  growth_analyst
+}
+
 model Product {
   id           String        @id @default(uuid()) @db.Uuid
   tenantId     String        @map("tenant_id") @db.Uuid
