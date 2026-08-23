@@ -20,7 +20,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams,
 }))
 
-const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+const toastSuccess = vi.fn()
+vi.mock('sonner', () => ({ toast: { success: (...args: unknown[]) => toastSuccess(...args) } }))
+
+const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
 vi.stubGlobal('fetch', fetchMock)
 
 async function goToOtpStep(user: ReturnType<typeof userEvent.setup>) {
@@ -81,6 +84,7 @@ describe('OtpForm redirect after verify', () => {
     mockSearchParams = new URLSearchParams()
     verifyOtpMock.mockResolvedValue({ data: {}, error: null })
     fetchMock.mockClear()
+    toastSuccess.mockClear()
     Object.defineProperty(window, 'location', { value: { href: '' }, writable: true })
   })
 
@@ -114,9 +118,10 @@ describe('OtpForm redirect after verify', () => {
     await waitFor(() => {
       expect(window.location.href).toBe('/auth')
     })
+    expect(toastSuccess).toHaveBeenCalledWith('Signed in successfully')
   })
 
-  it('does not navigate when the flag is disabled', async () => {
+  it('does not navigate or toast when the flag is disabled', async () => {
     vi.stubEnv('NEXT_PUBLIC_OTP_SIGNIN_ENABLED', 'false')
     mockSearchParams = new URLSearchParams({ next: '/admin/onboarding' })
     const user = userEvent.setup()
@@ -129,6 +134,7 @@ describe('OtpForm redirect after verify', () => {
       expect(verifyOtpMock).toHaveBeenCalled()
     })
     expect(window.location.href).toBe('')
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('does not navigate when verifyOtp returns an error, regardless of the flag', async () => {
@@ -202,6 +208,8 @@ describe('OtpForm email verify + sync', () => {
     signInWithOtpMock.mockResolvedValue({ data: {}, error: null })
     verifyOtpMock.mockResolvedValue({ data: {}, error: null })
     fetchMock.mockClear()
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true, onboardingComplete: true }) })
+    toastSuccess.mockClear()
     Object.defineProperty(window, 'location', { value: { href: '' }, writable: true })
   })
 
@@ -210,7 +218,7 @@ describe('OtpForm email verify + sync', () => {
     vi.unstubAllEnvs()
   })
 
-  it('verifies with type "email" and calls the sync endpoint before redirecting when enabled', async () => {
+  it('verifies with type "email", syncs, toasts, and redirects to the store account when onboarding is complete', async () => {
     vi.stubEnv('NEXT_PUBLIC_EMAIL_OTP_ENABLED', 'true')
     const user = userEvent.setup()
     await goToEmailOtpStep(user, { syncEndpoint: '/store/api/auth/sync' })
@@ -226,10 +234,27 @@ describe('OtpForm email verify + sync', () => {
       })
     })
     expect(fetchMock).toHaveBeenCalledWith('/store/api/auth/sync', { method: 'POST' })
-    expect(window.location.href).toBe('/auth')
+    await waitFor(() => {
+      expect(window.location.href).toBe('/store/account/profile')
+    })
+    expect(toastSuccess).toHaveBeenCalledWith('Signed in successfully')
   })
 
-  it('does not sync or navigate when the email-OTP flag is disabled', async () => {
+  it('redirects to the store onboarding wizard when the customer has not set preferences yet', async () => {
+    vi.stubEnv('NEXT_PUBLIC_EMAIL_OTP_ENABLED', 'true')
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true, onboardingComplete: false }) })
+    const user = userEvent.setup()
+    await goToEmailOtpStep(user, { syncEndpoint: '/store/api/auth/sync' })
+
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
+    await user.click(screen.getByRole('button', { name: /verify otp/i }))
+
+    await waitFor(() => {
+      expect(window.location.href).toBe('/store/onboarding')
+    })
+  })
+
+  it('does not sync, toast, or navigate when the email-OTP flag is disabled', async () => {
     vi.stubEnv('NEXT_PUBLIC_EMAIL_OTP_ENABLED', 'false')
     const user = userEvent.setup()
     await goToEmailOtpStep(user)
@@ -242,6 +267,7 @@ describe('OtpForm email verify + sync', () => {
     })
     expect(fetchMock).not.toHaveBeenCalled()
     expect(window.location.href).toBe('')
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('calls onVerified instead of navigating when provided (checkout inline flow)', async () => {
@@ -261,5 +287,6 @@ describe('OtpForm email verify + sync', () => {
       expect(onVerified).toHaveBeenCalled()
     })
     expect(window.location.href).toBe('')
+    expect(toastSuccess).toHaveBeenCalledWith('Signed in successfully')
   })
 })

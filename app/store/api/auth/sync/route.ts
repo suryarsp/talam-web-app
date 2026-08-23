@@ -24,6 +24,6 @@ export async function POST() {
     return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  await syncStoreCustomer(tenantId, user)
-  return NextResponse.json({ ok: true })
+  const customer = await syncStoreCustomer(tenantId, user)
+  return NextResponse.json({ ok: true, onboardingComplete: customer.onboardingComplete })
 }

@@ -56,7 +56,18 @@ describe('POST /store/api/auth/sync', () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toEqual({ ok: true })
+    expect(body).toEqual({ ok: true, onboardingComplete: true })
     expect(syncStoreCustomerMock).toHaveBeenCalledWith('tenant-1', user)
+  })
+
+  it('reports onboardingComplete: false so the client can route to the preferences wizard', async () => {
+    syncStoreCustomerMock.mockResolvedValue({ onboardingComplete: false })
+    const user = { id: 'customer-2', email: 'newcomer@example.com' }
+    getUserMock.mockResolvedValue({ data: { user } })
+
+    const res = await POST()
+    const body = await res.json()
+
+    expect(body).toEqual({ ok: true, onboardingComplete: false })
   })
 })

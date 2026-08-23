@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { ShinyButton } from '@/components/ui/shiny-button'
 import { Input } from '@/components/ui/input'
@@ -115,18 +116,32 @@ export function OtpForm({
     }
 
     // Gated behind this flag until phone-OTP delivery is fully configured (MSG91_TEMPLATE_ID
-    // is currently empty) / email-OTP SMTP is configured in the Supabase Dashboard. Falls back
-    // to /auth — that page already redirects a signed-in visitor to the right destination, so
-    // no destination logic is duplicated here.
+    // is currently empty) / email-OTP SMTP is configured in the Supabase Dashboard.
     const enabled =
       method === 'phone'
         ? process.env.NEXT_PUBLIC_OTP_SIGNIN_ENABLED === 'true'
         : process.env.NEXT_PUBLIC_EMAIL_OTP_ENABLED === 'true'
 
     if (enabled) {
-      await fetch(syncEndpoint, { method: 'POST' })
-      if (onVerified) onVerified()
-      else window.location.href = next ?? '/auth'
+      const res = await fetch(syncEndpoint, { method: 'POST' })
+      const data: { onboardingComplete?: boolean } | null = await res.json().catch(() => null)
+
+      toast.success('Signed in successfully')
+
+      if (onVerified) {
+        onVerified()
+        return
+      }
+
+      // storeBase mirrors app/store/auth/callback/route.ts's onboarding gate; owner
+      // syncEndpoint has no store prefix to strip and its sync response carries no
+      // onboardingComplete field, so it always falls through to the /auth fallback below.
+      const storeBase = syncEndpoint.replace(/\/api\/auth\/sync$/, '')
+      if (data?.onboardingComplete === false) {
+        window.location.href = `${storeBase}/onboarding`
+        return
+      }
+      window.location.href = next ?? (storeBase ? `${storeBase}/account/profile` : '/auth')
     }
   }
 
