@@ -28,7 +28,7 @@ async function goToOtpStep(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/mobile number/i), '9876543210')
   await user.click(screen.getByRole('button', { name: /continue/i }))
   await waitFor(() => {
-    expect(screen.getByPlaceholderText(/6-digit otp/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/enter otp/i)).toBeInTheDocument()
   })
 }
 
@@ -38,7 +38,7 @@ async function goToEmailOtpStep(user: ReturnType<typeof userEvent.setup>, props?
   await user.type(screen.getByLabelText(/email address/i), 'shopper@outlook.com')
   await user.click(screen.getByRole('button', { name: /continue/i }))
   await waitFor(() => {
-    expect(screen.getByPlaceholderText(/6-digit otp/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/enter otp/i)).toBeInTheDocument()
   })
 }
 
@@ -57,7 +57,7 @@ describe('OtpForm', () => {
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/6-digit otp/i)).toBeInTheDocument()
+      expect(screen.getByPlaceholderText(/enter otp/i)).toBeInTheDocument()
     })
   })
 
@@ -95,7 +95,7 @@ describe('OtpForm redirect after verify', () => {
     const user = userEvent.setup()
     await goToOtpStep(user)
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe('OtpForm redirect after verify', () => {
     const user = userEvent.setup()
     await goToOtpStep(user)
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
@@ -122,7 +122,7 @@ describe('OtpForm redirect after verify', () => {
     const user = userEvent.setup()
     await goToOtpStep(user)
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
@@ -137,13 +137,26 @@ describe('OtpForm redirect after verify', () => {
     const user = userEvent.setup()
     await goToOtpStep(user)
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '999999')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '999999')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/invalid otp/i)).toBeInTheDocument()
     })
     expect(window.location.href).toBe('')
+  })
+})
+
+describe('OtpForm OTP field accepts pasted codes', () => {
+  it('does not truncate a pasted email OTP longer than 6 characters', async () => {
+    const user = userEvent.setup()
+    await goToEmailOtpStep(user)
+
+    const otpInput = screen.getByPlaceholderText(/otp/i) as HTMLInputElement
+    await user.click(otpInput)
+    await user.paste('42850114')
+
+    expect(otpInput.value).toBe('42850114')
   })
 })
 
@@ -202,7 +215,7 @@ describe('OtpForm email verify + sync', () => {
     const user = userEvent.setup()
     await goToEmailOtpStep(user, { syncEndpoint: '/store/api/auth/sync' })
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
@@ -221,7 +234,7 @@ describe('OtpForm email verify + sync', () => {
     const user = userEvent.setup()
     await goToEmailOtpStep(user)
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {
@@ -239,9 +252,9 @@ describe('OtpForm email verify + sync', () => {
     await user.click(screen.getByRole('button', { name: /^email$/i }))
     await user.type(screen.getByLabelText(/email address/i), 'shopper@outlook.com')
     await user.click(screen.getByRole('button', { name: /continue/i }))
-    await waitFor(() => screen.getByPlaceholderText(/6-digit otp/i))
+    await waitFor(() => screen.getByPlaceholderText(/enter otp/i))
 
-    await user.type(screen.getByPlaceholderText(/6-digit otp/i), '123456')
+    await user.type(screen.getByPlaceholderText(/enter otp/i), '123456')
     await user.click(screen.getByRole('button', { name: /verify otp/i }))
 
     await waitFor(() => {

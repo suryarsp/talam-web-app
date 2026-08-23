@@ -138,10 +138,9 @@ export function OtpForm({
         </Label>
         <Input
           id="otp"
-          placeholder="6-digit OTP"
+          placeholder="Enter OTP"
           value={otp}
           onChange={(e) => setOtp(e.target.value)}
-          maxLength={6}
           inputMode="numeric"
           autoComplete="one-time-code"
           className="h-auto rounded-md border-[1.5px] border-border px-3 py-[11px] font-body text-md transition-colors focus-visible:border-store-primary focus-visible:ring-0 focus-visible:outline-none"
