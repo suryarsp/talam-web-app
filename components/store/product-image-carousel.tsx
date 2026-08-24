@@ -52,7 +52,7 @@ export function ProductImageCarousel({ images, name }: Props) {
           alt={`${name} ${index + 1}`}
           fill
           sizes="(max-width: 640px) 100vw, 50vw"
-          className="object-cover transition-opacity duration-500"
+          className="object-contain transition-opacity duration-500"
           priority={index === 0}
         />
         {images.length > 1 && (
@@ -81,7 +81,7 @@ export function ProductImageCarousel({ images, name }: Props) {
                 alt={`${name} ${i + 1}`}
                 fill
                 sizes="25vw"
-                className="object-cover"
+                className="object-contain"
               />
             </button>
           ))}
