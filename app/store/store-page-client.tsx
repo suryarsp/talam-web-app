@@ -449,7 +449,7 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               onTouchEnd={handleHeroTouchEnd}
             >
               {hero.images[0] ? (
-                <Image src={hero.images[0]} alt={hero.headline} fill sizes="(min-width:1024px) 50vw, 100vw" className="object-cover" priority />
+                <Image src={hero.images[0]} alt={hero.headline} fill sizes="(min-width:1024px) 50vw, 100vw" className="object-contain" priority />
               ) : (
                 <div className="absolute inset-0 bg-[#F2EDE4]" />
               )}
@@ -646,24 +646,22 @@ function StorePageInner({ banners, promotions, countdownTarget, tags, categories
               </StoreLink>
               <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:gap-5">
                 {offerGrid.map((p, i) => (
-                  <StoreLink key={i} href={`/product/${p.slug}`} className="flex gap-4 rounded-[14px] border border-[#EDE6DB] bg-white p-4 transition-colors hover:border-store-primary">
-                    <div className="relative h-[132px] w-[104px] shrink-0 overflow-hidden rounded-[10px]">
-                      {p.images[0] ? (
-                        <Image src={p.images[0]} alt={p.name} fill sizes="104px" className="object-cover" />
-                      ) : (
-                        <div className="absolute inset-0 bg-[#F2EDE4]" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-col justify-center gap-1.5">
-                      <span className="font-body text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#7A6E6A]">{p.category}</span>
-                      <span className="line-clamp-2 font-heading text-[15px] font-semibold leading-[1.25] text-[#1E1A19]">{p.name}</span>
-                      <span className="flex items-baseline gap-2">
-                        <span className="font-body text-sm font-bold text-[#1E1A19]">₹{p.price.toLocaleString('en-IN')}</span>
-                        {p.comparePrice && p.comparePrice > p.price && <span className="font-body text-xs text-[#7A6E6A] line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
-                      </span>
+                  <StoreLink key={i} href={`/product/${p.slug}`} className="relative min-h-[132px] overflow-hidden rounded-[14px]">
+                    {p.images[0] ? (
+                      <Image src={p.images[0]} alt={p.name} fill sizes="(min-width:1024px) 22vw, 50vw" className="object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 bg-[#F2EDE4]" />
+                    )}
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(30,26,25,0.05)_30%,rgba(30,26,25,0.82))]" />
+                    <div className="pointer-events-none absolute inset-x-4 bottom-4">
                       {discountLabel(p.price, p.comparePrice) && (
-                        <span className="mt-0.5 w-fit rounded-md bg-store-primary/10 px-2.5 py-1 font-body text-[11px] font-bold text-store-primary">{discountLabel(p.price, p.comparePrice)}</span>
+                        <span className="mb-2 inline-block rounded-full bg-store-primary px-3 py-1 font-body text-[10px] font-bold tracking-[0.08em] text-white">{discountLabel(p.price, p.comparePrice)}</span>
                       )}
+                      <h3 className="mb-1 line-clamp-1 font-heading text-base font-semibold text-white">{p.name}</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-body text-sm font-bold text-white">₹{p.price.toLocaleString('en-IN')}</span>
+                        {p.comparePrice && p.comparePrice > p.price && <span className="font-body text-xs text-white/55 line-through">₹{p.comparePrice.toLocaleString('en-IN')}</span>}
+                      </div>
                     </div>
                   </StoreLink>
                 ))}
