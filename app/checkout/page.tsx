@@ -41,7 +41,7 @@ export default async function CheckoutPage() {
   // Fetch customer name so checkout can pre-fill the address form
   const customer = user
     ? await withTenant(tenantId, (db) =>
-        db.customer.findUnique({ where: { id: user.id }, select: { name: true, phone: true } })
+        db.customer.findUnique({ where: { id: user.id }, select: { name: true, phone: true, email: true } })
       )
     : null
 
@@ -51,6 +51,7 @@ export default async function CheckoutPage() {
       signedIn={Boolean(user)}
       signedInPhone={customer?.phone ?? user?.phone ?? null}
       signedInName={customer?.name ?? null}
+      signedInEmail={customer?.email ?? user?.email ?? null}
       addresses={addresses}
       methods={methods}
     />

@@ -57,6 +57,7 @@ const INDIAN_STATES = [
 ]
 
 const NEW_ADDRESS = 'new'
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function fieldClass(hasError: boolean) {
   return `h-auto w-full rounded-lg border-[1.5px] px-[14px] py-[13px] font-body text-sm text-fg outline-none transition-colors focus-visible:border-store-primary focus-visible:ring-0 ${
@@ -79,6 +80,7 @@ export function CheckoutClient({
   signedIn,
   signedInPhone,
   signedInName,
+  signedInEmail,
   addresses,
   methods,
 }: {
@@ -86,6 +88,7 @@ export function CheckoutClient({
   signedIn: boolean
   signedInPhone: string | null
   signedInName: string | null
+  signedInEmail: string | null
   addresses: AddressItem[]
   methods: EnabledPaymentMethods
 }) {
@@ -124,6 +127,10 @@ export function CheckoutClient({
       return line ? { ...item, price: line.unitPrice } : item
     })
   }, [items, quotedLines])
+
+  // ── Contact email — mandatory for both guest and signed-in checkout ──
+  const [email, setEmail] = useState(signedInEmail ?? '')
+  const [emailError, setEmailError] = useState('')
 
   // ── Address ──
   const [selectedAddressId, setSelectedAddressId] = useState<string>(
@@ -201,6 +208,11 @@ export function CheckoutClient({
   }
 
   async function handleContinueFromAddress() {
+    if (!EMAIL_RE.test(email.trim())) {
+      setEmailError('Enter a valid email address')
+      return
+    }
+    setEmailError('')
     if (usingNewAddress) {
       if (!(await triggerAddress())) return
     } else if (!savedAddress) {
@@ -218,6 +230,7 @@ export function CheckoutClient({
       cart: cartLines,
       couponCode: appliedCoupon ?? undefined,
       paymentProvider: paymentMethod,
+      email: email.trim(),
       addressId: usingNewAddress ? undefined : selectedAddressId,
       address: usingNewAddress ? (newAddress as AddressForm) : undefined,
       utr: paymentMethod === 'upi_manual' ? utr : undefined,
@@ -310,6 +323,13 @@ export function CheckoutClient({
                       <span className="h-px flex-1 bg-border-light" />
                     </div>
                     <GoogleButton redirectPath={`${storeBase}/auth/callback`} next={`${storeBase}/checkout`} />
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="mt-4 w-full text-center font-body text-[13px] font-semibold text-muted-warm underline"
+                    >
+                      Continue as guest
+                    </button>
                   </>
                 )}
               </div>
@@ -318,6 +338,21 @@ export function CheckoutClient({
             {step === 2 && (
               <div className="rounded-xl border border-border bg-surface p-4 sm:p-6">
                 <h2 className="mb-4 font-heading text-base font-bold text-fg">Delivery Address</h2>
+
+                <div className="mb-4">
+                  <label htmlFor="email" className="mb-1.5 block font-body text-[13px] font-bold text-fg">
+                    Email<span className="text-danger">*</span>
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className={fieldClass(!!emailError)}
+                  />
+                  {emailError && <p className="mt-1 font-body text-xs text-danger">{emailError}</p>}
+                </div>
 
                 {addresses.length > 0 && (
                   <div className="mb-4 space-y-2.5">

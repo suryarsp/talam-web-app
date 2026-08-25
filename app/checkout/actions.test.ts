@@ -1,29 +1,48 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
-  mockRequireAuth,
+  mockGetUser,
   mockRequireTenant,
   mockDb,
   mockCreateNotification,
   mockSendOrderPlaced,
   mockSendNewOrder,
-} = vi.hoisted(() => ({
-  mockRequireAuth: vi.fn(async () => ({ id: 'cust-1' })),
-  mockRequireTenant: vi.fn(async () => ({ tenantId: 't1', subdomain: 'silk', tier: 'trial' })),
-  mockDb: {
-    tenant: { findUnique: vi.fn() },
-    product: { findMany: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
-    discountCode: { findUnique: vi.fn(), update: vi.fn() },
-    address: { findFirst: vi.fn() },
-    order: { create: vi.fn() },
-    customer: { findUnique: vi.fn() },
-  },
-  mockCreateNotification: vi.fn(),
-  mockSendOrderPlaced: vi.fn(),
-  mockSendNewOrder: vi.fn(),
-}))
+  mockResolveGuestCustomer,
+  mockCookieStore,
+} = vi.hoisted(() => {
+  const cookieJar = new Map<string, string>()
+  return {
+    mockGetUser: vi.fn(async () => ({
+      data: { user: { id: 'cust-1', email: 'priya@example.com' } as { id: string; email: string } | null },
+    })),
+    mockRequireTenant: vi.fn(async () => ({ tenantId: 't1', subdomain: 'silk', tier: 'trial' })),
+    mockDb: {
+      tenant: { findUnique: vi.fn() },
+      product: { findMany: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
+      discountCode: { findUnique: vi.fn(), update: vi.fn() },
+      address: { findFirst: vi.fn() },
+      order: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+      customer: { findUnique: vi.fn(), updateMany: vi.fn() },
+    },
+    mockCreateNotification: vi.fn(),
+    mockSendOrderPlaced: vi.fn(),
+    mockSendNewOrder: vi.fn(),
+    mockResolveGuestCustomer: vi.fn(),
+    // Minimal stand-in for Next's cookies() store — real state (not a vi.fn()) so a
+    // server action's `.set()` is actually observable by a later `.get()` in the same test.
+    mockCookieStore: {
+      get: (name: string) => (cookieJar.has(name) ? { value: cookieJar.get(name)! } : undefined),
+      set: (name: string, value: string) => {
+        cookieJar.set(name, value)
+      },
+      _reset: () => cookieJar.clear(),
+    },
+  }
+})
 
-vi.mock('@/lib/auth-guard', () => ({ requireAuth: mockRequireAuth, requireTenant: mockRequireTenant }))
+vi.mock('@/lib/auth-guard', () => ({ requireTenant: mockRequireTenant }))
+vi.mock('@/lib/supabase/server', () => ({ createServerClient: async () => ({ auth: { getUser: mockGetUser } }) }))
+vi.mock('@/lib/auth/resolve-guest-customer', () => ({ resolveOrCreateGuestCustomer: mockResolveGuestCustomer }))
 vi.mock('@/lib/prisma', () => ({
   prisma: mockDb,
   withTenant: (_tenantId: string, fn: (db: typeof mockDb) => unknown) => fn(mockDb),
@@ -33,10 +52,24 @@ vi.mock('@/lib/resend', () => ({
   sendOrderPlacedEmail: mockSendOrderPlaced,
   sendNewOrderEmail: mockSendNewOrder,
 }))
-vi.mock('next/headers', () => ({ headers: async () => new Map([['host', 'localhost:3000']]) }))
+vi.mock('next/headers', () => ({
+  headers: async () => new Map([['host', 'localhost:3000']]),
+  cookies: async () => mockCookieStore,
+}))
 vi.mock('qrcode', () => ({ default: { toString: vi.fn(async () => '<svg />') } }))
+vi.mock('@/lib/payments/razorpay', () => ({
+  getRazorpayKeys: vi.fn(() => ({ keyId: 'key_test', keySecret: 'secret_test' })),
+  createRazorpayOrder: vi.fn(async () => ({ id: 'rzp_order_1', amount: 100, currency: 'INR' })),
+  verifyRazorpaySignature: vi.fn(() => true),
+}))
 
-import { getQuoteAction, placeOrderAction, validateCouponAction } from './actions'
+import {
+  createRazorpayOrderAction,
+  getQuoteAction,
+  placeOrderAction,
+  validateCouponAction,
+  verifyRazorpayPaymentAction,
+} from './actions'
 
 const CART = [{ productId: 'p1', size: 'M', quantity: 2 }]
 
@@ -65,6 +98,7 @@ function seedHappyPath({ price = 1000, stock = 10 }: { price?: number; stock?: n
   mockDb.product.update.mockResolvedValue({})
   mockDb.order.create.mockResolvedValue({ id: 'order-1' })
   mockDb.customer.findUnique.mockResolvedValue({ name: 'Priya', email: 'priya@example.com' })
+  mockDb.customer.updateMany.mockResolvedValue({ count: 0 })
   // clearAllMocks resets calls but not implementations, so a rejection set by one test
   // would leak into the next without this.
   mockSendOrderPlaced.mockResolvedValue(undefined)
@@ -75,6 +109,7 @@ function seedHappyPath({ price = 1000, stock = 10 }: { price?: number; stock?: n
 beforeEach(() => {
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  mockCookieStore._reset()
 })
 
 describe('getQuoteAction', () => {
@@ -156,6 +191,7 @@ describe('placeOrderAction', () => {
   const input = {
     cart: CART,
     paymentProvider: 'upi_manual' as const,
+    email: 'priya@example.com',
     address: ADDRESS,
     utr: '123456789012',
   }
@@ -332,5 +368,153 @@ describe('placeOrderAction', () => {
 
     expect(await placeOrderAction(input)).toEqual({ orderId: 'order-1' })
     expect(mockSendOrderPlaced).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing or malformed email before touching the database', async () => {
+    seedHappyPath()
+    expect(await placeOrderAction({ ...input, email: '' })).toEqual({ error: 'Enter a valid email address.' })
+    expect(await placeOrderAction({ ...input, email: 'not-an-email' })).toEqual({ error: 'Enter a valid email address.' })
+    expect(mockDb.order.create).not.toHaveBeenCalled()
+  })
+
+  it('backfills a null Customer.email for a signed-in shopper', async () => {
+    seedHappyPath()
+    await placeOrderAction(input)
+    expect(mockDb.customer.updateMany).toHaveBeenCalledWith({
+      where: { id: 'cust-1', tenantId: 't1', email: null },
+      data: { email: 'priya@example.com' },
+    })
+  })
+})
+
+describe('placeOrderAction — guest checkout', () => {
+  const input = {
+    cart: CART,
+    paymentProvider: 'cod' as const,
+    email: 'guest@example.com',
+    address: ADDRESS,
+  }
+
+  beforeEach(() => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+  })
+
+  it('creates an order for an unauthenticated visitor using the resolved customer id', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'guest-cust-1' })
+
+    const result = await placeOrderAction(input)
+    expect(result).toEqual({ orderId: 'order-1' })
+    expect(mockResolveGuestCustomer).toHaveBeenCalledWith('t1', { email: 'guest@example.com', phone: ADDRESS.phone })
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ customerId: 'guest-cust-1' }) })
+    )
+  })
+
+  it('attaches the order to an existing same-tenant customer instead of creating a duplicate', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'existing-cust' })
+
+    await placeOrderAction(input)
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ customerId: 'existing-cust' }) })
+    )
+  })
+
+  it('returns a sign-in-instead error when the email/phone already belongs to another tenant, without creating an order', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ error: 'guest_account_exists' })
+
+    expect(await placeOrderAction(input)).toEqual({
+      error: 'An account already exists for this email or phone. Sign in to continue.',
+    })
+    expect(mockDb.order.create).not.toHaveBeenCalled()
+  })
+
+  it('ignores a client-supplied addressId and requires a new address, since guests have none saved', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'guest-cust-1' })
+
+    await placeOrderAction({ ...input, addressId: 'should-be-ignored' })
+    expect(mockDb.address.findFirst).not.toHaveBeenCalled()
+    expect(mockDb.order.create).toHaveBeenCalled()
+  })
+})
+
+describe('createRazorpayOrderAction / verifyRazorpayPaymentAction — guest checkout', () => {
+  const guestInput = {
+    cart: CART,
+    paymentProvider: 'razorpay' as const,
+    email: 'guest@example.com',
+    address: ADDRESS,
+  }
+
+  beforeEach(() => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+  })
+
+  it('scopes the order lookup to the customer the guest actually just checked out as', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'guest-cust-1' })
+    // placeOrderAction is what proves this browser placed order-1 as guest-cust-1.
+    expect(await placeOrderAction(guestInput)).toEqual({ orderId: 'order-1' })
+
+    mockDb.order.findFirst.mockResolvedValue({ total: 2198 })
+    const result = await createRazorpayOrderAction('order-1')
+
+    expect('error' in result).toBe(false)
+    expect(mockDb.order.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1', tenantId: 't1', customerId: 'guest-cust-1' } })
+    )
+  })
+
+  it('refuses createRazorpayOrderAction for an order this guest browser never placed, without querying the database', async () => {
+    // No prior placeOrderAction call in this test — no guest-order cookie exists.
+    const result = await createRazorpayOrderAction('someone-elses-order')
+
+    expect(result).toEqual({ error: 'Order not found.' })
+    expect(mockDb.order.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('refuses createRazorpayOrderAction when the requested orderId does not match the guest-order cookie', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'guest-cust-1' })
+    await placeOrderAction(guestInput)
+
+    const result = await createRazorpayOrderAction('a-different-order-id')
+
+    expect(result).toEqual({ error: 'Order not found.' })
+    expect(mockDb.order.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('scopes the payment verification update to the customer the guest actually just checked out as', async () => {
+    seedHappyPath()
+    mockResolveGuestCustomer.mockResolvedValue({ customerId: 'guest-cust-1' })
+    await placeOrderAction(guestInput)
+
+    mockDb.order.updateMany.mockResolvedValue({ count: 1 })
+    const result = await verifyRazorpayPaymentAction({
+      orderId: 'order-1',
+      razorpayOrderId: 'rzp_1',
+      razorpayPaymentId: 'pay_1',
+      signature: 'sig',
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(mockDb.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1', tenantId: 't1', customerId: 'guest-cust-1' } })
+    )
+  })
+
+  it('refuses to verify payment for an order this guest browser never placed, without touching the database', async () => {
+    const result = await verifyRazorpayPaymentAction({
+      orderId: 'someone-elses-order',
+      razorpayOrderId: 'rzp_1',
+      razorpayPaymentId: 'pay_1',
+      signature: 'sig',
+    })
+
+    expect(result).toEqual({ error: 'Payment could not be verified.' })
+    expect(mockDb.order.updateMany).not.toHaveBeenCalled()
   })
 })
