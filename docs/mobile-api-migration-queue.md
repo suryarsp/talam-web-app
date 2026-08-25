@@ -24,7 +24,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 ---
 
 ## Phase 0 — Foundation (blocks everything below)
-- [ ] Bearer-token auth path in `lib/auth-guard.ts` / `lib/admin-guard.ts` (accept `Authorization: Bearer <supabase-jwt>` alongside the existing cookie session)
+- [x] Bearer-token auth path in `lib/auth-guard.ts` / `lib/admin-guard.ts` (accept `Authorization: Bearer <supabase-jwt>` alongside the existing cookie session) — [PR #25](https://github.com/suryatalamsevai/talam-web-app/pull/25)
 - [ ] Explicit tenant resolution helper (port `proxy.ts`'s host/subdomain logic into a callable function usable when there's no proxy — mobile sends tenant id/slug directly)
 - [ ] `app/api/v1/` versioning convention + shared JSON response/error envelope
 - [ ] Verify Prisma/Supabase pgbouncer connection pooling holds under added serverless concurrency (spike test, not a code change if already fine)
