@@ -20,6 +20,7 @@ Once bearer-token support is confirmed on `main`, proceed through phases in orde
 
 ## Status
 _(automation appends a one-line note here if it has to stall — e.g. "waiting on Phase 0 PRs #41–44 to merge")_
+- 2026-08-26: stalled on the Phase 0 pgbouncer spike-test task — this container has Supabase project access via MCP but no `DATABASE_URL`/`DIRECT_URL` in its env, so it can't open real concurrent Postgres connections through the pooler to run the load test; needs those secrets provisioned to this environment, or a human to run the spike test manually and check the box.
 
 ---
 
