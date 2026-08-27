@@ -42,7 +42,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 - [ ] Verify Prisma/Supabase pgbouncer connection pooling holds under added serverless concurrency (spike test, not a code change if already fine) — still blocked, see Status log; does not block Phase 1+ under the gating rule above
 
 ## Phase 1 — Catalog & storefront read
-- [ ] Convert `app/store/actions.ts → searchProductsAction` to `GET /api/v1/store/search`
+- [x] Convert `app/store/actions.ts → searchProductsAction` to `GET /api/v1/store/search` — [PR #30](https://github.com/suryatalamsevai/talam-web-app/pull/30) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [ ] Net-new: product list + detail → `GET /api/v1/store/products`, `GET /api/v1/store/products/{slug}` (currently RSC-only, no action layer — extract query logic from the page first)
 - [ ] Net-new: category listing → `GET /api/v1/store/categories`
 - [ ] Net-new: occasions/offers listing → `GET /api/v1/store/occasions`
