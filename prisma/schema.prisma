@@ -105,6 +105,10 @@ model Tenant {
   freeDeliveryAbove    Decimal?        @map("free_delivery_above") @db.Decimal(10, 2)
   shippingFee          Decimal         @default(0) @map("shipping_fee") @db.Decimal(10, 2)
   deliveryEstimateText String?         @map("delivery_estimate_text")
+  /// Fallback package weight in kg for any product whose own `weight` is null. Every
+  /// Shiprocket rate/serviceability call needs a weight, so this must never be null —
+  /// hence a default rather than an optional column.
+  defaultShippingWeight Decimal        @default(0.5) @map("default_shipping_weight") @db.Decimal(6, 3)
   returnWindowDays     Int?            @map("return_window_days")
   trustBadgeText       String?         @map("trust_badge_text")
   sizeGuideUrl         String?         @map("size_guide_url")
@@ -198,6 +202,9 @@ model Product {
   images       String[]
   stockBySize  Json          @default("{}") @map("stock_by_size")
   specifications Json        @default("[]")
+  /// Shipping weight in kg. Nullable because most existing products predate it — callers
+  /// fall back to Tenant.defaultShippingWeight rather than guessing per product.
+  weight       Decimal?      @db.Decimal(6, 3)
   isActive     Boolean       @default(true) @map("is_active")
   status       PublishStatus @default(published)
   deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz
@@ -310,10 +317,26 @@ model Order {
   paymentStatus   PaymentStatus @default(pending) @map("payment_status")
   shippingAddress Json          @map("shipping_address")
   trackingId      String?       @map("tracking_id")
+  // Shiprocket's own ids for this order, kept alongside the AWB (trackingId) so support can
+  // find the shipment in Shiprocket's dashboard without re-deriving it from our order id.
+  shiprocketOrderId String?     @map("shiprocket_order_id")
+  shipmentId      String?       @map("shipment_id")
+  courierName     String?       @map("courier_name")
+  /// Courier ETA in days as quoted by Shiprocket at checkout, stored so the order's own
+  /// confirmation and emails can repeat the promise made at the time — not re-derived later,
+  /// for the same reason the price breakdown above is stored rather than computed.
+  estimatedDeliveryDays Int?    @map("estimated_delivery_days")
   disputeFlaggedAt DateTime?    @map("dispute_flagged_at")
   disputeReason   String?       @map("dispute_reason")
   cancelReason    String?       @map("cancel_reason")
   paymentProofUrl String?       @map("payment_proof_url")
+  // Manual-refund audit trail (COD/UPI cancellations): the UPI-transfer screenshot staff
+  // uploaded, and who signed off on it. `refundProofUrl IS NOT NULL AND refundVerifiedAt IS
+  // NULL` *is* the "awaiting verification" state — deliberately not a new OrderStatus value,
+  // which would ripple through every status filter in the app.
+  refundProofUrl  String?       @map("refund_proof_url")
+  refundVerifiedBy String?      @map("refund_verified_by")
+  refundVerifiedAt DateTime?    @map("refund_verified_at") @db.Timestamptz
   reminderSentAt  DateTime?     @map("reminder_sent_at") @db.Timestamptz
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
 

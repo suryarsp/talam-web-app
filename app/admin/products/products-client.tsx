@@ -375,6 +375,9 @@ function ProductEditorForm({
       images,
       stockBySize,
       specifications: specs.filter((s) => s.label.trim() || s.value.trim()),
+      // Blank stays null rather than becoming 0: it means "use the store's default shipping
+      // weight", and a 0kg parcel would make every courier quote nonsense.
+      weight: formData.get('weight') ? Number(formData.get('weight')) : null,
     }
 
     if (!input.name || images.length === 0) {
@@ -474,6 +477,15 @@ function ProductEditorForm({
                 </div>
               </label>
             </div>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-bold text-fg">Shipping Weight</span>
+              <div className="flex">
+                <input name="weight" type="number" min="0" step="0.001" defaultValue={editProduct?.weight ?? ''} className="grow rounded-l-lg border border-r-0 border-border bg-bg px-3 py-[11px] text-md outline-none transition-colors focus:border-brand-primary focus:bg-surface" placeholder="0.5" />
+                <span className="flex items-center rounded-r-lg border border-border bg-bg px-3 text-sm text-muted-warm">kg</span>
+              </div>
+              <span className="text-xs text-muted-warm">Optional — your store&apos;s default weight is used when this is blank.</span>
+            </label>
 
             {!noSize && selectedSizes.length > 0 ? (
               <div className="flex flex-col gap-1.5">

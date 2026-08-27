@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sectionsForRole, canAccessSection, type AdminSection } from './admin-permissions'
+import { sectionsForRole, canAccessSection, canVerifyRefund, type AdminSection } from './admin-permissions'
 
 const ALL_SECTIONS: AdminSection[] = ['overview', 'orders', 'tenants', 'billing', 'growth', 'staff']
 
@@ -35,5 +35,22 @@ describe('canAccessSection', () => {
         expect(canAccessSection(role, section)).toBe(granted.includes(section))
       }
     }
+  })
+})
+
+describe('canVerifyRefund', () => {
+  it('lets owner and support_agent sign off on a manual refund', () => {
+    expect(canVerifyRefund('owner')).toBe(true)
+    expect(canVerifyRefund('support_agent')).toBe(true)
+  })
+
+  it('refuses growth_analyst even though it can reach the orders section', () => {
+    // Verifying a refund moves real money — a stricter gate than merely reading orders.
+    expect(canAccessSection('growth_analyst', 'orders')).toBe(true)
+    expect(canVerifyRefund('growth_analyst')).toBe(false)
+  })
+
+  it('refuses billing_manager', () => {
+    expect(canVerifyRefund('billing_manager')).toBe(false)
   })
 })

@@ -7,6 +7,7 @@ const {
   mockCreateNotification,
   mockSendOrderPlaced,
   mockSendNewOrder,
+  mockGetDeliveryEstimate,
   mockResolveGuestCustomer,
   mockCookieStore,
 } = vi.hoisted(() => {
@@ -27,6 +28,7 @@ const {
     mockCreateNotification: vi.fn(),
     mockSendOrderPlaced: vi.fn(),
     mockSendNewOrder: vi.fn(),
+    mockGetDeliveryEstimate: vi.fn(),
     mockResolveGuestCustomer: vi.fn(),
     // Minimal stand-in for Next's cookies() store — real state (not a vi.fn()) so a
     // server action's `.set()` is actually observable by a later `.get()` in the same test.
@@ -52,6 +54,7 @@ vi.mock('@/lib/resend', () => ({
   sendOrderPlacedEmail: mockSendOrderPlaced,
   sendNewOrderEmail: mockSendNewOrder,
 }))
+vi.mock('@/lib/shipping/shiprocket', () => ({ getDeliveryEstimate: mockGetDeliveryEstimate }))
 vi.mock('next/headers', () => ({
   headers: async () => new Map([['host', 'localhost:3000']]),
   cookies: async () => mockCookieStore,
@@ -82,17 +85,22 @@ const ADDRESS = {
   pincode: '625001',
 }
 
-function seedHappyPath({ price = 1000, stock = 10 }: { price?: number; stock?: number } = {}) {
+function seedHappyPath({
+  price = 1000,
+  stock = 10,
+  weight = 0.8,
+}: { price?: number; stock?: number; weight?: number | null } = {}) {
   mockDb.tenant.findUnique.mockResolvedValue({
     name: 'Meena Silks',
     shippingFee: 99,
     freeDeliveryAbove: null,
+    defaultShippingWeight: 0.5,
     slug: 'silk',
     contactEmail: 'owner@example.com',
     notifyEmailOnOrder: true,
   })
   mockDb.product.findMany.mockResolvedValue([
-    { id: 'p1', name: 'Silk Saree', price, comparePrice: null, stockBySize: { M: stock } },
+    { id: 'p1', name: 'Silk Saree', price, comparePrice: null, stockBySize: { M: stock }, weight },
   ])
   mockDb.product.findUniqueOrThrow.mockResolvedValue({ stockBySize: { M: stock } })
   mockDb.product.update.mockResolvedValue({})
@@ -104,6 +112,9 @@ function seedHappyPath({ price = 1000, stock = 10 }: { price?: number; stock?: n
   mockSendOrderPlaced.mockResolvedValue(undefined)
   mockSendNewOrder.mockResolvedValue(undefined)
   mockCreateNotification.mockResolvedValue(undefined)
+  // Most stores have no Shiprocket account, so "unavailable, use the flat fee" is the
+  // baseline every non-delivery test runs against; the delivery tests override it.
+  mockGetDeliveryEstimate.mockResolvedValue({ error: 'Could not check delivery for this pincode right now.' })
 }
 
 beforeEach(() => {
@@ -138,6 +149,83 @@ describe('getQuoteAction', () => {
   it('rejects an empty cart', async () => {
     seedHappyPath()
     expect(await getQuoteAction([])).toEqual({ error: 'Your cart is empty.' })
+  })
+
+  it('does not quote a courier when no pincode has been entered yet', async () => {
+    seedHappyPath({ price: 1000 })
+    const result = await getQuoteAction(CART)
+
+    expect(mockGetDeliveryEstimate).not.toHaveBeenCalled()
+    if ('error' in result) throw new Error(result.error)
+    expect(result.quote.shippingFee).toBe(99)
+    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null })
+  })
+
+  it('charges the courier’s live rate instead of the flat fee once a pincode is known', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    const result = await getQuoteAction(CART, undefined, '625001')
+
+    if ('error' in result) throw new Error(result.error)
+    expect(result.quote.shippingFee).toBe(140)
+    expect(result.quote.total).toBe(2140)
+    expect(result.delivery).toEqual({ fullFee: 140, source: 'live', etaDays: 3, codAvailable: true })
+  })
+
+  it('weighs the parcel from each product’s own weight times its quantity', async () => {
+    seedHappyPath({ weight: 0.8 })
+    await getQuoteAction(CART, undefined, '625001')
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6 })
+  })
+
+  it('falls back to the store’s default shipping weight for a product that has none', async () => {
+    seedHappyPath({ weight: null })
+    await getQuoteAction(CART, undefined, '625001')
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1 })
+  })
+
+  it('refuses a pincode no courier delivers to', async () => {
+    seedHappyPath()
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: false })
+
+    expect(await getQuoteAction(CART, undefined, '999999')).toEqual({
+      error: "We can't currently deliver to this pincode.",
+    })
+  })
+
+  it('keeps checkout working on the flat fee when the courier cannot be reached', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockResolvedValue({ error: 'Could not check delivery for this pincode right now.' })
+
+    const result = await getQuoteAction(CART, undefined, '625001')
+
+    if ('error' in result) throw new Error(result.error)
+    expect(result.quote.shippingFee).toBe(99)
+    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null })
+  })
+
+  it('reports what delivery would have cost when the order crosses the free-delivery threshold', async () => {
+    seedHappyPath({ price: 1000 })
+    mockDb.tenant.findUnique.mockResolvedValue({
+      name: 'Meena Silks',
+      shippingFee: 99,
+      freeDeliveryAbove: 1500,
+      defaultShippingWeight: 0.5,
+      slug: 'silk',
+      contactEmail: 'owner@example.com',
+      notifyEmailOnOrder: true,
+    })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    const result = await getQuoteAction(CART, undefined, '625001')
+
+    if ('error' in result) throw new Error(result.error)
+    expect(result.quote.shippingFee).toBe(0)
+    expect(result.delivery.fullFee).toBe(140)
+    expect(result.delivery.source).toBe('live')
   })
 })
 
@@ -368,6 +456,82 @@ describe('placeOrderAction', () => {
 
     expect(await placeOrderAction(input)).toEqual({ orderId: 'order-1' })
     expect(mockSendOrderPlaced).not.toHaveBeenCalled()
+  })
+
+  it('prices the order against the delivery address, not the flat fee', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    await placeOrderAction(input)
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6 })
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ shippingFee: 140, total: 2140 }) })
+    )
+  })
+
+  it('stores the courier ETA on the order so the confirmation can show a real date', async () => {
+    seedHappyPath()
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    await placeOrderAction(input)
+
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estimatedDeliveryDays: 3 }) })
+    )
+  })
+
+  it('stores no ETA when the courier could not be reached at order time', async () => {
+    seedHappyPath()
+
+    await placeOrderAction(input)
+
+    expect(mockDb.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estimatedDeliveryDays: null }) })
+    )
+  })
+
+  it('refuses to place an order for a pincode no courier delivers to', async () => {
+    seedHappyPath()
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: false })
+
+    expect(await placeOrderAction(input)).toEqual({ error: "We can't currently deliver to this pincode." })
+    expect(mockDb.order.create).not.toHaveBeenCalled()
+  })
+
+  it('reads the pincode off a saved address when the customer picked one', async () => {
+    seedHappyPath()
+    mockDb.address.findFirst.mockResolvedValue({
+      ...ADDRESS,
+      id: 'addr-1',
+      pincode: '600001',
+      line2: null,
+    })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 2, rate: 120, codAvailable: true })
+
+    await placeOrderAction({ ...input, address: undefined, addressId: 'addr-1' })
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '600001', weightKg: 1.6 })
+  })
+
+  it('tells the customer their estimated delivery date in the confirmation email', async () => {
+    seedHappyPath()
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    await placeOrderAction(input)
+
+    expect(mockSendOrderPlaced).toHaveBeenCalledWith(
+      'priya@example.com',
+      expect.objectContaining({ estimatedDeliveryText: expect.stringMatching(/^\w{3}, \d{1,2} \w+$/) })
+    )
+  })
+
+  it('leaves the estimated delivery line out of the email when there is no ETA', async () => {
+    seedHappyPath()
+
+    await placeOrderAction(input)
+
+    expect(mockSendOrderPlaced.mock.calls[0][1].estimatedDeliveryText).toBeUndefined()
   })
 
   it('rejects a missing or malformed email before touching the database', async () => {

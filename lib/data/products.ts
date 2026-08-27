@@ -34,6 +34,8 @@ export type AdminProduct = {
   images: string[]
   stockBySize: Record<string, number>
   specifications: ProductSpec[]
+  /** Shipping weight in kg. Null means "use the tenant's default shipping weight". */
+  weight: number | null
   isActive: boolean
   occasionIds: string[]
 }
@@ -49,6 +51,7 @@ export type ProductInput = {
   images: string[]
   stockBySize: Record<string, number>
   specifications: ProductSpec[]
+  weight: number | null
 }
 
 function slugify(name: string) {
@@ -93,6 +96,7 @@ export async function listProductsForAdmin(tenantId: string): Promise<AdminProdu
     images: p.images,
     stockBySize: p.stockBySize as Record<string, number>,
     specifications: p.specifications as ProductSpec[],
+    weight: p.weight !== null ? Number(p.weight) : null,
     isActive: p.isActive,
     occasionIds: p.tagAssignments.map((a) => a.tagId),
   }))
@@ -122,6 +126,7 @@ export async function createProduct(tenantId: string, input: ProductInput) {
         images: input.images,
         stockBySize: input.stockBySize,
         specifications: input.specifications,
+        weight: input.weight,
         status: tenant?.isLive ? 'draft' : 'published',
       },
     })
@@ -149,6 +154,7 @@ export async function updateProduct(tenantId: string, id: string, input: Product
         images: input.images,
         stockBySize: input.stockBySize,
         specifications: input.specifications,
+        weight: input.weight,
         status: tenant?.isLive ? 'draft' : 'published',
       },
     })

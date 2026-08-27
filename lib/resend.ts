@@ -9,6 +9,7 @@ import {
 import {
   newOrderTemplate,
   orderCancelledTemplate,
+  orderCancelledWithRefundTemplate,
   orderDeliveredTemplate,
   orderPlacedTemplate,
   orderReturnedTemplate,
@@ -16,6 +17,7 @@ import {
   paymentFailedTemplate,
   pendingOrderReminderTemplate,
   type OrderEmailItem,
+  type RefundStatus,
 } from './email/templates/orders'
 import { staffInviteTemplate } from './email/templates/staff'
 import { shippingAssistRequestTemplate } from './email/templates/support'
@@ -23,7 +25,7 @@ import { shippingAssistRequestTemplate } from './email/templates/support'
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'hello@mailer.talam4shop.com'
 
-export type { OrderEmailItem }
+export type { OrderEmailItem, RefundStatus }
 
 export async function sendOnboardingWelcomeEmail(to: string, params: { onboardingUrl: string }): Promise<void> {
   try {
@@ -74,6 +76,9 @@ export async function sendOrderPlacedEmail(
     addressLines: string[]
     trackUrl: string
     invoiceUrl: string
+    /** Already-formatted date, e.g. "Fri, 4 Sept". Absent when no courier ETA was available
+     *  at order time — the line is then dropped rather than guessed at. */
+    estimatedDeliveryText?: string
   }
 ): Promise<void> {
   try {
@@ -81,6 +86,19 @@ export async function sendOrderPlacedEmail(
     await resend.emails.send({ from: FROM, to, subject, html })
   } catch (err) {
     console.error('[Resend] sendOrderPlacedEmail failed:', err)
+  }
+}
+
+/** The super-admin refund-aware cancellation flow's email — see orderCancelledWithRefundTemplate. */
+export async function sendOrderCancelledWithRefundEmail(
+  to: string,
+  params: { storeName: string; orderCode: string; reason: string; refundStatus: RefundStatus }
+): Promise<void> {
+  try {
+    const { subject, html } = orderCancelledWithRefundTemplate(params)
+    await resend.emails.send({ from: FROM, to, subject, html })
+  } catch (err) {
+    console.error('[Resend] sendOrderCancelledWithRefundEmail failed:', err)
   }
 }
 

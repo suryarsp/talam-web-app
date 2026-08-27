@@ -114,7 +114,11 @@ export async function shipViaShiprocketAction(orderId: string): Promise<{ error?
     return { error: err instanceof Error ? err.message : 'Could not create the Shiprocket shipment.' }
   }
 
-  await updateOrderStatus(tenantId, orderId, 'shipped', shipment.awbCode)
+  await updateOrderStatus(tenantId, orderId, 'shipped', shipment.awbCode, undefined, {
+    shiprocketOrderId: String(shipment.shiprocketOrderId),
+    shipmentId: String(shipment.shipmentId),
+    courierName: shipment.courierName,
+  })
   revalidatePath('/admin/orders')
   revalidatePath('/admin/dashboard')
   return { trackingId: shipment.awbCode }

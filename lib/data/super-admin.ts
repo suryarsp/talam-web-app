@@ -1,4 +1,4 @@
-import type { OnboardingStage, OnboardingStageStatus, Tier } from '@prisma/client'
+import type { OnboardingStage, OnboardingStageStatus, OrderStatus, PaymentStatus, Tier } from '@prisma/client'
 import { withSuperAdmin } from '@/lib/prisma'
 import { normalizePaymentConfig, type RazorpayStatus } from '@/lib/payments/config'
 import { normalizeShippingConfig, type ShippingMode } from '@/lib/shipping/shipping-config'
@@ -118,7 +118,13 @@ export async function getTenantOwnerEmail(tenantId: string): Promise<string | nu
 
 export type FlaggedOrder = {
   id: string
+  // tenantId, status and paymentStatus are here for the cancellation flow, not the table:
+  // the row needs to know which tenant to address the order under, whether it is still
+  // cancellable, and which refund route applies (see lib/orders/cancellation.ts).
+  tenantId: string
   tenantName: string
+  status: OrderStatus
+  paymentStatus: PaymentStatus
   total: number
   paymentProvider: string | null
   utr: string | null
@@ -133,6 +139,9 @@ export async function getFlaggedOrders(): Promise<FlaggedOrder[]> {
       where: { disputeFlaggedAt: { not: null } },
       select: {
         id: true,
+        tenantId: true,
+        status: true,
+        paymentStatus: true,
         total: true,
         paymentProvider: true,
         paymentId: true,
@@ -145,11 +154,53 @@ export async function getFlaggedOrders(): Promise<FlaggedOrder[]> {
   const now = Date.now()
   return rows.map((o) => ({
     id: o.id,
+    tenantId: o.tenantId,
     tenantName: o.tenant.name,
+    status: o.status,
+    paymentStatus: o.paymentStatus,
     total: Number(o.total),
     paymentProvider: o.paymentProvider,
     utr: o.paymentId,
     daysPending: Math.floor((now - o.disputeFlaggedAt!.getTime()) / (24 * 60 * 60 * 1000)),
+  }))
+}
+
+/** The manual-refund sign-off queue (step B of lib/orders/cancellation.ts). The awaiting-
+ *  verification state has no OrderStatus of its own — it *is* this pair of column checks. */
+export type PendingRefundVerification = {
+  id: string
+  tenantId: string
+  tenantName: string
+  total: number
+  cancelReason: string | null
+  refundProofUrl: string
+  customerEmail: string | null
+}
+
+export async function getPendingRefundVerifications(): Promise<PendingRefundVerification[]> {
+  const rows = await withSuperAdmin((db) =>
+    db.order.findMany({
+      where: { refundProofUrl: { not: null }, refundVerifiedAt: null },
+      select: {
+        id: true,
+        tenantId: true,
+        total: true,
+        cancelReason: true,
+        refundProofUrl: true,
+        tenant: { select: { name: true } },
+        customer: { select: { email: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+  )
+  return rows.map((o) => ({
+    id: o.id,
+    tenantId: o.tenantId,
+    tenantName: o.tenant.name,
+    total: Number(o.total),
+    cancelReason: o.cancelReason,
+    refundProofUrl: o.refundProofUrl!,
+    customerEmail: o.customer.email,
   }))
 }
 

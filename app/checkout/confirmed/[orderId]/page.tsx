@@ -6,6 +6,7 @@ import { OrderSummaryCard } from '@/components/checkout/order-summary-card'
 import { requireAuth, requireTenant } from '@/lib/auth-guard'
 import { getTenantStorefront } from '@/lib/data/tenant'
 import { getCustomerOrder } from '@/lib/data/storefront-orders'
+import { formatDeliveryDate } from '@/lib/shipping/delivery-estimate'
 import type { CartItem } from '@/lib/store/cart'
 import { ConfirmedActions } from './confirmed-actions'
 
@@ -39,11 +40,12 @@ export default async function OrderConfirmedPage({ params }: { params: Promise<{
     quantity: item.quantity,
   }))
 
-  const estimatedDelivery = new Date(order.createdAt.getTime() + 4 * 86400_000).toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  // The courier's own ETA when Shiprocket answered at order time; otherwise the store's typed
+  // blurb, and only failing that the four-day guess this page has always shown.
+  const estimatedDelivery =
+    order.estimatedDeliveryDays !== null
+      ? `${formatDeliveryDate(order.createdAt, order.estimatedDeliveryDays)} · Standard delivery`
+      : (tenant.deliveryEstimateText ?? `${formatDeliveryDate(order.createdAt, 4)} · Standard delivery`)
 
   const paid = order.paymentStatus === 'paid'
 
@@ -68,9 +70,7 @@ export default async function OrderConfirmedPage({ params }: { params: Promise<{
           <p className="font-body text-base font-bold text-fg">{order.code}</p>
           <div className="my-3 h-px bg-border" />
           <p className="font-body text-[11px] uppercase tracking-[0.04em] text-muted-warm">Estimated Delivery</p>
-          <p className="font-body text-sm font-semibold text-success">
-            {tenant.deliveryEstimateText ?? `${estimatedDelivery} · Standard delivery`}
-          </p>
+          <p className="font-body text-sm font-semibold text-success">{estimatedDelivery}</p>
         </div>
 
         <div className="mt-4">

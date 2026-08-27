@@ -94,7 +94,7 @@ describe('shipViaShiprocketAction', () => {
 
   it('creates a shipment and moves the order to shipped with the real AWB', async () => {
     mockDb.order.findFirst.mockResolvedValue(baseOrder)
-    mockCreateShipment.mockResolvedValue({ awbCode: 'AWB123', courierName: 'Delhivery', shipmentId: 999 })
+    mockCreateShipment.mockResolvedValue({ awbCode: 'AWB123', courierName: 'Delhivery', shipmentId: 999, shiprocketOrderId: 555 })
 
     const result = await shipViaShiprocketAction('o1')
 
@@ -109,7 +109,11 @@ describe('shipViaShiprocketAction', () => {
         items: [{ name: 'Silk Saree', sku: 'p1', units: 1, sellingPrice: 1200 }],
       })
     )
-    expect(mockUpdateStatus).toHaveBeenCalledWith('t1', 'o1', 'shipped', 'AWB123')
+    expect(mockUpdateStatus).toHaveBeenCalledWith('t1', 'o1', 'shipped', 'AWB123', undefined, {
+      shiprocketOrderId: '555',
+      shipmentId: '999',
+      courierName: 'Delhivery',
+    })
   })
 
   it('uses COD as the payment method for cash-on-delivery orders', async () => {

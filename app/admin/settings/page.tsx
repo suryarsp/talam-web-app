@@ -604,6 +604,18 @@ function StoreTab() {
               onBlur={(e) => e.target.value !== settings.deliveryEstimateText && save({ deliveryEstimateText: e.target.value })}
             />
           </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-fg">Default Shipping Weight (kg)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.001"
+              defaultValue={settings.defaultShippingWeight}
+              onBlur={(e) => Number(e.target.value) !== settings.defaultShippingWeight && save({ defaultShippingWeight: Number(e.target.value) })}
+              className="rounded-lg border border-border bg-bg px-3 py-[9px] text-md text-fg outline-none"
+            />
+            <span className="text-xs text-muted-warm">Used to quote delivery for products with no weight of their own.</span>
+          </label>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-md font-semibold text-fg">Accept Returns</p>

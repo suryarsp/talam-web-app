@@ -39,3 +39,12 @@ export function sectionsForRole(role: AdminStaffRole): AdminSection[] {
 export function canAccessSection(role: AdminStaffRole, section: AdminSection): boolean {
   return ROLE_SECTIONS[role].includes(section)
 }
+
+// Deliberately narrower than canAccessSection(role, 'orders'): confirming a manual refund
+// signs off on money that has already left a bank account, so growth_analyst — which can read
+// the orders section for reporting — must not be able to close one out.
+const REFUND_VERIFIER_ROLES: AdminStaffRole[] = ['owner', 'support_agent']
+
+export function canVerifyRefund(role: AdminStaffRole): boolean {
+  return REFUND_VERIFIER_ROLES.includes(role)
+}

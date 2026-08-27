@@ -26,7 +26,14 @@ vi.mock('@/lib/prisma', () => ({
   }),
 }))
 
-import { getProducts, getProductBySlug, getCategories, getCategoriesWithImage, getActiveDepartments } from './products'
+import {
+  getProducts,
+  getProductBySlug,
+  getCategories,
+  getCategoriesWithImage,
+  getActiveDepartments,
+  listProductsForAdmin,
+} from './products'
 
 describe('getProducts', () => {
   it('returns active products for a tenant', async () => {
@@ -105,6 +112,36 @@ describe('getCategoriesWithImage', () => {
     )
     const cats = await getCategoriesWithImage('tenant-1')
     expect(cats).toHaveLength(0)
+  })
+})
+
+describe('listProductsForAdmin', () => {
+  async function listWith(weight: unknown) {
+    const { withTenant } = await import('@/lib/prisma')
+    vi.mocked(withTenant).mockImplementationOnce(async (_tenantId, fn) =>
+      fn({
+        product: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: 'p1', name: 'Silk Saree', slug: 'silk-saree', description: null,
+              price: '4500', comparePrice: null, categoryId: 'cat-1', category: { name: 'Sarees' },
+              sizes: ['M'], unit: 'piece', images: [], stockBySize: { M: 5 },
+              specifications: [], weight, isActive: true, tagAssignments: [],
+            },
+          ]),
+        },
+      } as never)
+    )
+    return listProductsForAdmin('tenant-1')
+  }
+
+  it('exposes the shipping weight as a number the form can edit', async () => {
+    // Prisma hands back Decimal columns as strings, which a number input would reject.
+    expect((await listWith('0.750'))[0].weight).toBe(0.75)
+  })
+
+  it('leaves an unweighed product null rather than defaulting it to zero', async () => {
+    expect((await listWith(null))[0].weight).toBeNull()
   })
 })
 

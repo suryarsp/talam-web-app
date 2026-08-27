@@ -3,15 +3,24 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
 import { requireSuperAdminSection } from '@/lib/auth-guard'
-import { getFlaggedOrders, getOrderInsights } from '@/lib/data/super-admin'
+import { getFlaggedOrders, getOrderInsights, getPendingRefundVerifications } from '@/lib/data/super-admin'
+import { canVerifyRefund } from '@/lib/data/admin-permissions'
+import { isCancellable } from '@/lib/orders/cancellation'
 import { TIER_LABEL } from '@/lib/billing/tier-pricing'
 import { StatTile } from '@/components/super-admin/stat-tile'
 import { MonthlyBarChart } from '@/components/super-admin/monthly-bar-chart'
+import { CancelOrderDialog } from './cancel-order-dialog'
+import { ConfirmRefundButton } from './confirm-refund-button'
 
 export default async function OrdersPage() {
-  await requireSuperAdminSection('orders')
-  const [orders, insights] = await Promise.all([getFlaggedOrders(), getOrderInsights()])
+  const { role } = await requireSuperAdminSection('orders')
+  const [orders, insights, pendingRefunds] = await Promise.all([
+    getFlaggedOrders(),
+    getOrderInsights(),
+    getPendingRefundVerifications(),
+  ])
   const zeroOrderStores = insights.totalStores - insights.storesWithOrders
+  const canVerify = canVerifyRefund(role)
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,8 +90,10 @@ export default async function OrdersPage() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Disputes</h2>
+      <section aria-labelledby="disputes-heading">
+        <h2 id="disputes-heading" className="mb-3 text-sm font-semibold text-foreground">
+          Disputes
+        </h2>
         {orders.length === 0 ? (
           <p className="text-sm text-muted-foreground">No orders currently flagged for dispute.</p>
         ) : (
@@ -95,6 +106,7 @@ export default async function OrdersPage() {
                 <TableHead>Provider</TableHead>
                 <TableHead>UTR</TableHead>
                 <TableHead>Days Pending</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -107,6 +119,63 @@ export default async function OrdersPage() {
                   <TableCell>{order.utr ?? '—'}</TableCell>
                   <TableCell>
                     <Badge variant={order.daysPending >= 3 ? 'destructive' : 'secondary'}>{order.daysPending}d</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {/* Once Shiprocket has the parcel there is nothing to recall, so a shipped
+                        or closed order gets no control at all rather than a disabled one. */}
+                    {isCancellable(order.status) && <CancelOrderDialog order={order} />}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
+
+      <section aria-labelledby="refund-verification-heading">
+        <h2 id="refund-verification-heading" className="mb-3 text-sm font-semibold text-foreground">
+          Refund Verification Pending
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Orders paid outside Razorpay whose UPI refund screenshot is filed but not yet signed off. Confirming one
+          cancels the order and marks it refunded.
+        </p>
+        {pendingRefunds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No refunds waiting for verification.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tenant</TableHead>
+                <TableHead>Order</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Proof</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingRefunds.map((refund) => (
+                <TableRow key={refund.id}>
+                  <TableCell className="font-medium text-foreground">{refund.tenantName}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {refund.id}
+                    {refund.customerEmail && <p>{refund.customerEmail}</p>}
+                  </TableCell>
+                  <TableCell>{formatCurrency(refund.total)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{refund.cancelReason ?? '—'}</TableCell>
+                  <TableCell>
+                    <a
+                      href={refund.refundProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-foreground underline underline-offset-4"
+                    >
+                      View proof
+                    </a>
+                  </TableCell>
+                  <TableCell>
+                    <ConfirmRefundButton tenantId={refund.tenantId} orderId={refund.id} canVerify={canVerify} />
                   </TableCell>
                 </TableRow>
               ))}

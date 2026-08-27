@@ -35,6 +35,7 @@ import {
   getShippingWebhookToken,
   markShiprocketCredentialStale,
   requestShiprocketAssist,
+  saveResolvedPickupPincode,
 } from './shiprocket-account'
 
 const originalEnv = { ...process.env }
@@ -279,6 +280,42 @@ describe('markShiprocketCredentialStale', () => {
       mode: 'platform',
       lastError: 'Shiprocket login failed (403)',
       pickupLocation: 'Chennai Store',
+    })
+  })
+})
+
+describe('saveResolvedPickupPincode', () => {
+  it('records the resolved pincode and when it was resolved', async () => {
+    mockDb.tenant.findUnique.mockResolvedValue({
+      shippingConfig: { mode: 'connected', pickupLocation: 'Chennai Store' },
+    })
+
+    await saveResolvedPickupPincode('t1', '600001')
+
+    const written = writtenConfig()
+    expect(written.pickupPincode).toBe('600001')
+    expect(Date.parse(written.pickupPincodeCheckedAt)).not.toBeNaN()
+  })
+
+  it('leaves the rest of the shipping config untouched', async () => {
+    // This runs on a shopper's pincode lookup, so clobbering `mode` here would silently
+    // disconnect a working Shiprocket account mid-checkout.
+    mockDb.tenant.findUnique.mockResolvedValue({
+      shippingConfig: {
+        mode: 'connected',
+        pickupLocation: 'Chennai Store',
+        connectedAt: '2026-08-21T10:00:00.000Z',
+        connectedBy: 'staff',
+      },
+    })
+
+    await saveResolvedPickupPincode('t1', '600001')
+
+    expect(writtenConfig()).toMatchObject({
+      mode: 'connected',
+      pickupLocation: 'Chennai Store',
+      connectedAt: '2026-08-21T10:00:00.000Z',
+      connectedBy: 'staff',
     })
   })
 })

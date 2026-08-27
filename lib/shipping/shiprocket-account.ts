@@ -220,6 +220,31 @@ export async function markShiprocketCredentialStale(
   })
 }
 
+/**
+ * Caches the numeric pincode behind the tenant's pickup-location nickname.
+ *
+ * Not a tenant-facing setting — resolving it costs an extra Shiprocket call, so
+ * getDeliveryEstimate stores what it looked up rather than repeating the lookup on every
+ * shopper's pincode check. Read-modify-write like every other writer here: this runs during
+ * checkout, so clobbering `mode` would disconnect a live account mid-order.
+ */
+export async function saveResolvedPickupPincode(tenantId: string, pincode: string): Promise<void> {
+  await withTenant(tenantId, async (db) => {
+    const current = await readConfig(db as never, tenantId)
+
+    await db.tenant.update({
+      where: { id: tenantId },
+      data: {
+        shippingConfig: {
+          ...current,
+          pickupPincode: pincode,
+          pickupPincodeCheckedAt: new Date().toISOString(),
+        },
+      },
+    })
+  })
+}
+
 /** Internal — only lib/shipping/shiprocket.ts should need real credentials. */
 export async function getDecryptedShiprocketCredential(
   tenantId: string

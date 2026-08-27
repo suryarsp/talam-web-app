@@ -1,35 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogin, mockCreateOrder, mockAssignAwb, mockGetCredential, mockGetConfig, mockMarkStale, MockShiprocketLoginError } =
-  vi.hoisted(() => {
-    class MockShiprocketLoginError extends Error {
-      status: number
-      constructor(status: number, body: string) {
-        super(`Shiprocket login failed (${status}): ${body}`)
-        this.status = status
-      }
+const {
+  mockLogin,
+  mockCreateOrder,
+  mockAssignAwb,
+  mockGetPickupLocations,
+  mockCheckServiceability,
+  mockGetCredential,
+  mockGetConfig,
+  mockMarkStale,
+  mockSavePickupPincode,
+  MockShiprocketLoginError,
+} = vi.hoisted(() => {
+  class MockShiprocketLoginError extends Error {
+    status: number
+    constructor(status: number, body: string) {
+      super(`Shiprocket login failed (${status}): ${body}`)
+      this.status = status
     }
-    return {
-      mockLogin: vi.fn(),
-      mockCreateOrder: vi.fn(),
-      mockAssignAwb: vi.fn(),
-      mockGetCredential: vi.fn(),
-      mockGetConfig: vi.fn(),
-      mockMarkStale: vi.fn(),
-      MockShiprocketLoginError,
-    }
-  })
+  }
+  return {
+    mockLogin: vi.fn(),
+    mockCreateOrder: vi.fn(),
+    mockAssignAwb: vi.fn(),
+    mockGetPickupLocations: vi.fn(),
+    mockCheckServiceability: vi.fn(),
+    mockGetCredential: vi.fn(),
+    mockGetConfig: vi.fn(),
+    mockMarkStale: vi.fn(),
+    mockSavePickupPincode: vi.fn(),
+    MockShiprocketLoginError,
+  }
+})
 
 vi.mock('./shiprocket-client', () => ({
   shiprocketLogin: mockLogin,
   createShiprocketOrder: mockCreateOrder,
   assignShiprocketAwb: mockAssignAwb,
+  getPickupLocations: mockGetPickupLocations,
+  checkServiceability: mockCheckServiceability,
   ShiprocketLoginError: MockShiprocketLoginError,
 }))
 vi.mock('./shiprocket-account', () => ({
   getDecryptedShiprocketCredential: mockGetCredential,
   getShippingConfig: mockGetConfig,
   markShiprocketCredentialStale: mockMarkStale,
+  saveResolvedPickupPincode: mockSavePickupPincode,
 }))
 
 import { createShiprocketShipment } from './shiprocket'
@@ -56,7 +72,7 @@ beforeEach(() => {
   mockGetCredential.mockResolvedValue({ email: 'shop@example.com', password: 'pw' })
   mockGetConfig.mockResolvedValue({ mode: 'connected', pickupLocation: 'Chennai Store' })
   mockLogin.mockResolvedValue('sr_token')
-  mockCreateOrder.mockResolvedValue({ shipmentId: 999 })
+  mockCreateOrder.mockResolvedValue({ shiprocketOrderId: 555, shipmentId: 999 })
   mockAssignAwb.mockResolvedValue({ awbCode: 'AWB123', courierName: 'Delhivery' })
 })
 
@@ -64,7 +80,7 @@ describe('createShiprocketShipment', () => {
   it("logs in with the tenant's own credentials and returns the shipment", async () => {
     const result = await createShiprocketShipment('t1', VALID_INPUT)
 
-    expect(result).toEqual({ awbCode: 'AWB123', courierName: 'Delhivery', shipmentId: 999 })
+    expect(result).toEqual({ awbCode: 'AWB123', courierName: 'Delhivery', shipmentId: 999, shiprocketOrderId: 555 })
     expect(mockGetCredential).toHaveBeenCalledWith('t1')
     expect(mockLogin).toHaveBeenCalledWith('shop@example.com', 'pw')
   })
@@ -141,5 +157,240 @@ describe('createShiprocketShipment', () => {
       'Shiprocket order creation failed (422): bad pincode'
     )
     expect(mockMarkStale).not.toHaveBeenCalled()
+  })
+})
+
+describe('getDeliveryEstimate', () => {
+  /**
+   * getDeliveryEstimate keeps module-level token and serviceability caches, so each test
+   * needs a fresh module instance — otherwise one test's cached token silently satisfies the
+   * next test's "did it log in?" assertion.
+   */
+  async function freshModule() {
+    vi.resetModules()
+    return import('./shiprocket')
+  }
+
+  beforeEach(() => {
+    mockGetConfig.mockResolvedValue({
+      mode: 'connected',
+      pickupLocation: 'Chennai Store',
+      pickupPincode: '600001',
+      pickupPincodeCheckedAt: '2026-08-22T11:00:00.000Z',
+    })
+    mockCheckServiceability.mockResolvedValue({
+      serviceable: true,
+      etaDays: 4,
+      rate: 72.5,
+      codAvailable: true,
+    })
+    mockGetPickupLocations.mockResolvedValue([
+      { id: 7, nickname: 'Chennai Store', pincode: '600001' },
+    ])
+  })
+
+  it("quotes the shopper's pincode from the tenant's cached pickup pincode", async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    expect(await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })).toEqual({
+      serviceable: true,
+      etaDays: 4,
+      rate: 72.5,
+      codAvailable: true,
+    })
+    expect(mockCheckServiceability).toHaveBeenCalledWith('sr_token', {
+      pickupPincode: '600001',
+      deliveryPincode: '560001',
+      weightKg: 1.5,
+      codEnabled: true,
+    })
+  })
+
+  it('reuses a cached token instead of logging in again on the next pincode', async () => {
+    // This runs on every pincode a shopper types, so a fresh login per keystroke would both
+    // be slow and get the tenant's account rate-limited by Shiprocket.
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    await getDeliveryEstimate('t1', { pincode: '110001', weightKg: 1.5 })
+
+    expect(mockLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs in separately for each tenant rather than sharing one token', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    await getDeliveryEstimate('t2', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockLogin).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not re-check serviceability for the same tenant, pincode and weight', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockCheckServiceability).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares one cache entry across near-identical cart weights', async () => {
+    // Weight is a sum of per-product decimals, so two carts differing by grams would
+    // otherwise each cost a Shiprocket round-trip for the same answer.
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.52 })
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.54 })
+
+    expect(mockCheckServiceability).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks again for a different delivery pincode', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    await getDeliveryEstimate('t1', { pincode: '110001', weightKg: 1.5 })
+
+    expect(mockCheckServiceability).toHaveBeenCalledTimes(2)
+  })
+
+  it('checks again for a materially different weight', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 4 })
+
+    expect(mockCheckServiceability).toHaveBeenCalledTimes(2)
+  })
+
+  it('resolves the pickup pincode from the nickname when none is cached yet', async () => {
+    mockGetConfig.mockResolvedValue({
+      mode: 'connected',
+      pickupLocation: 'Chennai Store',
+      pickupPincode: null,
+      pickupPincodeCheckedAt: null,
+    })
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockGetPickupLocations).toHaveBeenCalledWith('sr_token')
+    expect(mockCheckServiceability).toHaveBeenCalledWith(
+      'sr_token',
+      expect.objectContaining({ pickupPincode: '600001' })
+    )
+  })
+
+  it('persists a freshly resolved pickup pincode so the next shopper skips the lookup', async () => {
+    mockGetConfig.mockResolvedValue({
+      mode: 'connected',
+      pickupLocation: 'Chennai Store',
+      pickupPincode: null,
+    })
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockSavePickupPincode).toHaveBeenCalledWith('t1', '600001')
+  })
+
+  it('matches the pickup nickname ignoring case and surrounding whitespace', async () => {
+    // The nickname is typed by hand in Settings and again in Shiprocket's dashboard, so an
+    // exact match would strand tenants whose two spellings differ only in case.
+    mockGetConfig.mockResolvedValue({ pickupLocation: '  chennai store ', pickupPincode: null })
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockSavePickupPincode).toHaveBeenCalledWith('t1', '600001')
+  })
+
+  it('does not look up pickup locations when one is already cached', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(mockGetPickupLocations).not.toHaveBeenCalled()
+    expect(mockSavePickupPincode).not.toHaveBeenCalled()
+  })
+
+  it('reports an unserviceable pincode as an answer, not an error', async () => {
+    mockCheckServiceability.mockResolvedValue({ serviceable: false })
+    const { getDeliveryEstimate } = await freshModule()
+
+    expect(await getDeliveryEstimate('t1', { pincode: '999999', weightKg: 1.5 })).toEqual({
+      serviceable: false,
+    })
+  })
+
+  it('returns an error when the store has no Shiprocket account connected', async () => {
+    mockGetCredential.mockResolvedValue(null)
+    const { getDeliveryEstimate } = await freshModule()
+
+    const result = await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
+
+  it('returns an error when the store has no pickup location configured', async () => {
+    mockGetConfig.mockResolvedValue({ pickupLocation: null, pickupPincode: null })
+    const { getDeliveryEstimate } = await freshModule()
+
+    expect(await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })).toEqual({
+      error: expect.any(String),
+    })
+  })
+
+  it('returns an error when Shiprocket has no pickup location under that nickname', async () => {
+    mockGetConfig.mockResolvedValue({ pickupLocation: 'Typo Store', pickupPincode: null })
+    const { getDeliveryEstimate } = await freshModule()
+
+    const result = await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(mockSavePickupPincode).not.toHaveBeenCalled()
+  })
+
+  it('returns an error rather than throwing when Shiprocket is unreachable', async () => {
+    // A2 falls back to the flat shipping fee on an error — a throw here would take the whole
+    // checkout page down instead.
+    mockCheckServiceability.mockRejectedValue(new Error('fetch failed'))
+    const { getDeliveryEstimate } = await freshModule()
+
+    expect(await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })).toEqual({
+      error: expect.any(String),
+    })
+  })
+
+  it('returns an error rather than throwing when the login fails', async () => {
+    mockLogin.mockRejectedValue(new MockShiprocketLoginError(403, 'invalid'))
+    const { getDeliveryEstimate } = await freshModule()
+
+    expect(await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })).toEqual({
+      error: expect.any(String),
+    })
+  })
+
+  it('does not leak raw Shiprocket text into the message a shopper would see', async () => {
+    mockCheckServiceability.mockRejectedValue(
+      new Error('Shiprocket serviceability check failed (500): upstream error')
+    )
+    const { getDeliveryEstimate } = await freshModule()
+
+    const result = await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect('error' in result && result.error).not.toMatch(/500/)
+  })
+
+  it('does not cache a failed check, so a retry can still succeed', async () => {
+    mockCheckServiceability.mockRejectedValueOnce(new Error('fetch failed'))
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+    const retry = await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5 })
+
+    expect(retry).toMatchObject({ serviceable: true })
   })
 })

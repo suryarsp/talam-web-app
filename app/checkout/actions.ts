@@ -14,6 +14,8 @@ import { getAdminUrl, getStoreUrl, isLocalDevHost } from '@/lib/tenant-url'
 import { orderCode } from '@/lib/data/storefront-orders'
 import { buildUpiIntent } from '@/lib/payments/upi'
 import { createRazorpayOrder, getRazorpayKeys, verifyRazorpaySignature } from '@/lib/payments/razorpay'
+import { getDeliveryEstimate } from '@/lib/shipping/shiprocket'
+import { formatDeliveryDate } from '@/lib/shipping/delivery-estimate'
 import {
   checkCoupon,
   computeQuote,
@@ -61,15 +63,41 @@ export type PaymentProvider = 'upi_manual' | 'razorpay' | 'cod'
  * sends product ids, sizes and quantities only — any total it computed is for display.
  */
 
+/** What the shopper is told about delivery, alongside the money `Quote` already carries. */
+export type QuoteDelivery = {
+  /** The fee *before* the free-delivery threshold zeroes it — what the strikethrough shows. */
+  fullFee: number
+  /** 'live' is a real courier quote for this pincode; 'flat' is the store's own fee, used
+   *  whenever no pincode is known yet or the courier could not be reached. */
+  source: 'live' | 'flat'
+  etaDays: number | null
+  codAvailable: boolean | null
+}
+
+const FLAT_DELIVERY = (fee: number): QuoteDelivery => ({ fullFee: fee, source: 'flat', etaDays: null, codAvailable: null })
+
+const NOT_SERVICEABLE = "We can't currently deliver to this pincode."
+
 type PricingContext = {
   tenantId: string
   quote: Quote
   lines: (QuoteLine & { productName: string })[]
   coupon: { id: string; code: string } | null
   storeName: string
+  delivery: QuoteDelivery
 }
 
-async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string): Promise<PricingContext | { error: string }> {
+/**
+ * `pincode` turns the flat shipping fee into a live courier rate. It is optional because the
+ * shopper has not typed an address yet on first load — and because a store with no Shiprocket
+ * account, or an unreachable Shiprocket, must still be able to sell at its own flat fee.
+ */
+async function priceCart(
+  tenantId: string,
+  cart: CartLine[],
+  couponCode?: string,
+  pincode?: string
+): Promise<PricingContext | { error: string }> {
   const clean = cart.filter((l) => Number.isInteger(l.quantity) && l.quantity > 0)
   if (clean.length === 0) return { error: 'Your cart is empty.' }
 
@@ -77,11 +105,11 @@ async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string
     Promise.all([
       db.tenant.findUnique({
         where: { id: tenantId },
-        select: { name: true, shippingFee: true, freeDeliveryAbove: true },
+        select: { name: true, shippingFee: true, freeDeliveryAbove: true, defaultShippingWeight: true },
       }),
       db.product.findMany({
         where: { id: { in: clean.map((l) => l.productId) }, tenantId, deletedAt: null, isActive: true, status: 'published' },
-        select: { id: true, name: true, price: true, comparePrice: true, stockBySize: true },
+        select: { id: true, name: true, price: true, comparePrice: true, stockBySize: true, weight: true },
       }),
     ])
   )
@@ -89,6 +117,7 @@ async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string
 
   const byId = new Map(products.map((p) => [p.id, p]))
   const lines: (QuoteLine & { productName: string })[] = []
+  let weightKg = 0
 
   for (const line of clean) {
     const product = byId.get(line.productId)
@@ -99,6 +128,8 @@ async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string
       return { error: `${product.name}${size ? ` (${size})` : ''} is out of stock.` }
     }
 
+    weightKg += Number(product.weight ?? tenant.defaultShippingWeight) * line.quantity
+
     lines.push({
       productId: product.id,
       productName: product.name,
@@ -108,6 +139,9 @@ async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string
       compareAtPrice: product.comparePrice === null ? null : Number(product.comparePrice),
     })
   }
+
+  const delivery = await quoteDelivery(tenantId, Number(tenant.shippingFee), pincode, weightKg)
+  if ('error' in delivery) return delivery
 
   const itemsTotal = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
 
@@ -138,12 +172,39 @@ async function priceCart(tenantId: string, cart: CartLine[], couponCode?: string
     storeName: tenant.name,
     lines,
     coupon: couponRow ? { id: couponRow.id, code: couponRow.code } : null,
+    delivery,
     quote: computeQuote({
       lines,
-      shippingFee: Number(tenant.shippingFee),
+      shippingFee: delivery.fullFee,
       freeDeliveryAbove: tenant.freeDeliveryAbove === null ? null : Number(tenant.freeDeliveryAbove),
       coupon: couponRow,
     }),
+  }
+}
+
+/**
+ * An unserviceable pincode is the one delivery answer that stops checkout: there is no honest
+ * price to charge for a parcel no courier will carry. Every other failure degrades to the flat
+ * fee silently — a store whose Shiprocket is down still has to be able to take orders.
+ */
+async function quoteDelivery(
+  tenantId: string,
+  flatFee: number,
+  pincode: string | undefined,
+  weightKg: number
+): Promise<QuoteDelivery | { error: string }> {
+  if (!pincode) return FLAT_DELIVERY(flatFee)
+
+  const estimate = await getDeliveryEstimate(tenantId, { pincode, weightKg })
+  if ('error' in estimate) return FLAT_DELIVERY(flatFee)
+  if (!estimate.serviceable) return { error: NOT_SERVICEABLE }
+  if (estimate.rate === undefined) return FLAT_DELIVERY(flatFee)
+
+  return {
+    fullFee: estimate.rate,
+    source: 'live',
+    etaDays: estimate.etaDays ?? null,
+    codAvailable: estimate.codAvailable ?? null,
   }
 }
 
@@ -154,19 +215,24 @@ function isError(value: PricingContext | { error: string }): value is { error: s
 /** What the summary card renders: unit prices come back from the DB too, so the line items and the total can never disagree. */
 export type QuotedLine = { productId: string; size: string | null; quantity: number; unitPrice: number }
 
-export type QuoteResult = { quote: Quote; lines: QuotedLine[] }
+export type QuoteResult = { quote: Quote; lines: QuotedLine[]; delivery: QuoteDelivery }
 
 function toQuoteResult(priced: PricingContext): QuoteResult {
   return {
     quote: priced.quote,
+    delivery: priced.delivery,
     lines: priced.lines.map((l) => ({ productId: l.productId, size: l.size, quantity: l.quantity, unitPrice: l.unitPrice })),
   }
 }
 
 /** Server-authoritative totals for display — the client never decides what anything costs. */
-export async function getQuoteAction(cart: CartLine[], couponCode?: string): Promise<QuoteResult | { error: string }> {
+export async function getQuoteAction(
+  cart: CartLine[],
+  couponCode?: string,
+  pincode?: string
+): Promise<QuoteResult | { error: string }> {
   const { tenantId } = await requireTenant()
-  const priced = await priceCart(tenantId, cart, couponCode)
+  const priced = await priceCart(tenantId, cart, couponCode, pincode)
   return isError(priced) ? priced : toQuoteResult(priced)
 }
 
@@ -277,14 +343,16 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderI
     return { error: 'Enter a valid email address.' }
   }
 
-  const priced = await priceCart(tenantId, input.cart, input.couponCode)
-  if (isError(priced)) return priced
-
-  // Guests never have saved addresses (the checkout page only loads them for a signed-in
-  // user), so ignore any addressId a guest submission might carry and force a new address.
+  // Address first: its pincode is what makes the order's shipping fee the same live rate the
+  // shopper was shown, and what lets an unserviceable pincode stop the order here too. Guests
+  // never have saved addresses (the checkout page only loads them for a signed-in user), so
+  // ignore any addressId a guest submission might carry and force a new address.
   const addressInput = user ? input : { ...input, addressId: undefined }
   const shippingAddress = await resolveAddress(tenantId, user?.id ?? '', addressInput)
   if (!shippingAddress) return { error: 'A delivery address is required.' }
+
+  const priced = await priceCart(tenantId, input.cart, input.couponCode, shippingAddress.pincode)
+  if (isError(priced)) return priced
 
   let customerId: string
   if (user) {
@@ -335,6 +403,7 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderI
           shippingFee: priced.quote.shippingFee,
           discountCode: priced.coupon?.code ?? null,
           total: priced.quote.total,
+          estimatedDeliveryDays: priced.delivery.etaDays,
           paymentProvider: input.paymentProvider,
           paymentId: input.paymentProvider === 'upi_manual' ? (input.utr || null) : null,
           paymentProofUrl: input.paymentProvider === 'upi_manual' ? (input.paymentProofUrl ?? null) : null,
@@ -468,6 +537,8 @@ async function notifyOrderPlaced(params: {
       ].filter(Boolean),
       trackUrl: `${storeUrl}/orders/${orderId}`,
       invoiceUrl: `${storeUrl}/orders/${orderId}/invoice`,
+      estimatedDeliveryText:
+        priced.delivery.etaDays === null ? undefined : formatDeliveryDate(new Date(), priced.delivery.etaDays),
     })
   } else {
     console.info('[checkout] no customer email on file — skipping order confirmation mail for', code)

@@ -39,6 +39,9 @@ export const orderPlacedTemplate: EmailTemplate<{
   addressLines: string[]
   trackUrl: string
   invoiceUrl: string
+  /** Already-formatted date, e.g. "Fri, 4 Sept". Absent when no courier ETA was available
+   *  at order time — the line is then dropped rather than guessed at. */
+  estimatedDeliveryText?: string
 }> = (params) => ({
   subject: `Order ${params.orderCode} confirmed — ${params.storeName}`,
   html: renderEmailShell(
@@ -50,7 +53,13 @@ export const orderPlacedTemplate: EmailTemplate<{
       beforeCtasHtml: `${renderOrderItemsTable(params.items, params.total)}
         <p style="margin: 0 0 24px 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; line-height: 22px; color: ${EMAIL_BRAND.muted};">
           <strong style="color: ${EMAIL_BRAND.ink};">Delivering to</strong><br/>${params.addressLines.map(escapeHtml).join('<br/>')}
-        </p>`,
+        </p>${
+          params.estimatedDeliveryText
+            ? `<p style="margin: 0 0 24px 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; line-height: 22px; color: ${EMAIL_BRAND.muted};">
+          <strong style="color: ${EMAIL_BRAND.ink};">Estimated delivery</strong><br/>by ${escapeHtml(params.estimatedDeliveryText)}
+        </p>`
+            : ''
+        }`,
       ctas: [{ label: 'Track your order →', href: params.trackUrl }],
       extraHtml: `<p style="margin: 0; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px;">
           <a href="${params.invoiceUrl}" style="color: ${EMAIL_BRAND.primary}; text-decoration: none; font-weight: 600;">View invoice</a>
@@ -148,6 +157,42 @@ export const orderCancelledTemplate: EmailTemplate<{
       ],
       ctas: [{ label: 'Continue shopping →', href: params.storeUrl }],
       signature: escapeHtml(params.storeName),
+    })
+  ),
+})
+
+/**
+ * Only two states reach the customer: this email fires exactly once, on the *final* cancel
+ * step, so a manual refund awaiting staff verification hasn't produced an email yet — by
+ * the time it does, the money has moved and it reads as 'refunded' like any other.
+ */
+export type RefundStatus = 'refunded' | 'not_applicable'
+
+const REFUND_COPY: Record<RefundStatus, string> = {
+  refunded: 'The full amount you paid has been refunded. Depending on your bank it can take 5-7 working days to show up.',
+  not_applicable: 'Nothing was charged for this order, so there is no payment to return.',
+}
+
+/** The super-admin refund-aware cancellation flow's email — distinct from orderCancelledTemplate
+ *  because it knows the actual refund outcome rather than a generic "will be refunded" promise. */
+export const orderCancelledWithRefundTemplate: EmailTemplate<{
+  storeName: string
+  orderCode: string
+  reason: string
+  refundStatus: RefundStatus
+}> = (params) => ({
+  subject: `Order ${params.orderCode} cancelled — ${params.storeName}`,
+  html: renderEmailShell(
+    renderEmailBody({
+      heading: 'Your order was cancelled',
+      paragraphs: [
+        `Order <strong>${escapeHtml(params.orderCode)}</strong> with <strong>${escapeHtml(params.storeName)}</strong> has been cancelled.`,
+        `<strong>Reason:</strong> ${escapeHtml(params.reason)}`,
+        REFUND_COPY[params.refundStatus],
+      ],
+      // No CTA: a cancelled order has nothing left to track or pay for.
+      ctas: [],
+      signature: `Sorry for the trouble — just reply to this email if anything looks wrong.<br/>${escapeHtml(params.storeName)}`,
     })
   ),
 })

@@ -55,11 +55,38 @@ function orderWithCustomer(status: string, email: string | null = 'priya@example
 beforeEach(() => {
   vi.clearAllMocks()
   mockHeaders.mockResolvedValue(new Headers({ host: 'talam4shop.com' }))
+  mockOrderFindFirst.mockResolvedValue({ status: 'confirmed' })
   mockOrderUpdate.mockResolvedValue(undefined)
   mockStatusEventCreate.mockResolvedValue(undefined)
 })
 
 describe('updateOrderStatus', () => {
+  it('stores the Shiprocket ids and courier alongside the AWB', async () => {
+    await updateOrderStatus(TENANT_ID, ORDER_ID, 'shipped', 'AWB123', undefined, {
+      shiprocketOrderId: '555',
+      shipmentId: '999',
+      courierName: 'Delhivery',
+    })
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          trackingId: 'AWB123',
+          shiprocketOrderId: '555',
+          shipmentId: '999',
+          courierName: 'Delhivery',
+        }),
+      })
+    )
+  })
+
+  it('leaves the Shiprocket columns alone when the AWB was typed in by hand', async () => {
+    await updateOrderStatus(TENANT_ID, ORDER_ID, 'shipped', 'MANUAL-AWB')
+
+    const { data } = mockOrderUpdate.mock.calls[0][0]
+    expect(data).toEqual({ trackingId: 'MANUAL-AWB', status: 'shipped' })
+  })
+
   it('rejects an invalid transition without writing or emailing anything', async () => {
     mockOrderFindFirst.mockResolvedValueOnce({ status: 'delivered' })
 

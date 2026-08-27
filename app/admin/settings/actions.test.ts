@@ -78,6 +78,7 @@ vi.mock('@/lib/razorpay', () => ({
 import {
   getAboutAction,
   updateAboutAction,
+  getStoreSettingsAction,
   updateStoreSettingsAction,
   addCategoryAction,
   deleteCategoryAction,
@@ -125,6 +126,29 @@ describe('updateStoreSettingsAction', () => {
 
   it('rejects negative shipping fee', async () => {
     expect(await updateStoreSettingsAction({ shippingFee: -1 })).toEqual({ error: 'Shipping fee cannot be negative.' })
+  })
+
+  it('rejects a default shipping weight of zero', async () => {
+    // This weight is sent to Shiprocket on every rate lookup for a product with no weight of
+    // its own, and a 0kg parcel makes every courier quote meaningless.
+    expect(await updateStoreSettingsAction({ defaultShippingWeight: 0 })).toEqual({
+      error: 'Default shipping weight must be greater than 0.',
+    })
+  })
+
+})
+
+describe('getStoreSettingsAction', () => {
+  it('returns the default shipping weight as a number the form can edit', async () => {
+    // Prisma hands Decimal columns back as strings, which a number input would reject.
+    mockTenantFindUniqueOrThrow.mockResolvedValue({
+      name: 'Talam', tagline: null, slug: 'talam', logoUrl: null, brandColor: null,
+      whatsappNumber: null, showWhatsappButton: false, freeDeliveryAbove: null,
+      shippingFee: '0', deliveryEstimateText: null, defaultShippingWeight: '0.500',
+      returnWindowDays: null, trustBadgeText: null,
+    })
+
+    expect((await getStoreSettingsAction()).defaultShippingWeight).toBe(0.5)
   })
 })
 

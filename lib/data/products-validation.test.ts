@@ -23,9 +23,17 @@ function baseInput(overrides: Partial<ProductInput> = {}): ProductInput {
     images: ['https://example.com/img.jpg'],
     stockBySize: { S: 5 },
     specifications: [],
+    weight: null,
     ...overrides,
   }
 }
+
+/**
+ * What db.product.create / db.product.update were called with — the mock above echoes its
+ * arguments back, so a resolved value is really the Prisma write payload.
+ */
+type WriteArgs = { data: Record<string, unknown> }
+const written = (result: unknown) => result as WriteArgs
 
 describe('createProduct validation', () => {
   it('rejects zero or negative quantity', async () => {
@@ -50,5 +58,23 @@ describe('createProduct validation', () => {
 describe('updateProduct validation', () => {
   it('rejects zero quantity on update too', async () => {
     await expect(updateProduct('tenant-1', 'p1', baseInput({ stockBySize: { S: 0 } }))).rejects.toThrow('Quantity must be at least 1.')
+  })
+})
+
+describe('shipping weight', () => {
+  it('stores the weight given on create', async () => {
+    const created = written(await createProduct('tenant-1', baseInput({ weight: 0.75 })))
+    expect(created.data.weight).toBe(0.75)
+  })
+
+  it('stores a null weight when the merchant left it blank', async () => {
+    // Null is meaningful, not missing: it routes the product to the tenant's default weight.
+    const created = written(await createProduct('tenant-1', baseInput({ weight: null })))
+    expect(created.data.weight).toBeNull()
+  })
+
+  it('stores the weight given on update', async () => {
+    const updated = written(await updateProduct('tenant-1', 'p1', baseInput({ weight: 1.2 })))
+    expect(updated.data.weight).toBe(1.2)
   })
 })

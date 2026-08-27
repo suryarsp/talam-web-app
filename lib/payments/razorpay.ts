@@ -40,6 +40,35 @@ export async function createRazorpayOrder(amountPaise: number, receipt: string):
   return (await res.json()) as RazorpayOrder
 }
 
+export type RazorpayRefund = { id: string; amount: number; status: string }
+
+/**
+ * Full refund of a captured payment. `amountPaise` is passed explicitly (Razorpay defaults to
+ * the full amount when omitted) so the caller's intent is on the wire and a mismatch fails
+ * loudly upstream rather than silently refunding something else.
+ *
+ * Throws on any non-2xx: order cancellation must abort entirely rather than mark an order
+ * refunded that Razorpay never refunded.
+ */
+export async function refundRazorpayPayment(paymentId: string, amountPaise: number): Promise<RazorpayRefund> {
+  const keys = getRazorpayKeys()
+  if (!keys) throw new Error('Razorpay keys are not configured')
+
+  const res = await fetch(`${API_BASE}/payments/${paymentId}/refund`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${Buffer.from(`${keys.keyId}:${keys.keySecret}`).toString('base64')}`,
+    },
+    body: JSON.stringify({ amount: amountPaise }),
+  })
+
+  if (!res.ok) {
+    throw new Error(`Razorpay refund failed (${res.status}): ${await res.text()}`)
+  }
+  return (await res.json()) as RazorpayRefund
+}
+
 /**
  * Checkout callback signature: HMAC-SHA256 of "<razorpayOrderId>|<razorpayPaymentId>"
  * keyed with the account secret. Never mark an order paid without this.

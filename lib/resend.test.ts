@@ -17,6 +17,7 @@ import {
   sendOnboardingReminderEmail,
   sendOnboardingWelcomeEmail,
   sendOrderCancelledEmail,
+  sendOrderCancelledWithRefundEmail,
   sendOrderDeliveredEmail,
   sendOrderPlacedEmail,
   sendOrderReturnedEmail,
@@ -160,6 +161,18 @@ describe('order emails', () => {
       expect(html).toContain(escapeHtml('<script>x</script>'))
     })
 
+    it('shows the estimated delivery date when the courier gave one', async () => {
+      await sendOrderPlacedEmail('priya@example.com', { ...params, estimatedDeliveryText: 'Fri, 4 Sept' })
+      const html = sendMock.mock.calls[0][0].html
+      expect(html).toContain('Fri, 4 Sept')
+      expect(html).toContain('Estimated delivery')
+    })
+
+    it('leaves the estimated delivery line out entirely when there is no estimate', async () => {
+      await sendOrderPlacedEmail('priya@example.com', params)
+      expect(sendMock.mock.calls[0][0].html).not.toContain('Estimated delivery')
+    })
+
     it('does not throw when Resend fails', async () => {
       sendMock.mockRejectedValueOnce(new Error('Resend down'))
       await expect(sendOrderPlacedEmail('priya@example.com', params)).resolves.not.toThrow()
@@ -192,6 +205,49 @@ describe('order emails', () => {
     it('does not throw when Resend fails', async () => {
       sendMock.mockRejectedValueOnce(new Error('Resend down'))
       await expect(sendNewOrderEmail('owner@example.com', params)).resolves.not.toThrow()
+    })
+  })
+
+  describe('sendOrderCancelledWithRefundEmail', () => {
+    const params = {
+      storeName: 'Meena Silks',
+      orderCode: '#A1B2C3D4',
+      reason: 'Item out of stock',
+      refundStatus: 'refunded' as const,
+    }
+
+    it('sends to the customer with the order code in the subject', async () => {
+      await sendOrderCancelledWithRefundEmail('priya@example.com', params)
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'priya@example.com', subject: expect.stringContaining('#A1B2C3D4') })
+      )
+    })
+
+    it('tells the customer why the order was cancelled', async () => {
+      await sendOrderCancelledWithRefundEmail('priya@example.com', params)
+      expect(sendMock.mock.calls[0][0].html).toContain('Item out of stock')
+    })
+
+    it('escapes the reason rather than injecting it raw', async () => {
+      await sendOrderCancelledWithRefundEmail('priya@example.com', { ...params, reason: '<script>x</script>' })
+      const html = sendMock.mock.calls[0][0].html
+      expect(html).not.toContain('<script>x</script>')
+      expect(html).toContain(escapeHtml('<script>x</script>'))
+    })
+
+    it('says the money is on its way back when the payment was refunded', async () => {
+      await sendOrderCancelledWithRefundEmail('priya@example.com', { ...params, refundStatus: 'refunded' })
+      expect(sendMock.mock.calls[0][0].html).toContain('refunded')
+    })
+
+    it('does not promise a refund on an order that was never paid', async () => {
+      await sendOrderCancelledWithRefundEmail('priya@example.com', { ...params, refundStatus: 'not_applicable' })
+      expect(sendMock.mock.calls[0][0].html).not.toContain('refunded')
+    })
+
+    it('does not throw when Resend fails', async () => {
+      sendMock.mockRejectedValueOnce(new Error('Resend down'))
+      await expect(sendOrderCancelledWithRefundEmail('priya@example.com', params)).resolves.not.toThrow()
     })
   })
 })

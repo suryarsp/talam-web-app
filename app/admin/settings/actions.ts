@@ -181,6 +181,8 @@ export type StoreSettings = {
   freeDeliveryAbove: number | null
   shippingFee: number
   deliveryEstimateText: string
+  /** Fallback parcel weight in kg for products with no weight of their own. */
+  defaultShippingWeight: number
   returnWindowDays: number | null
   trustBadgeText: string
 }
@@ -201,6 +203,7 @@ export async function getStoreSettingsAction(): Promise<StoreSettings> {
         freeDeliveryAbove: true,
         shippingFee: true,
         deliveryEstimateText: true,
+        defaultShippingWeight: true,
         returnWindowDays: true,
         trustBadgeText: true,
       },
@@ -217,6 +220,7 @@ export async function getStoreSettingsAction(): Promise<StoreSettings> {
     freeDeliveryAbove: t.freeDeliveryAbove ? Number(t.freeDeliveryAbove) : null,
     shippingFee: Number(t.shippingFee),
     deliveryEstimateText: t.deliveryEstimateText ?? '',
+    defaultShippingWeight: Number(t.defaultShippingWeight),
     returnWindowDays: t.returnWindowDays,
     trustBadgeText: t.trustBadgeText ?? '',
   }
@@ -231,6 +235,7 @@ export type StoreSettingsInput = Partial<{
   freeDeliveryAbove: number | null
   shippingFee: number
   deliveryEstimateText: string
+  defaultShippingWeight: number
   returnWindowDays: number | null
   trustBadgeText: string
   logo: File
@@ -244,6 +249,11 @@ export async function updateStoreSettingsAction(input: StoreSettingsInput): Prom
   if (rest.shippingFee !== undefined && rest.shippingFee < 0) return { error: 'Shipping fee cannot be negative.' }
   if (rest.freeDeliveryAbove != null && rest.freeDeliveryAbove < 0) return { error: 'Free delivery threshold cannot be negative.' }
   if (rest.returnWindowDays != null && rest.returnWindowDays < 0) return { error: 'Return window cannot be negative.' }
+  // Unlike the fields above, zero is invalid too: this weight is sent to Shiprocket on every
+  // rate lookup for a product with no weight of its own, and a 0kg parcel quotes nothing useful.
+  if (rest.defaultShippingWeight !== undefined && rest.defaultShippingWeight <= 0) {
+    return { error: 'Default shipping weight must be greater than 0.' }
+  }
 
   let logoUrl: string | undefined
   if (logo && logo.size > 0) {

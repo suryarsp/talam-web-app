@@ -28,7 +28,14 @@ export type ShiprocketOrderInput = {
   items: { name: string; sku: string; units: number; sellingPrice: number }[]
 }
 
-export type ShiprocketShipment = { awbCode: string; courierName: string; shipmentId: number }
+export type ShiprocketShipment = {
+  awbCode: string
+  courierName: string
+  shipmentId: number
+  /** Shiprocket's own order id — distinct from both our order id and the shipment id, and the
+   *  one their dashboard search is keyed on. */
+  shiprocketOrderId: number
+}
 
 /**
  * Thrown by shiprocketLogin on a non-2xx response. Carries the HTTP status so callers can
@@ -72,7 +79,7 @@ export async function createShiprocketOrder(
   token: string,
   pickupLocation: string,
   input: ShiprocketOrderInput
-): Promise<{ shipmentId: number }> {
+): Promise<{ shiprocketOrderId: number; shipmentId: number }> {
   const [billingFirstName, ...billingLastNameParts] = input.billing.name.trim().split(/\s+/)
 
   const res = await fetch(`${API_BASE}/orders/create/adhoc`, {
@@ -112,7 +119,131 @@ export async function createShiprocketOrder(
   if (!res.ok) throw new Error(`Shiprocket order creation failed (${res.status}): ${await res.text()}`)
 
   const json = (await res.json()) as { order_id: number; shipment_id: number }
-  return { shipmentId: json.shipment_id }
+  return { shiprocketOrderId: json.order_id, shipmentId: json.shipment_id }
+}
+
+/** One pickup address on the tenant's Shiprocket account. */
+export type ShiprocketPickupLocation = {
+  id: number
+  /** What Shiprocket calls `pickup_location` — the nickname the tenant typed when creating it. */
+  nickname: string
+  pincode: string
+}
+
+export type ServiceabilityParams = {
+  pickupPincode: string
+  deliveryPincode: string
+  weightKg: number
+  codEnabled: boolean
+}
+
+export type ServiceabilityQuote =
+  | { serviceable: true; etaDays: number; rate: number; codAvailable: boolean }
+  | { serviceable: false }
+
+/**
+ * Lists the pickup addresses on the account, so a nickname can be resolved to a real pincode.
+ *
+ * The tenant only ever types the nickname (see ShippingConfig.pickupLocation), but the
+ * serviceability API needs the numeric pincode behind it — this is the only way to get it.
+ */
+export async function getPickupLocations(token: string): Promise<ShiprocketPickupLocation[]> {
+  const res = await fetch(`${API_BASE}/settings/company/pickup`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`Shiprocket pickup locations lookup failed (${res.status}): ${await res.text()}`)
+
+  const json = (await res.json()) as {
+    data?: { shipping_address?: { id: number; pickup_location: string; pin_code: string }[] }
+  }
+  return (json.data?.shipping_address ?? []).map((address) => ({
+    id: address.id,
+    nickname: address.pickup_location,
+    pincode: address.pin_code,
+  }))
+}
+
+/**
+ * A courier row from `data.available_courier_companies`. Only the fields we read are typed;
+ * the real row carries ~50 more.
+ *
+ * The ETA fields are the one place this module guesses at Shiprocket's shape without a
+ * sandbox to verify against, so all three plausible candidates are declared and parsed in
+ * order — see etaDaysFrom below.
+ */
+type ShiprocketCourier = {
+  rate?: number
+  cod?: number
+  estimated_delivery_days?: string | number
+  etd_hours?: number
+  etd?: string
+}
+
+const HOURS_PER_DAY = 24
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Reads a whole-day ETA out of a courier row, preferring the most direct field available.
+ *
+ * `estimated_delivery_days` is the day count itself (Shiprocket sends it as a numeric
+ * string). `etd_hours` is the same thing in hours. `etd` is a human delivery *date*
+ * ("Aug 30, 2026 20:44:00") — usable only by diffing against now, hence last. Zero means
+ * "Shiprocket did not say", which a caller can render as a generic estimate.
+ */
+function etaDaysFrom(courier: ShiprocketCourier): number {
+  const days = Number(courier.estimated_delivery_days)
+  if (Number.isFinite(days) && days > 0) return Math.ceil(days)
+
+  if (Number.isFinite(courier.etd_hours) && (courier.etd_hours as number) > 0) {
+    return Math.ceil((courier.etd_hours as number) / HOURS_PER_DAY)
+  }
+
+  const etd = courier.etd ? Date.parse(courier.etd) : NaN
+  if (Number.isFinite(etd)) return Math.max(1, Math.ceil((etd - Date.now()) / MS_PER_DAY))
+
+  return 0
+}
+
+/**
+ * Asks Shiprocket which couriers can carry a parcel of this weight between two pincodes.
+ *
+ * An empty (or absent) courier list means nobody delivers there — an ordinary, expected
+ * answer at checkout, so it comes back as `{ serviceable: false }` rather than a throw. Only
+ * an actual transport/HTTP failure throws.
+ *
+ * Of the couriers offered we quote the cheapest, matching what a shopper would be charged if
+ * the shop lets Shiprocket pick on price.
+ */
+export async function checkServiceability(
+  token: string,
+  params: ServiceabilityParams
+): Promise<ServiceabilityQuote> {
+  const query = new URLSearchParams({
+    pickup_postcode: params.pickupPincode,
+    delivery_postcode: params.deliveryPincode,
+    weight: String(params.weightKg),
+    cod: params.codEnabled ? '1' : '0',
+  })
+
+  const res = await fetch(`${API_BASE}/courier/serviceability/?${query}`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`Shiprocket serviceability check failed (${res.status}): ${await res.text()}`)
+
+  const json = (await res.json()) as { data?: { available_courier_companies?: ShiprocketCourier[] } }
+  const couriers = json.data?.available_courier_companies ?? []
+  if (couriers.length === 0) return { serviceable: false }
+
+  const cheapest = couriers.reduce((best, courier) =>
+    (courier.rate ?? Infinity) < (best.rate ?? Infinity) ? courier : best
+  )
+
+  return {
+    serviceable: true,
+    etaDays: etaDaysFrom(cheapest),
+    rate: cheapest.rate ?? 0,
+    codAvailable: cheapest.cod === 1,
+  }
 }
 
 export async function assignShiprocketAwb(

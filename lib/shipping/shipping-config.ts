@@ -31,6 +31,15 @@ export type ShippingConfig = {
   requestedAt: string | null
   /** Why the last connection attempt or shipment auth failed. Cleared on a successful connect. */
   lastError: string | null
+  /**
+   * The numeric pincode behind `pickupLocation`. Cached here because resolving it costs an
+   * extra Shiprocket API call (the tenant only ever types the nickname), and every delivery
+   * estimate needs it. Not tenant-editable — written only by getDeliveryEstimate's lookup.
+   */
+  pickupPincode: string | null
+  /** ISO timestamp of the last successful pickup-pincode resolution, so a caller can re-check
+   *  periodically even without an explicit failure signal from Shiprocket. */
+  pickupPincodeCheckedAt: string | null
 }
 
 export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
@@ -41,6 +50,8 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
   connectedBy: null,
   requestedAt: null,
   lastError: null,
+  pickupPincode: null,
+  pickupPincodeCheckedAt: null,
 }
 
 const SHIPPING_MODES: readonly ShippingMode[] = [
@@ -79,5 +90,7 @@ export function normalizeShippingConfig(raw: unknown): ShippingConfig {
     connectedBy,
     requestedAt: asString(stored.requestedAt),
     lastError: asString(stored.lastError),
+    pickupPincode: asString(stored.pickupPincode),
+    pickupPincodeCheckedAt: asString(stored.pickupPincodeCheckedAt),
   }
 }

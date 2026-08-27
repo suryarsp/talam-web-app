@@ -49,6 +49,7 @@ function product(overrides: Partial<AdminProduct> = {}): AdminProduct {
     images: [],
     stockBySize: { M: 5 },
     specifications: [],
+    weight: null,
     isActive: true,
     occasionIds: [],
     ...overrides,
@@ -183,5 +184,57 @@ describe('AdminProductsClient', () => {
 
     await waitFor(() => expect(createProductAction).toHaveBeenCalled())
     expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
+  async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(document.querySelector('[data-tour="add-product"]')!)
+    await user.type(screen.getByPlaceholderText('e.g., Premium Cotton Kurta Set'), 'Silk Dupatta')
+    await user.selectOptions(document.querySelector('select[name="categoryId"]')!, 'cat-1')
+    await user.type(screen.getByPlaceholderText('999'), '999')
+    await user.type(screen.getByPlaceholderText('e.g., 25'), '5')
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, new File(['x'], 'photo.png', { type: 'image/png' }))
+    await waitFor(() => expect(uploadProductImageAction).toHaveBeenCalled())
+  }
+
+  const categories = [{ id: 'cat-1', name: 'Sarees', slug: 'sarees', department: null }]
+
+  it('sends the shipping weight entered on the product form', async () => {
+    const user = userEvent.setup()
+    render(<AdminProductsClient products={products} categories={categories} occasions={[]} />)
+
+    await fillRequiredFields(user)
+    await user.type(document.querySelector('input[name="weight"]')!, '0.75')
+    await user.click(screen.getByRole('button', { name: 'Add Product' }))
+
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled())
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ weight: 0.75 })
+  })
+
+  it('sends a null weight when the merchant leaves it blank, since it is optional', async () => {
+    const user = userEvent.setup()
+    render(<AdminProductsClient products={products} categories={categories} occasions={[]} />)
+
+    await fillRequiredFields(user)
+    await user.click(screen.getByRole('button', { name: 'Add Product' }))
+
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled())
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ weight: null })
+  })
+
+  it("prefills the weight of the product being edited", async () => {
+    const user = userEvent.setup()
+    render(
+      <AdminProductsClient
+        products={[product({ id: 'p1', name: 'Silk Saree', weight: 1.25 })]}
+        categories={categories}
+        occasions={[]}
+      />
+    )
+
+    await user.click(document.querySelectorAll('.relative > button')[0])
+    await user.click(screen.getByRole('button', { name: 'Edit Product' }))
+
+    expect(document.querySelector('input[name="weight"]')).toHaveValue(1.25)
   })
 })

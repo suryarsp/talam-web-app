@@ -10,6 +10,8 @@ export function OrderSummaryCard({
   shippingFee,
   total,
   totalLabel = 'Total',
+  fullShippingFee,
+  deliveryNote,
 }: {
   items: CartItem[]
   subtotal: number
@@ -17,6 +19,10 @@ export function OrderSummaryCard({
   shippingFee: number
   total: number
   totalLabel?: string
+  /** The courier's actual rate, shown struck through when a threshold made delivery free. */
+  fullShippingFee?: number
+  /** e.g. "Delivery by Fri, 4 Sep" — only ever set when a courier really quoted an ETA. */
+  deliveryNote?: string
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
@@ -56,9 +62,17 @@ export function OrderSummaryCard({
         <div className="flex justify-between">
           <dt className="text-muted-warm">Delivery</dt>
           <dd className={shippingFee === 0 ? 'font-medium text-success' : 'text-fg'}>
+            {shippingFee === 0 && fullShippingFee ? (
+              <span className="mr-1.5 font-normal text-muted-warm line-through">{formatCurrency(fullShippingFee)}</span>
+            ) : null}
             {shippingFee === 0 ? 'Free' : formatCurrency(shippingFee)}
           </dd>
         </div>
+        {deliveryNote && (
+          <div className="flex justify-end">
+            <span className="text-xs text-muted-warm">{deliveryNote}</span>
+          </div>
+        )}
         <div className="mt-1 flex justify-between border-t border-border pt-2.5">
           <dt className="font-heading text-[17px] font-bold text-fg">{totalLabel}</dt>
           <dd className="font-heading text-[17px] font-bold text-fg">{formatCurrency(total)}</dd>

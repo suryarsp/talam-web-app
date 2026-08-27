@@ -67,7 +67,7 @@ describe('uploadProductImageAction', () => {
 })
 
 describe('createProductAction', () => {
-  const input = { name: 'Cotton Saree', description: null, price: 999, comparePrice: null, categoryId: null, sizes: [], unit: 'piece' as const, images: [], stockBySize: {}, specifications: [] }
+  const input = { name: 'Cotton Saree', description: null, price: 999, comparePrice: null, categoryId: null, sizes: [], unit: 'piece' as const, images: [], stockBySize: {}, specifications: [], weight: null }
 
   it('flags readyToGoLive once 3+ products are published and the store is not yet live', async () => {
     vi.mocked(createProduct).mockResolvedValue({ id: 'product-1' } as never)

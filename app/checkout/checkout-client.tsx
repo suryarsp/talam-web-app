@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useCartStore, type CartItem } from '@/lib/store/cart'
 import { formatCurrency } from '@/lib/utils'
+import { formatDeliveryDate } from '@/lib/shipping/delivery-estimate'
 import { CheckoutHeader } from '@/components/checkout/checkout-header'
 import { StepIndicator } from '@/components/checkout/step-indicator'
 import { OrderSummaryCard, TrustBar } from '@/components/checkout/order-summary-card'
@@ -31,6 +32,7 @@ import {
   type AvailableCoupon,
   type CartLine,
   type PaymentProvider,
+  type QuoteDelivery,
   type QuotedLine,
 } from './actions'
 import type { EnabledPaymentMethods } from './page'
@@ -107,26 +109,7 @@ export function CheckoutClient({
   // Cart array identity changes every render, so key SWR on its contents instead.
   const cartKey = useMemo(() => JSON.stringify(cartLines), [cartLines])
 
-  const { data: quoteResult } = useSWR(
-    cartLines.length > 0 ? ['quote', cartKey, appliedCoupon] : null,
-    () => getQuoteAction(cartLines, appliedCoupon ?? undefined),
-    { revalidateOnFocus: false }
-  )
-
   const { data: availableCoupons } = useSWR('available-coupons', getAvailableCouponsAction, { revalidateOnFocus: false })
-
-  const quote: Quote | null = quoteResult && !('error' in quoteResult) ? quoteResult.quote : null
-  const quotedLines: QuotedLine[] = quoteResult && !('error' in quoteResult) ? quoteResult.lines : []
-  const quoteError = quoteResult && 'error' in quoteResult ? quoteResult.error : ''
-
-  // Merge the server's authoritative prices onto the cart's names and images.
-  const summaryItems = useMemo<CartItem[]>(() => {
-    if (quotedLines.length === 0) return items
-    return items.map((item) => {
-      const line = quotedLines.find((l) => l.productId === item.productId && l.size === (item.size ?? null))
-      return line ? { ...item, price: line.unitPrice } : item
-    })
-  }, [items, quotedLines])
 
   // ── Contact email — mandatory for both guest and signed-in checkout ──
   const [email, setEmail] = useState(signedInEmail ?? '')
@@ -166,6 +149,35 @@ export function CheckoutClient({
   }, [pincodeValue, setValue])
   const usingNewAddress = selectedAddressId === NEW_ADDRESS
   const savedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null
+
+  // A half-typed pincode is worth nothing to a courier, so only a complete one is quoted —
+  // until then the server prices delivery at the store's own flat fee, exactly as before.
+  const addressPincode = usingNewAddress ? pincodeValue : (savedAddress?.pincode ?? '')
+  const quotePincode = /^\d{6}$/.test(addressPincode) ? addressPincode : ''
+
+  const { data: quoteResult } = useSWR(
+    cartLines.length > 0 ? ['quote', cartKey, appliedCoupon, quotePincode] : null,
+    () => getQuoteAction(cartLines, appliedCoupon ?? undefined, quotePincode || undefined),
+    { revalidateOnFocus: false }
+  )
+
+  const quote: Quote | null = quoteResult && !('error' in quoteResult) ? quoteResult.quote : null
+  const quotedLines: QuotedLine[] = quoteResult && !('error' in quoteResult) ? quoteResult.lines : []
+  const delivery: QuoteDelivery | null = quoteResult && !('error' in quoteResult) ? quoteResult.delivery : null
+  const quoteError = quoteResult && 'error' in quoteResult ? quoteResult.error : ''
+
+  // A cart the server refuses to price has no honest total to charge — an unserviceable
+  // pincode is the case that matters, but any pricing failure blocks the order the same way.
+  const blockedByQuote = Boolean(quoteError)
+
+  // Merge the server's authoritative prices onto the cart's names and images.
+  const summaryItems = useMemo<CartItem[]>(() => {
+    if (quotedLines.length === 0) return items
+    return items.map((item) => {
+      const line = quotedLines.find((l) => l.productId === item.productId && l.size === (item.size ?? null))
+      return line ? { ...item, price: line.unitPrice } : item
+    })
+  }, [items, quotedLines])
 
   // ── Payment ──
   const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : methods.razorpay ? 'razorpay' : 'cod'
@@ -440,9 +452,13 @@ export function CheckoutClient({
                   </div>
                 )}
 
+                {/* Right under the pincode field — the shopper must see this without scrolling. */}
+                {quoteError && <p className="mt-4 font-body text-sm text-danger">{quoteError}</p>}
+
                 <Button
                   onClick={handleContinueFromAddress}
-                  className="mt-5 h-12 w-full rounded-[10px] bg-store-primary font-body text-[16px] font-bold text-surface hover:bg-store-primary/90"
+                  disabled={blockedByQuote}
+                  className="mt-5 h-12 w-full rounded-[10px] bg-store-primary font-body text-[16px] font-bold text-surface hover:bg-store-primary/90 disabled:opacity-50"
                 >
                   Continue to Payment
                 </Button>
@@ -466,7 +482,11 @@ export function CheckoutClient({
                   <div className="flex items-center gap-2">
                     <Truck className="h-4 w-4 shrink-0 text-success" />
                     <span className="font-body text-sm font-medium text-fg">
-                      {quote && quote.shippingFee === 0 ? 'You\'ve unlocked free delivery!' : 'Estimated delivery in 5–7 business days'}
+                      {quote && quote.shippingFee === 0
+                        ? 'You\'ve unlocked free delivery!'
+                        : delivery?.source === 'live' && delivery.etaDays !== null
+                          ? `Estimated delivery by ${formatDeliveryDate(new Date(), delivery.etaDays)}`
+                          : 'Estimated delivery in 5–7 business days'}
                     </span>
                   </div>
                   {quote && (quote.productDiscount + quote.couponDiscount) > 0 && (
@@ -554,7 +574,7 @@ export function CheckoutClient({
 
                         <Button
                           onClick={handlePlaceOrder}
-                          disabled={!canPlaceUpi || placing}
+                          disabled={!canPlaceUpi || placing || blockedByQuote}
                           className="mt-4 h-12 w-full rounded-[10px] bg-store-primary font-body text-[16px] font-bold text-surface hover:bg-store-primary/90 disabled:opacity-50"
                         >
                           Confirm Payment
@@ -615,7 +635,7 @@ export function CheckoutClient({
                 {((paymentMethod === 'razorpay' && methods.razorpay) || (paymentMethod === 'cod' && methods.cod)) && (
                   <Button
                     onClick={handlePlaceOrder}
-                    disabled={placing}
+                    disabled={placing || blockedByQuote}
                     className="mt-4 h-12 w-full rounded-[10px] bg-store-primary font-body text-[16px] font-bold text-surface hover:bg-store-primary/90 disabled:opacity-50"
                   >
                     {paymentMethod === 'cod' ? 'Place Order' : `Pay ₹${total.toLocaleString('en-IN')}`}
@@ -625,7 +645,7 @@ export function CheckoutClient({
             )}
 
             <div className="space-y-3 sm:hidden">
-              <Summary items={summaryItems} quote={quote} error={quoteError} />
+              <Summary items={summaryItems} quote={quote} delivery={delivery} error={quoteError} />
               <CouponField
                 cartLines={cartLines}
                 applied={appliedCoupon}
@@ -637,7 +657,7 @@ export function CheckoutClient({
           </div>
 
           <div className="hidden w-[360px] shrink-0 space-y-3 sm:block">
-            <Summary items={summaryItems} quote={quote} error={quoteError} />
+            <Summary items={summaryItems} quote={quote} delivery={delivery} error={quoteError} />
             <CouponField cartLines={cartLines} applied={appliedCoupon} onApplied={setAppliedCoupon} available={availableCoupons} />
             <TrustBar />
           </div>
@@ -652,7 +672,7 @@ export function CheckoutClient({
         {step !== 1 && !(step === 3 && paymentMethod === 'upi_manual') && (
           <Button
             onClick={step === 2 ? handleContinueFromAddress : handlePlaceOrder}
-            disabled={placing}
+            disabled={placing || blockedByQuote}
             className="h-12 shrink-0 rounded-[10px] bg-store-primary px-6 font-body text-[15px] font-bold text-surface hover:bg-store-primary/90"
           >
             {payLabel}
@@ -663,10 +683,23 @@ export function CheckoutClient({
   )
 }
 
-function Summary({ items, quote, error }: { items: CartItem[]; quote: Quote | null; error: string }) {
+function Summary({
+  items,
+  quote,
+  delivery,
+  error,
+}: {
+  items: CartItem[]
+  quote: Quote | null
+  delivery: QuoteDelivery | null
+  error: string
+}) {
   if (error) {
     return <p className="rounded-xl border border-danger/30 bg-danger/5 p-4 font-body text-sm text-danger">{error}</p>
   }
+  // Only a real courier quote earns a strikethrough or a date. On the flat fallback both stay
+  // undefined and the card renders exactly what it always has.
+  const live = delivery?.source === 'live' ? delivery : null
   return (
     <OrderSummaryCard
       items={items}
@@ -674,6 +707,11 @@ function Summary({ items, quote, error }: { items: CartItem[]; quote: Quote | nu
       discount={(quote?.productDiscount ?? 0) + (quote?.couponDiscount ?? 0)}
       shippingFee={quote?.shippingFee ?? 0}
       total={quote?.total ?? 0}
+      fullShippingFee={live && quote?.shippingFee === 0 ? live.fullFee : undefined}
+      deliveryNote={
+        // The order does not exist yet, so the ETA counts from today rather than a createdAt.
+        live && live.etaDays !== null ? `Delivery by ${formatDeliveryDate(new Date(), live.etaDays)}` : undefined
+      }
     />
   )
 }

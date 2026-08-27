@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   assignShiprocketAwb,
+  checkServiceability,
   createShiprocketOrder,
+  getPickupLocations,
   shiprocketLogin,
   type ShiprocketOrderInput,
 } from './shiprocket-client'
@@ -68,10 +70,13 @@ describe('shiprocketLogin', () => {
 })
 
 describe('createShiprocketOrder', () => {
-  it('maps our order onto the adhoc-order payload and returns the shipment id', async () => {
+  it('maps our order onto the adhoc-order payload and returns both Shiprocket ids', async () => {
     const fetchMock = stubFetch(ok({ order_id: 555, shipment_id: 999 }))
 
-    expect(await createShiprocketOrder('tok', 'Chennai Store', VALID_INPUT)).toEqual({ shipmentId: 999 })
+    expect(await createShiprocketOrder('tok', 'Chennai Store', VALID_INPUT)).toEqual({
+      shiprocketOrderId: 555,
+      shipmentId: 999,
+    })
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toContain('/orders/create/adhoc')
@@ -144,6 +149,146 @@ describe('assignShiprocketAwb', () => {
     stubFetch(failure(400, 'no courier available'))
     await expect(assignShiprocketAwb('tok', 999)).rejects.toThrow(
       'Shiprocket AWB assignment failed (400): no courier available'
+    )
+  })
+})
+
+describe('getPickupLocations', () => {
+  it("maps Shiprocket's shipping_address rows onto nickname/pincode pairs", async () => {
+    const fetchMock = stubFetch(
+      ok({
+        data: {
+          shipping_address: [
+            { id: 7, pickup_location: 'Chennai Store', pin_code: '600001', city: 'Chennai' },
+            { id: 8, pickup_location: 'Warehouse', pin_code: '600042', city: 'Chennai' },
+          ],
+        },
+      })
+    )
+
+    expect(await getPickupLocations('tok')).toEqual([
+      { id: 7, nickname: 'Chennai Store', pincode: '600001' },
+      { id: 8, nickname: 'Warehouse', pincode: '600042' },
+    ])
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/settings/company/pickup')
+    expect(init.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('returns an empty list when the account has no pickup addresses', async () => {
+    stubFetch(ok({ data: {} }))
+    expect(await getPickupLocations('tok')).toEqual([])
+  })
+
+  it('throws on a non-2xx response', async () => {
+    stubFetch(failure(401, 'token expired'))
+    await expect(getPickupLocations('tok')).rejects.toThrow(
+      'Shiprocket pickup locations lookup failed (401): token expired'
+    )
+  })
+})
+
+describe('checkServiceability', () => {
+  const PARAMS = {
+    pickupPincode: '600001',
+    deliveryPincode: '560001',
+    weightKg: 1.5,
+    codEnabled: true,
+  }
+
+  const courier = (overrides: Record<string, unknown> = {}) => ({
+    courier_company_id: 51,
+    courier_name: 'Xpressbees Surface',
+    rate: 72.5,
+    cod: 1,
+    estimated_delivery_days: '3',
+    etd: 'Aug 30, 2026 20:44:00',
+    etd_hours: 72,
+    ...overrides,
+  })
+
+  it('quotes the cheapest available courier', async () => {
+    stubFetch(
+      ok({
+        data: {
+          available_courier_companies: [
+            courier({ rate: 120, estimated_delivery_days: '2' }),
+            courier({ rate: 72.5, estimated_delivery_days: '4' }),
+          ],
+        },
+      })
+    )
+
+    expect(await checkServiceability('tok', PARAMS)).toEqual({
+      serviceable: true,
+      etaDays: 4,
+      rate: 72.5,
+      codAvailable: true,
+    })
+  })
+
+  it('reports COD as unavailable when the cheapest courier does not offer it', async () => {
+    stubFetch(ok({ data: { available_courier_companies: [courier({ cod: 0 })] } }))
+
+    expect(await checkServiceability('tok', PARAMS)).toMatchObject({ codAvailable: false })
+  })
+
+  it('falls back to etd_hours when the courier omits estimated_delivery_days', async () => {
+    // Shiprocket's `etd` is a delivery *date* string, not a day count, so it can't stand in
+    // for etaDays directly — etd_hours is the only other numeric ETA field on the row.
+    stubFetch(
+      ok({
+        data: {
+          available_courier_companies: [
+            courier({ estimated_delivery_days: undefined, etd_hours: 60 }),
+          ],
+        },
+      })
+    )
+
+    expect(await checkServiceability('tok', PARAMS)).toMatchObject({ etaDays: 3 })
+  })
+
+  it('reports an unserviceable pincode rather than throwing when no courier covers it', async () => {
+    // An unserviceable pincode is an expected outcome at checkout, not a failure — the
+    // caller has to be able to tell it apart from "Shiprocket is down".
+    stubFetch(ok({ data: { available_courier_companies: [] } }))
+
+    expect(await checkServiceability('tok', PARAMS)).toEqual({ serviceable: false })
+  })
+
+  it('reports an unserviceable pincode when the response omits the courier list entirely', async () => {
+    stubFetch(ok({ data: {} }))
+
+    expect(await checkServiceability('tok', PARAMS)).toEqual({ serviceable: false })
+  })
+
+  it('sends the pickup, delivery, weight and COD flag as query parameters', async () => {
+    const fetchMock = stubFetch(ok({ data: { available_courier_companies: [courier()] } }))
+
+    await checkServiceability('tok', PARAMS)
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.pathname).toContain('/courier/serviceability')
+    expect(url.searchParams.get('pickup_postcode')).toBe('600001')
+    expect(url.searchParams.get('delivery_postcode')).toBe('560001')
+    expect(url.searchParams.get('weight')).toBe('1.5')
+    expect(url.searchParams.get('cod')).toBe('1')
+  })
+
+  it('sends cod=0 when COD availability was not requested', async () => {
+    const fetchMock = stubFetch(ok({ data: { available_courier_companies: [courier()] } }))
+
+    await checkServiceability('tok', { ...PARAMS, codEnabled: false })
+
+    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get('cod')).toBe('0')
+  })
+
+  it('throws on a non-2xx response', async () => {
+    stubFetch(failure(500, 'upstream error'))
+    await expect(checkServiceability('tok', PARAMS)).rejects.toThrow(
+      'Shiprocket serviceability check failed (500): upstream error'
     )
   })
 })

@@ -29,6 +29,7 @@ export type CustomerOrder = {
   trackingId: string | null
   createdAt: Date
   disputeFlaggedAt: Date | null
+  estimatedDeliveryDays: number | null
   address: AdminOrderAddress
   items: CustomerOrderItem[]
   statusEvents: { status: OrderStatus; changedAt: Date }[]
@@ -70,6 +71,7 @@ type OrderRow = {
   trackingId: string | null
   createdAt: Date
   disputeFlaggedAt: Date | null
+  estimatedDeliveryDays: number | null
   shippingAddress: unknown
   items: {
     id: string
@@ -98,6 +100,7 @@ function toCustomerOrder(order: OrderRow): CustomerOrder {
     trackingId: order.trackingId,
     createdAt: order.createdAt,
     disputeFlaggedAt: order.disputeFlaggedAt,
+    estimatedDeliveryDays: order.estimatedDeliveryDays,
     address: (order.shippingAddress ?? {}) as AdminOrderAddress,
     items: order.items.map((item) => ({
       id: item.id,

@@ -8,6 +8,8 @@ import { cacheForTenant } from '@/lib/storefront-cache'
 import { AddToCartButton } from '@/components/store/add-to-cart-button'
 import { ReviewsSection } from '@/components/store/reviews-section'
 import { ProductImageCarousel } from '@/components/store/product-image-carousel'
+import { PincodeDeliveryCheck } from '@/components/store/pincode-delivery-check'
+import { checkProductDeliveryAction } from '@/app/store/actions'
 import { formatCurrency } from '@/lib/utils'
 
 type Props = {
@@ -79,9 +81,16 @@ export default async function ProductPage({ params }: Props) {
       ? 'Free delivery on this order'
       : tenant.deliveryEstimateText
 
+  const productId = product.id
+
   async function submitReviewStub(_rating: number, _comment: string) {
     'use server'
     // ponytail: real submission needs a signed-in customer session; wire up once storefront auth exists
+  }
+
+  async function checkDelivery(pincode: string) {
+    'use server'
+    return checkProductDeliveryAction(productId, pincode)
   }
 
   return (
@@ -146,6 +155,8 @@ export default async function ProductPage({ params }: Props) {
               </p>
             </div>
           )}
+
+          <PincodeDeliveryCheck onCheck={checkDelivery} />
 
           {product.sizes.length > 0 && (
             <div className="flex items-center justify-between">

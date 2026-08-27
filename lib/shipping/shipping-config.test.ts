@@ -29,8 +29,30 @@ describe('normalizeShippingConfig', () => {
       connectedBy: 'staff',
       requestedAt: '2026-08-20T09:00:00.000Z',
       lastError: null,
+      pickupPincode: '600001',
+      pickupPincodeCheckedAt: '2026-08-22T11:00:00.000Z',
     }
     expect(normalizeShippingConfig(stored)).toEqual(stored)
+  })
+
+  it('starts with no resolved pickup pincode, since it is only ever filled in by a lookup', () => {
+    expect(DEFAULT_SHIPPING_CONFIG.pickupPincode).toBeNull()
+    expect(DEFAULT_SHIPPING_CONFIG.pickupPincodeCheckedAt).toBeNull()
+  })
+
+  it('keeps a resolved pickup pincode and the time it was resolved', () => {
+    const result = normalizeShippingConfig({
+      pickupPincode: '600001',
+      pickupPincodeCheckedAt: '2026-08-22T11:00:00.000Z',
+    })
+    expect(result.pickupPincode).toBe('600001')
+    expect(result.pickupPincodeCheckedAt).toBe('2026-08-22T11:00:00.000Z')
+  })
+
+  it('coerces a non-string pickup pincode to null rather than trusting it', () => {
+    // Shiprocket returns pin_code as a string, but a hand-edited row could hold the number
+    // 600001 — which would be pasted straight into a query string as-is if we trusted it.
+    expect(normalizeShippingConfig({ pickupPincode: 600001 }).pickupPincode).toBeNull()
   })
 
   it('drops unknown keys rather than passing them through', () => {
