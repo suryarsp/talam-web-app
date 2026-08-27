@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyRazorpayWebhook } from '@/lib/payments/razorpay'
+import { sendPaymentFailedEmail } from '@/lib/resend'
+import { orderCode } from '@/lib/data/storefront-orders'
+import { getStoreUrl } from '@/lib/tenant-url'
 
 /**
  * The client-side handler in checkout already verifies and marks orders paid. This
@@ -23,6 +26,37 @@ export async function POST(request: NextRequest) {
   const event = JSON.parse(rawBody) as {
     event?: string
     payload?: { payment?: { entity?: { id?: string; order_id?: string; notes?: Record<string, string> } } }
+  }
+
+  if (event.event === 'payment.failed') {
+    const payment = event.payload?.payment?.entity
+    if (!payment?.order_id) {
+      return NextResponse.json({ error: 'missing payment entity' }, { status: 400 })
+    }
+
+    // Read before the update — updateMany doesn't return rows, and the email needs the
+    // customer/tenant it would otherwise have no way to reach.
+    const order = await prisma.order.findFirst({
+      where: { paymentId: payment.order_id, paymentStatus: 'pending' },
+      include: { customer: { select: { email: true } }, tenant: { select: { name: true, slug: true } } },
+    })
+    if (!order) {
+      console.info('[razorpay webhook] no pending order for', payment.order_id)
+      return NextResponse.json({ ok: true })
+    }
+
+    await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: 'failed' } })
+
+    if (order.customer.email) {
+      const storeUrl = getStoreUrl(order.tenant.slug, false)
+      await sendPaymentFailedEmail(order.customer.email, {
+        storeName: order.tenant.name,
+        orderCode: orderCode(order.id),
+        retryUrl: `${storeUrl}/orders/${order.id}`,
+      })
+    }
+
+    return NextResponse.json({ ok: true })
   }
 
   if (event.event !== 'payment.captured') {

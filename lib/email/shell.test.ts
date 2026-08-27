@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMAIL_BRAND, escapeHtml, renderEmailBody, renderEmailShell } from './email-templates'
+import { EMAIL_BRAND, escapeHtml, renderEmailBody, renderEmailShell } from './shell'
 
 describe('EMAIL_BRAND', () => {
   it('matches the live theme brand color from app/globals.css', () => {

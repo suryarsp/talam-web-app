@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Check, ArrowDown, Package, XCircle, ChevronRight } from 'lucide-react'
+import { X, Check, ArrowDown, Package, XCircle, RotateCcw, ChevronRight } from 'lucide-react'
 
 import type { AdminOrder, OrderStatus } from '@/lib/data/orders'
 import { updateOrderStatusAction, markOrderPaidAction, shipViaShiprocketAction } from '@/app/admin/orders/actions'
@@ -76,6 +76,7 @@ const ACTIONS = [
   { key: 'shipped', label: 'Ship Order', sub: 'Add tracking number', icon: ArrowDown, color: 'bg-[#3B82F6]' },
   { key: 'delivered', label: 'Mark Delivered', sub: 'Order received by customer', icon: Package, color: 'bg-[#22C55E]' },
   { key: 'cancelled', label: 'Cancel Order', sub: 'Permanently cancel this order', icon: XCircle, color: 'bg-danger' },
+  { key: 'returned', label: 'Mark Returned', sub: 'Customer returned this order', icon: RotateCcw, color: 'bg-[#9CA3AF]' },
 ] as const
 
 type ActionKey = (typeof ACTIONS)[number]['key']

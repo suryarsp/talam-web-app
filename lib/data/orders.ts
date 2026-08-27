@@ -1,6 +1,15 @@
+import { headers } from 'next/headers'
 import { withTenant } from '@/lib/prisma'
 import type { OrderStatus, PaymentStatus } from '@prisma/client'
 import { isValidTransition } from '@/lib/order-status'
+import { orderCode } from '@/lib/data/storefront-orders'
+import { getStoreUrl, isLocalDevHost } from '@/lib/tenant-url'
+import {
+  sendOrderCancelledEmail,
+  sendOrderDeliveredEmail,
+  sendOrderReturnedEmail,
+  sendOrderShippedEmail,
+} from '@/lib/resend'
 
 export type { OrderStatus }
 
@@ -62,7 +71,7 @@ export async function listOrdersForAdmin(tenantId: string): Promise<AdminOrder[]
     const { summary, count } = summarizeItems(order.items)
     return {
       id: order.id,
-      code: `#${order.id.slice(0, 8).toUpperCase()}`,
+      code: orderCode(order.id),
       customerId: order.customerId,
       customerName: order.customer.name ?? 'Guest',
       email: order.customer.email,
@@ -83,6 +92,8 @@ export async function listOrdersForAdmin(tenantId: string): Promise<AdminOrder[]
     }
   })
 }
+
+const STATUS_NOTIFIES_CUSTOMER: OrderStatus[] = ['shipped', 'delivered', 'cancelled', 'returned']
 
 export async function updateOrderStatus(
   tenantId: string,
@@ -107,4 +118,50 @@ export async function updateOrderStatus(
     })
     await db.orderStatusEvent.create({ data: { tenantId, orderId, status } })
   })
+
+  // Must run after the transaction above has committed — withTenant holds a real DB
+  // transaction open for its callback, and a network call (email send) has no business
+  // sitting inside that window.
+  if (STATUS_NOTIFIES_CUSTOMER.includes(status)) {
+    await notifyCustomerOfStatus(tenantId, orderId, status, trackingId, cancelReason)
+  }
+}
+
+async function notifyCustomerOfStatus(
+  tenantId: string,
+  orderId: string,
+  status: OrderStatus,
+  trackingId?: string,
+  cancelReason?: string
+): Promise<void> {
+  const order = await withTenant(tenantId, (db) =>
+    db.order.findFirst({
+      where: { id: orderId, tenantId },
+      include: { customer: { select: { email: true } }, tenant: { select: { name: true, slug: true } } },
+    })
+  )
+  if (!order?.customer?.email) return
+
+  const host = (await headers()).get('host')
+  const isLocalDev = isLocalDevHost(host)
+  const origin = isLocalDev ? `http://${host ?? 'localhost:3000'}` : ''
+  const storeUrl = `${origin}${getStoreUrl(order.tenant.slug, isLocalDev)}`
+  const trackUrl = `${storeUrl}/orders/${orderId}`
+  const code = orderCode(orderId)
+  const to = order.customer.email
+
+  switch (status) {
+    case 'shipped':
+      if (trackingId) await sendOrderShippedEmail(to, { storeName: order.tenant.name, orderCode: code, trackingId, trackUrl })
+      return
+    case 'delivered':
+      await sendOrderDeliveredEmail(to, { storeName: order.tenant.name, orderCode: code, trackUrl })
+      return
+    case 'cancelled':
+      await sendOrderCancelledEmail(to, { storeName: order.tenant.name, orderCode: code, cancelReason, storeUrl })
+      return
+    case 'returned':
+      await sendOrderReturnedEmail(to, { storeName: order.tenant.name, orderCode: code, storeUrl })
+      return
+  }
 }

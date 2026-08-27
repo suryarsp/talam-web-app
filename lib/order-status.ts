@@ -82,7 +82,7 @@ const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['shipped', 'cancelled'],
   shipped: ['delivered'],
-  delivered: [],
+  delivered: ['returned'],
   cancelled: [],
   returned: [],
 }

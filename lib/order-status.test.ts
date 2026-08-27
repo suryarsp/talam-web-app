@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest'
-import { ORDER_STATUS_LABEL, ORDER_TABS, matchesTab, timelineFor } from './order-status'
+import { ORDER_STATUS_LABEL, ORDER_TABS, matchesTab, timelineFor, isValidTransition, getAvailableActions } from './order-status'
 import type { OrderStatus } from '@prisma/client'
 
 const ALL: OrderStatus[] = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned']
+
+describe('isValidTransition / getAvailableActions', () => {
+  it('allows a delivered order to be marked returned', () => {
+    expect(isValidTransition('delivered', 'returned')).toBe(true)
+    expect(getAvailableActions('delivered')).toEqual(['returned'])
+  })
+
+  it('never allows skipping straight to returned from an earlier status', () => {
+    for (const status of ['pending', 'confirmed', 'shipped'] as OrderStatus[]) {
+      expect(isValidTransition(status, 'returned')).toBe(false)
+    }
+  })
+
+  it('leaves returned itself terminal', () => {
+    expect(getAvailableActions('returned')).toEqual([])
+  })
+})
 
 describe('matchesTab', () => {
   it('puts every status under All', () => {

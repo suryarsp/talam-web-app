@@ -12,6 +12,7 @@ const {
   mockAddAdminStaff,
   mockRemoveAdminStaff,
   mockGetAdminStaff,
+  mockSendStaffInviteEmail,
 } = vi.hoisted(() => ({
   mockRequireSuperAdmin: vi.fn(async () => ({ email: 'ops@talam.com' })),
   mockGetSuperAdminRole: vi.fn(async (): Promise<AdminStaffRole> => 'owner'),
@@ -22,6 +23,7 @@ const {
   mockAddAdminStaff: vi.fn(),
   mockRemoveAdminStaff: vi.fn(),
   mockGetAdminStaff: vi.fn(async (): Promise<AdminStaffRow[]> => []),
+  mockSendStaffInviteEmail: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-guard', () => ({
@@ -45,6 +47,7 @@ vi.mock('@/lib/data/admin-staff', async () => {
     getAdminStaff: mockGetAdminStaff,
   }
 })
+vi.mock('@/lib/resend', () => ({ sendStaffInviteEmail: mockSendStaffInviteEmail }))
 
 import {
   updateOnboardingStageAction,
@@ -207,21 +210,27 @@ describe('inviteStaffAction', () => {
     expect(mockAddAdminStaff).not.toHaveBeenCalled()
   })
 
-  it('adds a valid invite', async () => {
+  it('adds a valid invite and emails the new staffer their role and a login link', async () => {
     mockAddAdminStaff.mockResolvedValue({})
 
     const result = await inviteStaffAction('new@talam.com', 'New Person', 'support_agent')
 
     expect(result).toEqual({ success: true })
     expect(mockAddAdminStaff).toHaveBeenCalledWith('new@talam.com', 'New Person', 'support_agent')
+    expect(mockSendStaffInviteEmail).toHaveBeenCalledWith('new@talam.com', {
+      name: 'New Person',
+      role: 'Support Agent',
+      loginUrl: expect.stringContaining('/super-admin/login'),
+    })
   })
 
-  it('surfaces a duplicate-email failure without claiming success', async () => {
+  it('surfaces a duplicate-email failure without claiming success or emailing anyone', async () => {
     mockAddAdminStaff.mockRejectedValue(new Error('unique constraint'))
 
     const result = await inviteStaffAction('new@talam.com', 'New Person', 'support_agent')
 
     expect(result).toEqual({ error: expect.any(String) })
+    expect(mockSendStaffInviteEmail).not.toHaveBeenCalled()
   })
 
   it.each(['support_agent', 'billing_manager', 'growth_analyst'] as const)(

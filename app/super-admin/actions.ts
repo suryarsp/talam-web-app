@@ -6,7 +6,8 @@ import { requireSuperAdmin, getSuperAdminRole } from '@/lib/auth-guard'
 import { withSuperAdmin } from '@/lib/prisma'
 import { connectShiprocketAccount, getShippingConfig } from '@/lib/shipping/shiprocket-account'
 import { addAdminStaff, removeAdminStaff, getAdminStaff } from '@/lib/data/admin-staff'
-import { canAccessSection, SECTION_LABEL, type AdminSection } from '@/lib/data/admin-permissions'
+import { canAccessSection, SECTION_LABEL, ROLE_LABEL, type AdminSection } from '@/lib/data/admin-permissions'
+import { sendStaffInviteEmail } from '@/lib/resend'
 
 type ActionResult = { success: true } | { error: string }
 
@@ -146,6 +147,10 @@ export async function inviteStaffAction(email: string, name: string, role: Admin
   } catch {
     return { error: 'That email is already on staff.' }
   }
+
+  const loginUrl = `${process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : ''}/super-admin/login`
+  await sendStaffInviteEmail(email, { name, role: ROLE_LABEL[role], loginUrl })
+
   revalidatePath('/super-admin/staff')
   return { success: true }
 }

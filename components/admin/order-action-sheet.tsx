@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, ArrowDown, Package, X as XIcon, Plus } from 'lucide-react'
+import { Check, ArrowDown, Package, X as XIcon, RotateCcw, Plus } from 'lucide-react'
 import type { AdminOrder } from '@/lib/data/orders'
 import { updateOrderStatusAction, shipViaShiprocketAction } from '@/app/admin/orders/actions'
 import { getAvailableActions, CANCEL_REASONS } from '@/lib/order-status'
@@ -18,6 +18,7 @@ const ACTIONS = [
   { key: 'shipped', label: 'Ship Order', sub: 'Add tracking number', icon: ArrowDown, color: 'bg-[#3B82F6]' },
   { key: 'delivered', label: 'Mark Delivered', sub: 'Order received by customer', icon: Package, color: 'bg-[#22C55E]' },
   { key: 'cancelled', label: 'Cancel Order', sub: 'Permanently cancel this order', icon: XIcon, color: 'bg-danger' },
+  { key: 'returned', label: 'Mark Returned', sub: 'Customer returned this order', icon: RotateCcw, color: 'bg-[#9CA3AF]' },
   { key: 'details', label: 'View Full Details', sub: 'See order history & timeline', icon: Plus, color: 'bg-muted-warm' },
 ] as const
 
@@ -38,7 +39,7 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
     setTimeout(onClose, 250)
   }
 
-  async function applyStatus(status: 'confirmed' | 'shipped' | 'delivered' | 'cancelled', trackingId?: string, cancelReason?: string) {
+  async function applyStatus(status: 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned', trackingId?: string, cancelReason?: string) {
     setSaving(true)
     setSaveError('')
     const result = await updateOrderStatusAction(order.id, status, trackingId, cancelReason)
@@ -74,7 +75,7 @@ export function OrderActionSheet({ order, onClose, onViewDetails, onUpdated }: P
       setPendingStatus(key)
       return
     }
-    void applyStatus(key as 'confirmed' | 'delivered')
+    void applyStatus(key as 'confirmed' | 'delivered' | 'returned')
   }
 
   return (
