@@ -45,7 +45,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 - [x] Convert `app/store/actions.ts → searchProductsAction` to `GET /api/v1/store/search` — [PR #30](https://github.com/suryatalamsevai/talam-web-app/pull/30) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [x] Net-new: product list + detail → `GET /api/v1/store/products`, `GET /api/v1/store/products/{slug}` — [PR #31](https://github.com/suryatalamsevai/talam-web-app/pull/31) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [x] Net-new: category listing → `GET /api/v1/store/categories` — [PR #32](https://github.com/suryatalamsevai/talam-web-app/pull/32) (open, targets `mobile-api/phase-0-foundation` per gating rule)
-- [ ] Net-new: occasions/offers listing → `GET /api/v1/store/occasions`
+- [x] Net-new: occasions/offers listing → `GET /api/v1/store/occasions` — [PR #35](https://github.com/suryatalamsevai/talam-web-app/pull/35) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [ ] Net-new: store config/theme/banners → `GET /api/v1/store/config`
 
 ## Phase 2 — Cart, wishlist & account
