@@ -49,7 +49,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 - [x] Net-new: store config/theme/banners → `GET /api/v1/store/config` — [PR #36](https://github.com/suryatalamsevai/talam-web-app/pull/36) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 
 ## Phase 2 — Cart, wishlist & account
-- [ ] Convert `store/cart/actions.ts → getEmptyCartSuggestions` to `GET /api/v1/store/cart/suggestions`
+- [x] Convert `store/cart/actions.ts → getEmptyCartSuggestions` to `GET /api/v1/store/cart/suggestions` — [PR #37](https://github.com/suryatalamsevai/talam-web-app/pull/37) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [ ] Convert `store/wishlist/actions.ts → toggleWishlistAction` to `POST /api/v1/store/wishlist`
 - [ ] Convert `store/orders/actions.ts → reportOrderProblemAction` to `POST /api/v1/store/orders/{id}/report`
 - [ ] Convert `account/addresses/actions.ts → createAddress` to `POST /api/v1/store/addresses`
