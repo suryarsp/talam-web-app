@@ -50,7 +50,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 
 ## Phase 2 — Cart, wishlist & account
 - [x] Convert `store/cart/actions.ts → getEmptyCartSuggestions` to `GET /api/v1/store/cart/suggestions` — [PR #37](https://github.com/suryatalamsevai/talam-web-app/pull/37) (open, targets `mobile-api/phase-0-foundation` per gating rule)
-- [ ] Convert `store/wishlist/actions.ts → toggleWishlistAction` to `POST /api/v1/store/wishlist`
+- [x] Convert `store/wishlist/actions.ts → toggleWishlistAction` to `POST /api/v1/store/wishlist` — [PR #38](https://github.com/suryatalamsevai/talam-web-app/pull/38) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [ ] Convert `store/orders/actions.ts → reportOrderProblemAction` to `POST /api/v1/store/orders/{id}/report`
 - [ ] Convert `account/addresses/actions.ts → createAddress` to `POST /api/v1/store/addresses`
 - [ ] Convert `account/profile/actions.ts → updateCustomerProfile` to `PATCH /api/v1/store/profile`
