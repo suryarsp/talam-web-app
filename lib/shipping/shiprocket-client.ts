@@ -138,7 +138,7 @@ export type ServiceabilityParams = {
 }
 
 export type ServiceabilityQuote =
-  | { serviceable: true; etaDays: number; rate: number; codAvailable: boolean }
+  | { serviceable: true; etaDays: number | undefined; rate: number; codAvailable: boolean }
   | { serviceable: false }
 
 /**
@@ -187,10 +187,11 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
  *
  * `estimated_delivery_days` is the day count itself (Shiprocket sends it as a numeric
  * string). `etd_hours` is the same thing in hours. `etd` is a human delivery *date*
- * ("Aug 30, 2026 20:44:00") — usable only by diffing against now, hence last. Zero means
- * "Shiprocket did not say", which a caller can render as a generic estimate.
+ * ("Aug 30, 2026 20:44:00") — usable only by diffing against now, hence last. `undefined` means
+ * "Shiprocket did not say", which a caller renders as a generic estimate rather than a real date
+ * — it must never collide with a genuine 0, which formatDeliveryDate would read as "today".
  */
-function etaDaysFrom(courier: ShiprocketCourier): number {
+function etaDaysFrom(courier: ShiprocketCourier): number | undefined {
   const days = Number(courier.estimated_delivery_days)
   if (Number.isFinite(days) && days > 0) return Math.ceil(days)
 
@@ -201,7 +202,7 @@ function etaDaysFrom(courier: ShiprocketCourier): number {
   const etd = courier.etd ? Date.parse(courier.etd) : NaN
   if (Number.isFinite(etd)) return Math.max(1, Math.ceil((etd - Date.now()) / MS_PER_DAY))
 
-  return 0
+  return undefined
 }
 
 /**

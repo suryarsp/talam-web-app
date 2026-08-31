@@ -202,8 +202,30 @@ describe('getDeliveryEstimate', () => {
       pickupPincode: '600001',
       deliveryPincode: '560001',
       weightKg: 1.5,
-      codEnabled: true,
+      codEnabled: false,
     })
+  })
+
+  it('requests the COD-inclusive rate only when the caller asks for it', async () => {
+    // Shiprocket loads its own COD collection charge into `rate` when cod=1 is requested —
+    // that must never leak into a quote nobody asked to pay COD for.
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5, cod: true })
+
+    expect(mockCheckServiceability).toHaveBeenCalledWith(
+      'sr_token',
+      expect.objectContaining({ codEnabled: true })
+    )
+  })
+
+  it('caches the prepaid and COD quotes separately for the same pincode and weight', async () => {
+    const { getDeliveryEstimate } = await freshModule()
+
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5, cod: false })
+    await getDeliveryEstimate('t1', { pincode: '560001', weightKg: 1.5, cod: true })
+
+    expect(mockCheckServiceability).toHaveBeenCalledTimes(2)
   })
 
   it('reuses a cached token instead of logging in again on the next pincode', async () => {

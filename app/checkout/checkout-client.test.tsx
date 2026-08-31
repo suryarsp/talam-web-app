@@ -41,7 +41,7 @@ import { useCartStore } from '@/lib/store/cart'
 import { formatDeliveryDate } from '@/lib/shipping/delivery-estimate'
 import type { QuoteDelivery } from './actions'
 
-const FLAT: QuoteDelivery = { fullFee: 99, source: 'flat', etaDays: null, codAvailable: null }
+const FLAT: QuoteDelivery = { fullFee: 99, source: 'flat', etaDays: null, codAvailable: null, codSurcharge: null }
 
 const SAVED_ADDRESS = {
   id: 'a1',
@@ -104,7 +104,12 @@ describe('CheckoutClient pincode threading', () => {
     renderCheckout()
 
     await waitFor(() =>
-      expect(mockGetQuote).toHaveBeenCalledWith([{ productId: 'p1', size: 'M', quantity: 1 }], undefined, '625001')
+      expect(mockGetQuote).toHaveBeenCalledWith(
+        [{ productId: 'p1', size: 'M', quantity: 1 }],
+        undefined,
+        '625001',
+        'cod'
+      )
     )
   })
 
@@ -116,7 +121,7 @@ describe('CheckoutClient pincode threading', () => {
     await user.click(screen.getByLabelText('Use a new address'))
     await user.type(screen.getByLabelText(/Pincode/), '560001')
 
-    await waitFor(() => expect(mockGetQuote).toHaveBeenCalledWith(expect.anything(), undefined, '560001'))
+    await waitFor(() => expect(mockGetQuote).toHaveBeenCalledWith(expect.anything(), undefined, '560001', 'cod'))
   })
 
   it('does not send a half-typed pincode to the courier', async () => {
@@ -133,7 +138,7 @@ describe('CheckoutClient pincode threading', () => {
 
 describe('CheckoutClient delivery display', () => {
   it("strikes through the live rate the shopper no longer pays when delivery is free", async () => {
-    mockGetQuote.mockResolvedValue(quoteWith(0, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true }))
+    mockGetQuote.mockResolvedValue(quoteWith(0, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true, codSurcharge: null }))
     renderCheckout()
 
     const struck = (await screen.findAllByText('₹79'))[0]
@@ -142,7 +147,7 @@ describe('CheckoutClient delivery display', () => {
   })
 
   it('shows the live rate plainly when the order does not qualify for free delivery', async () => {
-    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true }))
+    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true, codSurcharge: null }))
     renderCheckout()
 
     const shown = (await screen.findAllByText('₹79'))[0]
@@ -150,7 +155,7 @@ describe('CheckoutClient delivery display', () => {
   })
 
   it("shows the courier's delivery date when it quotes an ETA", async () => {
-    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true }))
+    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true, codSurcharge: null }))
     renderCheckout()
 
     expect((await screen.findAllByText(`Delivery by ${formatDeliveryDate(new Date(), 4)}`)).length).toBeGreaterThan(0)
@@ -166,7 +171,7 @@ describe('CheckoutClient delivery display', () => {
 
   it("replaces the generic '5–7 business days' reciprocity banner with the courier's real ETA once one is known", async () => {
     const user = userEvent.setup()
-    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true }))
+    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true, codSurcharge: null }))
     renderCheckout()
 
     await waitFor(() => expect(mockGetQuote).toHaveBeenCalled())
@@ -184,6 +189,32 @@ describe('CheckoutClient delivery display', () => {
     await user.click(screen.getAllByRole('button', { name: 'Continue to Payment' })[0])
 
     expect(await screen.findByText('Estimated delivery in 5–7 business days')).toBeInTheDocument()
+  })
+})
+
+describe('CheckoutClient COD surcharge', () => {
+  it('discloses the COD handling charge on the COD tile before the order is placed', async () => {
+    const user = userEvent.setup()
+    mockGetQuote.mockResolvedValue(
+      quoteWith(168, { fullFee: 140, source: 'live', etaDays: 3, codAvailable: true, codSurcharge: 28 })
+    )
+    renderCheckout()
+
+    await waitFor(() => expect(mockGetQuote).toHaveBeenCalled())
+    await user.click(screen.getAllByRole('button', { name: 'Continue to Payment' })[0])
+
+    expect(await screen.findByText(/Cash on Delivery adds a ₹28 handling charge/)).toBeInTheDocument()
+  })
+
+  it('shows no COD note when the courier quote carries no surcharge', async () => {
+    const user = userEvent.setup()
+    renderCheckout()
+
+    await waitFor(() => expect(mockGetQuote).toHaveBeenCalled())
+    await user.click(screen.getAllByRole('button', { name: 'Continue to Payment' })[0])
+    expect(await screen.findByText('Pay on Delivery')).toBeInTheDocument()
+
+    expect(screen.queryByText(/Cash on Delivery adds/)).toBeNull()
   })
 })
 
@@ -210,7 +241,7 @@ describe('CheckoutClient unserviceable pincode', () => {
   })
 
   it('leaves the way forward open for a serviceable pincode', async () => {
-    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true }))
+    mockGetQuote.mockResolvedValue(quoteWith(79, { fullFee: 79, source: 'live', etaDays: 4, codAvailable: true, codSurcharge: null }))
     renderCheckout()
 
     await waitFor(() => expect(mockGetQuote).toHaveBeenCalled())

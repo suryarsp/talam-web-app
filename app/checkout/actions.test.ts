@@ -158,7 +158,7 @@ describe('getQuoteAction', () => {
     expect(mockGetDeliveryEstimate).not.toHaveBeenCalled()
     if ('error' in result) throw new Error(result.error)
     expect(result.quote.shippingFee).toBe(99)
-    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null })
+    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null, codSurcharge: null })
   })
 
   it('charges the courier’s live rate instead of the flat fee once a pincode is known', async () => {
@@ -170,21 +170,21 @@ describe('getQuoteAction', () => {
     if ('error' in result) throw new Error(result.error)
     expect(result.quote.shippingFee).toBe(140)
     expect(result.quote.total).toBe(2140)
-    expect(result.delivery).toEqual({ fullFee: 140, source: 'live', etaDays: 3, codAvailable: true })
+    expect(result.delivery).toEqual({ fullFee: 140, source: 'live', etaDays: 3, codAvailable: true, codSurcharge: null })
   })
 
   it('weighs the parcel from each product’s own weight times its quantity', async () => {
     seedHappyPath({ weight: 0.8 })
     await getQuoteAction(CART, undefined, '625001')
 
-    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6 })
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6, cod: false })
   })
 
   it('falls back to the store’s default shipping weight for a product that has none', async () => {
     seedHappyPath({ weight: null })
     await getQuoteAction(CART, undefined, '625001')
 
-    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1 })
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1, cod: false })
   })
 
   it('refuses a pincode no courier delivers to', async () => {
@@ -204,7 +204,7 @@ describe('getQuoteAction', () => {
 
     if ('error' in result) throw new Error(result.error)
     expect(result.quote.shippingFee).toBe(99)
-    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null })
+    expect(result.delivery).toEqual({ fullFee: 99, source: 'flat', etaDays: null, codAvailable: null, codSurcharge: null })
   })
 
   it('reports what delivery would have cost when the order crosses the free-delivery threshold', async () => {
@@ -226,6 +226,48 @@ describe('getQuoteAction', () => {
     expect(result.quote.shippingFee).toBe(0)
     expect(result.delivery.fullFee).toBe(140)
     expect(result.delivery.source).toBe('live')
+  })
+
+  it('does not price a COD surcharge when the shopper has not chosen to pay COD', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    const result = await getQuoteAction(CART, undefined, '625001')
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledTimes(1)
+    if ('error' in result) throw new Error(result.error)
+    expect(result.quote.shippingFee).toBe(140)
+    expect(result.delivery.codSurcharge).toBeNull()
+  })
+
+  it('adds what COD costs over the prepaid rate once the shopper chooses to pay COD', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockImplementation(async (_tenantId, params: { cod?: boolean }) =>
+      params.cod
+        ? { serviceable: true, etaDays: 3, rate: 168, codAvailable: true }
+        : { serviceable: true, etaDays: 3, rate: 140, codAvailable: true }
+    )
+
+    const result = await getQuoteAction(CART, undefined, '625001', 'cod')
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledTimes(2)
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6, cod: true })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.delivery.fullFee).toBe(140)
+    expect(result.delivery.codSurcharge).toBe(28)
+    // The surcharge is folded into the one number actually charged...
+    expect(result.quote.shippingFee).toBe(168)
+    expect(result.quote.total).toBe(2168)
+  })
+
+  it('does not quote a COD surcharge a second time for UPI or Razorpay', async () => {
+    seedHappyPath({ price: 1000 })
+    mockGetDeliveryEstimate.mockResolvedValue({ serviceable: true, etaDays: 3, rate: 140, codAvailable: true })
+
+    await getQuoteAction(CART, undefined, '625001', 'razorpay')
+
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledTimes(1)
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6, cod: false })
   })
 })
 
@@ -464,7 +506,7 @@ describe('placeOrderAction', () => {
 
     await placeOrderAction(input)
 
-    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6 })
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '625001', weightKg: 1.6, cod: false })
     expect(mockDb.order.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ shippingFee: 140, total: 2140 }) })
     )
@@ -511,7 +553,7 @@ describe('placeOrderAction', () => {
 
     await placeOrderAction({ ...input, address: undefined, addressId: 'addr-1' })
 
-    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '600001', weightKg: 1.6 })
+    expect(mockGetDeliveryEstimate).toHaveBeenCalledWith('t1', { pincode: '600001', weightKg: 1.6, cod: false })
   })
 
   it('tells the customer their estimated delivery date in the confirmation email', async () => {

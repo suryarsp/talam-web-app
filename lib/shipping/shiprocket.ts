@@ -137,11 +137,14 @@ async function resolvePickupPincode(
  */
 export async function getDeliveryEstimate(
   tenantId: string,
-  params: { pincode: string; weightKg: number }
+  params: { pincode: string; weightKg: number; cod?: boolean }
 ): Promise<DeliveryEstimate> {
   // Rounded to one decimal so carts differing by grams share an entry — the quote is for a
-  // weight *band*, not an exact figure.
-  const cacheKey = `${tenantId}:${params.pincode}:${params.weightKg.toFixed(1)}`
+  // weight *band*, not an exact figure. COD and prepaid get separate entries because Shiprocket
+  // loads its own COD collection charge into `rate` when cod=1 is requested — same route and
+  // weight, a materially different price.
+  const cod = params.cod ?? false
+  const cacheKey = `${tenantId}:${params.pincode}:${params.weightKg.toFixed(1)}:${cod ? 'cod' : 'ppd'}`
   const cached = serviceabilityCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.result
 
@@ -160,13 +163,14 @@ export async function getDeliveryEstimate(
       (await resolvePickupPincode(tenantId, token, config.pickupLocation as string))
     if (!pickupPincode) return { error: PICKUP_NOT_FOUND }
 
-    // COD availability is always requested: it costs nothing extra on this call and saves a
-    // second round-trip the day a caller needs it.
+    // `cod` here is what the *caller* actually needs priced — not "should we mention COD is
+    // available." Requesting cod=1 unconditionally used to fold Shiprocket's COD collection
+    // charge into `rate` for every shopper, prepaid included.
     const result = await checkServiceability(token, {
       pickupPincode,
       deliveryPincode: params.pincode,
       weightKg: params.weightKg,
-      codEnabled: true,
+      codEnabled: cod,
     })
 
     serviceabilityCache.set(cacheKey, { result, expiresAt: Date.now() + SERVICEABILITY_TTL_MS })

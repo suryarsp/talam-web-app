@@ -72,9 +72,18 @@ export type QuoteDelivery = {
   source: 'live' | 'flat'
   etaDays: number | null
   codAvailable: boolean | null
+  /** What COD adds on top of `fullFee` for this pincode — null on the flat fallback, or when
+   *  the shopper hasn't chosen COD, so nothing has been quoted for it yet. */
+  codSurcharge: number | null
 }
 
-const FLAT_DELIVERY = (fee: number): QuoteDelivery => ({ fullFee: fee, source: 'flat', etaDays: null, codAvailable: null })
+const FLAT_DELIVERY = (fee: number): QuoteDelivery => ({
+  fullFee: fee,
+  source: 'flat',
+  etaDays: null,
+  codAvailable: null,
+  codSurcharge: null,
+})
 
 const NOT_SERVICEABLE = "We can't currently deliver to this pincode."
 
@@ -96,7 +105,8 @@ async function priceCart(
   tenantId: string,
   cart: CartLine[],
   couponCode?: string,
-  pincode?: string
+  pincode?: string,
+  paymentMethod: PaymentProvider = 'upi_manual'
 ): Promise<PricingContext | { error: string }> {
   const clean = cart.filter((l) => Number.isInteger(l.quantity) && l.quantity > 0)
   if (clean.length === 0) return { error: 'Your cart is empty.' }
@@ -140,7 +150,7 @@ async function priceCart(
     })
   }
 
-  const delivery = await quoteDelivery(tenantId, Number(tenant.shippingFee), pincode, weightKg)
+  const delivery = await quoteDelivery(tenantId, Number(tenant.shippingFee), pincode, weightKg, paymentMethod)
   if ('error' in delivery) return delivery
 
   const itemsTotal = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
@@ -175,7 +185,7 @@ async function priceCart(
     delivery,
     quote: computeQuote({
       lines,
-      shippingFee: delivery.fullFee,
+      shippingFee: delivery.fullFee + (delivery.codSurcharge ?? 0),
       freeDeliveryAbove: tenant.freeDeliveryAbove === null ? null : Number(tenant.freeDeliveryAbove),
       coupon: couponRow,
     }),
@@ -191,20 +201,33 @@ async function quoteDelivery(
   tenantId: string,
   flatFee: number,
   pincode: string | undefined,
-  weightKg: number
+  weightKg: number,
+  paymentMethod: PaymentProvider
 ): Promise<QuoteDelivery | { error: string }> {
   if (!pincode) return FLAT_DELIVERY(flatFee)
 
-  const estimate = await getDeliveryEstimate(tenantId, { pincode, weightKg })
+  // Always priced as prepaid first: Shiprocket folds its own COD collection charge into `rate`
+  // when cod=1 is requested, so this is the fare every non-COD shopper actually pays, and the
+  // one a COD shopper's base fee is compared against below.
+  const estimate = await getDeliveryEstimate(tenantId, { pincode, weightKg, cod: false })
   if ('error' in estimate) return FLAT_DELIVERY(flatFee)
   if (!estimate.serviceable) return { error: NOT_SERVICEABLE }
   if (estimate.rate === undefined) return FLAT_DELIVERY(flatFee)
+
+  let codSurcharge: number | null = null
+  if (paymentMethod === 'cod') {
+    const codEstimate = await getDeliveryEstimate(tenantId, { pincode, weightKg, cod: true })
+    if (!('error' in codEstimate) && codEstimate.serviceable && codEstimate.rate !== undefined) {
+      codSurcharge = Math.max(0, Math.round(codEstimate.rate - estimate.rate))
+    }
+  }
 
   return {
     fullFee: estimate.rate,
     source: 'live',
     etaDays: estimate.etaDays ?? null,
     codAvailable: estimate.codAvailable ?? null,
+    codSurcharge,
   }
 }
 
@@ -229,10 +252,11 @@ function toQuoteResult(priced: PricingContext): QuoteResult {
 export async function getQuoteAction(
   cart: CartLine[],
   couponCode?: string,
-  pincode?: string
+  pincode?: string,
+  paymentMethod: PaymentProvider = 'upi_manual'
 ): Promise<QuoteResult | { error: string }> {
   const { tenantId } = await requireTenant()
-  const priced = await priceCart(tenantId, cart, couponCode, pincode)
+  const priced = await priceCart(tenantId, cart, couponCode, pincode, paymentMethod)
   return isError(priced) ? priced : toQuoteResult(priced)
 }
 
@@ -351,7 +375,7 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<{ orderI
   const shippingAddress = await resolveAddress(tenantId, user?.id ?? '', addressInput)
   if (!shippingAddress) return { error: 'A delivery address is required.' }
 
-  const priced = await priceCart(tenantId, input.cart, input.couponCode, shippingAddress.pincode)
+  const priced = await priceCart(tenantId, input.cart, input.couponCode, shippingAddress.pincode, input.paymentProvider)
   if (isError(priced)) return priced
 
   let customerId: string

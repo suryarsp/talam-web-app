@@ -155,9 +155,14 @@ export function CheckoutClient({
   const addressPincode = usingNewAddress ? pincodeValue : (savedAddress?.pincode ?? '')
   const quotePincode = /^\d{6}$/.test(addressPincode) ? addressPincode : ''
 
+  // Declared ahead of the quote below: a COD surcharge is only fetched from Shiprocket once
+  // the shopper has actually chosen to pay COD, so the quote has to know the current selection.
+  const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : methods.razorpay ? 'razorpay' : 'cod'
+  const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>(firstMethod)
+
   const { data: quoteResult } = useSWR(
-    cartLines.length > 0 ? ['quote', cartKey, appliedCoupon, quotePincode] : null,
-    () => getQuoteAction(cartLines, appliedCoupon ?? undefined, quotePincode || undefined),
+    cartLines.length > 0 ? ['quote', cartKey, appliedCoupon, quotePincode, paymentMethod] : null,
+    () => getQuoteAction(cartLines, appliedCoupon ?? undefined, quotePincode || undefined, paymentMethod),
     { revalidateOnFocus: false }
   )
 
@@ -180,8 +185,6 @@ export function CheckoutClient({
   }, [items, quotedLines])
 
   // ── Payment ──
-  const firstMethod: PaymentProvider = methods.upi ? 'upi_manual' : methods.razorpay ? 'razorpay' : 'cod'
-  const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>(firstMethod)
   const [utr, setUtr] = useState('')
   const [paymentProofUrl, setPaymentProofUrl] = useState('')
   const [uploadingProof, setUploadingProof] = useState(false)
@@ -618,7 +621,14 @@ export function CheckoutClient({
                       badge="COD"
                       title="Pay on Delivery"
                       subtitle="Pay in cash or UPI when your order arrives"
-                    />
+                    >
+                      {delivery?.codSurcharge ? (
+                        <p className="mt-3 border-t border-border pt-3 font-body text-[13px] leading-[1.5] text-muted-warm">
+                          Cash on Delivery adds a ₹{delivery.codSurcharge} handling charge, already included in your
+                          total of ₹{total.toLocaleString('en-IN')} below.
+                        </p>
+                      ) : null}
+                    </PaymentTile>
                   )}
 
                   {!methods.upi && !methods.razorpay && !methods.cod && (

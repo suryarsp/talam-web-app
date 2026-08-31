@@ -250,6 +250,23 @@ describe('checkServiceability', () => {
     expect(await checkServiceability('tok', PARAMS)).toMatchObject({ etaDays: 3 })
   })
 
+  it('reports etaDays as unknown, not zero, when the courier gives no usable ETA field', async () => {
+    // Zero is a legitimate return from etaDaysFrom's internal fallthrough, but it must never
+    // reach a caller as a real ETA — formatDeliveryDate(new Date(), 0) reads as "today", which
+    // is a false promise for a pincode Shiprocket simply didn't quote a timeline for.
+    stubFetch(
+      ok({
+        data: {
+          available_courier_companies: [
+            courier({ estimated_delivery_days: undefined, etd_hours: undefined, etd: undefined }),
+          ],
+        },
+      })
+    )
+
+    expect(await checkServiceability('tok', PARAMS)).toMatchObject({ etaDays: undefined })
+  })
+
   it('reports an unserviceable pincode rather than throwing when no courier covers it', async () => {
     // An unserviceable pincode is an expected outcome at checkout, not a failure — the
     // caller has to be able to tell it apart from "Shiprocket is down".
