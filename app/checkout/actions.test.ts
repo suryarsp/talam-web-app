@@ -70,6 +70,7 @@ import {
   createRazorpayOrderAction,
   getQuoteAction,
   placeOrderAction,
+  retryOrderPaymentAction,
   validateCouponAction,
   verifyRazorpayPaymentAction,
 } from './actions'
@@ -722,5 +723,66 @@ describe('createRazorpayOrderAction / verifyRazorpayPaymentAction — guest chec
 
     expect(result).toEqual({ error: 'Payment could not be verified.' })
     expect(mockDb.order.updateMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('retryOrderPaymentAction', () => {
+  // Regression coverage for: a failed/dismissed Razorpay attempt followed by a UPI retry
+  // must reuse the same order, not mint a second one for the same cart.
+  const razorpayInput = {
+    cart: CART,
+    paymentProvider: 'razorpay' as const,
+    email: 'priya@example.com',
+    address: ADDRESS,
+  }
+
+  // mockGetUser/mockResolveGuestCustomer keep whatever the previous describe block last set
+  // them to (clearAllMocks doesn't reset implementations) — pin signed-in cust-1 explicitly
+  // so these tests don't depend on file execution order.
+  beforeEach(() => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'cust-1', email: 'priya@example.com' } } })
+  })
+
+  it('re-attaches a UPI retry to the order a failed Razorpay attempt already created, without placing a new order', async () => {
+    seedHappyPath()
+    expect(await placeOrderAction(razorpayInput)).toEqual({ orderId: 'order-1' })
+    expect(mockDb.order.create).toHaveBeenCalledTimes(1)
+
+    mockDb.order.updateMany.mockResolvedValue({ count: 1 })
+    const result = await retryOrderPaymentAction('order-1', { paymentProvider: 'upi_manual', utr: '123456789012' })
+
+    expect(result).toEqual({ orderId: 'order-1' })
+    // Still exactly one order.create call for this checkout — the retry only updated it.
+    expect(mockDb.order.create).toHaveBeenCalledTimes(1)
+    expect(mockDb.order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'order-1', tenantId: 't1', customerId: 'cust-1', paymentStatus: { in: ['pending', 'failed'] } },
+      data: { paymentProvider: 'upi_manual', paymentId: '123456789012', paymentProofUrl: null, paymentStatus: 'pending' },
+    })
+  })
+
+  it('rejects a UPI retry with neither a UTR nor a payment proof, without touching the database', async () => {
+    const result = await retryOrderPaymentAction('order-1', { paymentProvider: 'upi_manual' })
+
+    expect(result).toEqual({ error: 'Enter the 12-digit UPI reference number, or upload a payment screenshot.' })
+    expect(mockDb.order.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('refuses to retry an order this guest browser never placed, without touching the database', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+
+    const result = await retryOrderPaymentAction('someone-elses-order', { paymentProvider: 'upi_manual', utr: '123456789012' })
+
+    expect(result).toEqual({ error: 'Order not found.' })
+    expect(mockDb.order.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('reports "not found" when the order is already paid or otherwise not open for retry', async () => {
+    seedHappyPath()
+    await placeOrderAction(razorpayInput)
+
+    mockDb.order.updateMany.mockResolvedValue({ count: 0 })
+    const result = await retryOrderPaymentAction('order-1', { paymentProvider: 'cod' })
+
+    expect(result).toEqual({ error: 'Order not found.' })
   })
 })

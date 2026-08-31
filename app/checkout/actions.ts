@@ -580,6 +580,50 @@ async function notifyOrderPlaced(params: {
   }
 }
 
+/**
+ * Re-attaches a fresh payment attempt to an ALREADY-CREATED pending order, instead of the
+ * caller creating a new one. Without this, every failed/retried payment (e.g. Razorpay
+ * declines, then the shopper switches to UPI) would mint a duplicate order — same cart,
+ * same stock decrement, same total — because placeOrderAction has no notion of "resume."
+ * Only ever touches payment fields; pricing, stock and the order-placed notification were
+ * already settled when the order was first created and must not run again.
+ */
+export async function retryOrderPaymentAction(
+  orderId: string,
+  input: { paymentProvider: Exclude<PaymentProvider, 'razorpay'>; utr?: string; paymentProofUrl?: string }
+): Promise<{ orderId: string } | { error: string }> {
+  const { tenantId } = await requireTenant()
+  const {
+    data: { user },
+  } = await (await createServerClient()).auth.getUser()
+
+  const customerId = user ? user.id : await readGuestOrderCustomerId(orderId)
+  if (!customerId) return { error: 'Order not found.' }
+
+  const hasValidUtr = /^\d{12}$/.test(input.utr ?? '')
+  if (input.paymentProvider === 'upi_manual' && !hasValidUtr && !input.paymentProofUrl) {
+    return { error: 'Enter the 12-digit UPI reference number, or upload a payment screenshot.' }
+  }
+
+  const result = await withTenant(tenantId, (db) =>
+    db.order.updateMany({
+      // Only a still-open order may be redirected to a new payment method — a webhook
+      // marking the original Razorpay attempt 'failed' after the shopper already moved
+      // on to UPI must not block them from completing checkout.
+      where: { id: orderId, tenantId, customerId, paymentStatus: { in: ['pending', 'failed'] } },
+      data: {
+        paymentProvider: input.paymentProvider,
+        paymentId: input.paymentProvider === 'upi_manual' ? (input.utr || null) : null,
+        paymentProofUrl: input.paymentProvider === 'upi_manual' ? (input.paymentProofUrl ?? null) : null,
+        paymentStatus: 'pending',
+      },
+    })
+  )
+  if (result.count === 0) return { error: 'Order not found.' }
+
+  return { orderId }
+}
+
 // ── Razorpay ──
 
 export async function createRazorpayOrderAction(

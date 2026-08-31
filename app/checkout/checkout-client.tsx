@@ -26,6 +26,7 @@ import {
   getQuoteAction,
   getUpiQrAction,
   placeOrderAction,
+  retryOrderPaymentAction,
   uploadPaymentProofAction,
   validateCouponAction,
   verifyRazorpayPaymentAction,
@@ -192,6 +193,15 @@ export function CheckoutClient({
   const [placing, setPlacing] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [orderPlaced, setOrderPlaced] = useState(false)
+  // Set once placeOrderAction succeeds; a retried payment (method switch, or another
+  // Razorpay attempt) reuses this order instead of placeOrderAction minting a duplicate.
+  // Cleared whenever the shopper steps back out of payment, since editing the address
+  // there would make the held order stale.
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  function backToAddress() {
+    setPendingOrderId(null)
+    setStep(2)
+  }
 
   // QR is regenerated whenever the amount could have changed — it encodes the exact total.
   const { data: qrResult } = useSWR(
@@ -241,25 +251,48 @@ export function CheckoutClient({
     setPlaceError('')
     setPlacing(true)
 
-    const result = await placeOrderAction({
-      cart: cartLines,
-      couponCode: appliedCoupon ?? undefined,
-      paymentProvider: paymentMethod,
-      email: email.trim(),
-      addressId: usingNewAddress ? undefined : selectedAddressId,
-      address: usingNewAddress ? (newAddress as AddressForm) : undefined,
-      utr: paymentMethod === 'upi_manual' ? utr : undefined,
-      paymentProofUrl: paymentMethod === 'upi_manual' ? paymentProofUrl || undefined : undefined,
-    })
+    let orderId: string
+    if (pendingOrderId && paymentMethod !== 'razorpay') {
+      // A prior Razorpay attempt on this order failed/was dismissed and the shopper is now
+      // retrying with a different method — reuse that order rather than placing a new one.
+      const retried = await retryOrderPaymentAction(pendingOrderId, {
+        paymentProvider: paymentMethod,
+        utr: paymentMethod === 'upi_manual' ? utr : undefined,
+        paymentProofUrl: paymentMethod === 'upi_manual' ? paymentProofUrl || undefined : undefined,
+      })
+      if ('error' in retried) {
+        setPlacing(false)
+        setPlaceError(retried.error)
+        return
+      }
+      orderId = retried.orderId
+    } else if (pendingOrderId) {
+      // Retrying Razorpay itself on the same order — createRazorpayOrderAction below
+      // already re-attaches a fresh Razorpay order to it.
+      orderId = pendingOrderId
+    } else {
+      const result = await placeOrderAction({
+        cart: cartLines,
+        couponCode: appliedCoupon ?? undefined,
+        paymentProvider: paymentMethod,
+        email: email.trim(),
+        addressId: usingNewAddress ? undefined : selectedAddressId,
+        address: usingNewAddress ? (newAddress as AddressForm) : undefined,
+        utr: paymentMethod === 'upi_manual' ? utr : undefined,
+        paymentProofUrl: paymentMethod === 'upi_manual' ? paymentProofUrl || undefined : undefined,
+      })
 
-    if ('error' in result) {
-      setPlacing(false)
-      setPlaceError(result.error)
-      return
+      if ('error' in result) {
+        setPlacing(false)
+        setPlaceError(result.error)
+        return
+      }
+      orderId = result.orderId
+      setPendingOrderId(orderId)
     }
 
     if (paymentMethod === 'razorpay') {
-      const ok = await payWithRazorpay(result.orderId)
+      const ok = await payWithRazorpay(orderId)
       if (!ok) {
         setPlacing(false)
         // The order exists as pending — the customer can retry payment from their orders page.
@@ -270,7 +303,7 @@ export function CheckoutClient({
 
     setOrderPlaced(true)
     clear()
-    router.push(`${storeBase}/checkout/confirmed/${result.orderId}`)
+    router.push(`${storeBase}/checkout/confirmed/${orderId}`)
   }
 
   async function payWithRazorpay(orderId: string): Promise<boolean> {
@@ -312,7 +345,7 @@ export function CheckoutClient({
     <div className="min-h-screen bg-bg pb-28 sm:pb-10">
       <CheckoutHeader
         storeName={storeName}
-        onBack={step === 1 ? () => router.push(cartHref) : () => setStep((s) => (s - 1) as 1 | 2)}
+        onBack={step === 1 ? () => router.push(cartHref) : step === 3 ? backToAddress : () => setStep(1)}
       />
       <StepIndicator current={step} />
 
@@ -473,7 +506,7 @@ export function CheckoutClient({
                 <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="font-body text-[13px] font-bold text-fg">Delivering To</span>
-                    <button onClick={() => setStep(2)} className="font-body text-xs font-semibold text-store-primary">
+                    <button onClick={backToAddress} className="font-body text-xs font-semibold text-store-primary">
                       Edit
                     </button>
                   </div>
