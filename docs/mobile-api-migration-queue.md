@@ -52,7 +52,7 @@ _(automation appends a one-line note here if it has to stall — e.g. "waiting o
 - [x] Convert `store/cart/actions.ts → getEmptyCartSuggestions` to `GET /api/v1/store/cart/suggestions` — [PR #37](https://github.com/suryatalamsevai/talam-web-app/pull/37) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [x] Convert `store/wishlist/actions.ts → toggleWishlistAction` to `POST /api/v1/store/wishlist` — [PR #38](https://github.com/suryatalamsevai/talam-web-app/pull/38) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [x] Convert `store/orders/actions.ts → reportOrderProblemAction` to `POST /api/v1/store/orders/{id}/report` — [PR #39](https://github.com/suryatalamsevai/talam-web-app/pull/39) (open, targets `mobile-api/phase-0-foundation` per gating rule)
-- [ ] Convert `account/addresses/actions.ts → createAddress` to `POST /api/v1/store/addresses`
+- [x] Convert `account/addresses/actions.ts → createAddress` to `POST /api/v1/store/addresses` — [PR #40](https://github.com/suryatalamsevai/talam-web-app/pull/40) (open, targets `mobile-api/phase-0-foundation` per gating rule)
 - [ ] Convert `account/profile/actions.ts → updateCustomerProfile` to `PATCH /api/v1/store/profile`
 - [ ] Convert `onboarding/actions.ts → saveOnboardingAction` to `POST /api/v1/store/onboarding`
 - [ ] Net-new: cart / addresses / profile reads (currently RSC) → matching `GET` routes
